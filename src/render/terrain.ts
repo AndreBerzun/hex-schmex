@@ -8,8 +8,9 @@
 import * as THREE from 'three';
 import { TERRAIN_FS, TERRAIN_VS } from './terrainShader';
 
-const GRID_N = 64;
-const MAX_NODES = 4096;
+const GRID_N = 32;
+const MAX_NODES = 1024;
+const MIN_RANGE_K = 2.5;
 
 export interface HeightSource {
   texture: THREE.Texture;
@@ -104,13 +105,15 @@ export class Terrain {
   private box = new THREE.Box3();
   private projView = new THREE.Matrix4();
   exag = 1.5;
-  /** LOD range multiplier: range of level 0 = leafKm * rangeK (higher = more triangles) */
-  rangeK = 4;
+  /** target edge length of a mesh quad on screen, in pixels, at the distance a patch splits */
+  pxPerQuad = 8;
+  rangeK = MIN_RANGE_K;
   /** extra metres of slack in bounds (erosion/deposition, water) */
   boundsSlackM = 150;
   /** how far the surround extends beyond the map, as a fraction of the larger map side */
   surround = 0.7;
   nodeCount = 0;
+  private order: { x0: number; z0: number; size: number; level: number; d: number }[] = [];
 
   constructor(uniforms: Record<string, THREE.IUniform>) {
     this.geom = makePatchGeometry(GRID_N);
@@ -127,8 +130,7 @@ export class Terrain {
   setSource(src: HeightSource, worldW: number, worldH: number) {
     this.worldW = worldW;
     this.worldH = worldH;
-    // leaf patches have ~2 vertices per height texel so close-up detail has geometry to live on
-    this.leafKm = (GRID_N * src.kmPerPx) / 2;
+    this.leafKm = GRID_N * src.kmPerPx;
     const ext = Math.max(worldW, worldH) * this.surround;
     const span = Math.max(worldW, worldH) + 2 * ext;
     this.maxLevel = Math.max(1, Math.ceil(Math.log2(span / this.leafKm)));
@@ -140,7 +142,13 @@ export class Terrain {
     this.material.uniforms.uLeafRange.value = this.leafKm * this.rangeK;
   }
 
-  update(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera, showSurround = true) {
+  /** Mesh density follows the viewport, so a bigger window does not mean thinner triangles. */
+  setViewportHeight(px: number, fovDeg: number) {
+    const pxAtUnitDistance = px / (2 * Math.tan((fovDeg * Math.PI) / 360));
+    this.rangeK = Math.max(MIN_RANGE_K, pxAtUnitDistance / (GRID_N * this.pxPerQuad));
+  }
+
+  update(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera, showSurround = true, viewportWidthPx = 1500) {
     if (!this.bounds) return;
     this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projView);
@@ -157,8 +165,7 @@ export class Terrain {
     if (ortho) {
       const oc = camera as THREE.OrthographicCamera;
       const viewKm = (oc.right - oc.left) / oc.zoom;
-      // ~1 patch vertex per 2 screen pixels at 1500 px wide
-      orthoLeafRatio = Math.max(1, ((viewKm / 1500) * 2 * GRID_N) / this.leafKm);
+      orthoLeafRatio = Math.max(1, ((viewKm / viewportWidthPx) * this.pxPerQuad * GRID_N) / this.leafKm);
     }
     const visit = (ix: number, iz: number, level: number) => {
       const size = this.leafKm * Math.pow(2, level);
@@ -171,7 +178,8 @@ export class Terrain {
       if (!this.frustum.intersectsBox(this.box)) return;
       const add = () => {
         if (count >= MAX_NODES) return;
-        arr[count * 4] = x0; arr[count * 4 + 1] = z0; arr[count * 4 + 2] = size; arr[count * 4 + 3] = level;
+        const dx = Math.max(x0 - cam.x, cam.x - x0 - size, 0), dz = Math.max(z0 - cam.z, cam.z - z0 - size, 0);
+        this.order[count] = { x0, z0, size, level, d: dx * dx + dz * dz };
         count++;
       };
       if (level === 0) return add();
@@ -185,6 +193,11 @@ export class Terrain {
       visit(ix * 2 + 1, iz * 2 + 1, level - 1);
     };
     visit(0, 0, this.maxLevel);
+    const visible = this.order.slice(0, count).sort((a, b) => a.d - b.d);
+    for (let i = 0; i < count; i++) {
+      const n = visible[i];
+      arr[i * 4] = n.x0; arr[i * 4 + 1] = n.z0; arr[i * 4 + 2] = n.size; arr[i * 4 + 3] = n.level;
+    }
     (this.geom.getAttribute('aNode') as THREE.InstancedBufferAttribute).needsUpdate = true;
     this.geom.instanceCount = count;
     this.nodeCount = count;

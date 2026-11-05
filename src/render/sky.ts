@@ -1,7 +1,7 @@
 // Analytic sky drawn as a full-screen background pass, and the skirt that closes the terrain edges.
 
 import * as THREE from 'three';
-import { ATMOS, NOISE } from './glsl';
+import { ATMOS } from './glsl';
 
 export class Sky {
   readonly mesh: THREE.Mesh;
@@ -14,7 +14,8 @@ export class Sky {
       vertexShader: /* glsl */ `
         varying vec2 vNdc;
         void main() { vNdc = position.xy; gl_Position = vec4(position.xy, 1.0, 1.0); }`,
-      fragmentShader: ATMOS + NOISE + /* glsl */ `
+      fragmentShader: ATMOS + /* glsl */ `
+        uniform sampler2D uNoise;
         uniform mat4 uInvViewProj;
         uniform vec3 uCamPos;
         varying vec2 vNdc;
@@ -25,7 +26,7 @@ export class Sky {
           // a few soft cumulus near the horizon band for scale and mood
           if (dir.y > 0.0) {
             vec2 cp = dir.xz / (dir.y + 0.08) * 1.6;
-            float cl = smoothstep(0.15, 0.65, gnoise(cp) * 0.6 + gnoise(cp * 2.3) * 0.3 + gnoise(cp * 5.1) * 0.15 + 0.1);
+            float cl = smoothstep(0.15, 0.65, (texture2D(uNoise, cp / 32.0).r - 0.5) * 3.0 * 1.05 + 0.1);
             cl *= smoothstep(0.0, 0.12, dir.y) * (1.0 - smoothstep(0.35, 0.8, dir.y));
             float lit = 0.75 + 0.25 * max(dot(dir, uSunDir), 0.0);
             c = mix(c, mix(uSkyHorizon, vec3(1.0), 0.7) * lit * 1.05, cl * 0.75);
@@ -33,11 +34,10 @@ export class Sky {
           gl_FragColor = vec4(toDisplay(c), 1.0);
         }`,
       depthWrite: false,
-      depthTest: false,
     });
     this.mesh = new THREE.Mesh(g, this.material);
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = -10;
+    this.mesh.renderOrder = 5;
   }
 
   update(camera: THREE.Camera) {

@@ -13,6 +13,7 @@ import { DerivedMaps } from '../gpu/derived';
 import { Erosion } from '../gpu/erosion';
 import { HexLabels } from '../render/labels';
 import { Sky, Skirt } from '../render/sky';
+import { bakeNoiseLut } from '../render/noiseLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { WorkerClient } from './workerClient';
 
@@ -99,7 +100,7 @@ export class App {
   private fpsAcc = { t: 0, n: 0, fps: 0 };
 
   constructor(canvas: HTMLCanvasElement, opts: { preserveDrawingBuffer?: boolean } = {}) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: !!opts.preserveDrawingBuffer, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: new URLSearchParams(location.search).get('aa') !== '0', preserveDrawingBuffer: !!opts.preserveDrawingBuffer, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // shaders output display-ready colour
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
@@ -146,6 +147,7 @@ export class App {
       uDebug: { value: 0 },
       uRiverMinLog: { value: 2.1 },
       uDetailOn: { value: 1 },
+      uNoise: { value: bakeNoiseLut(this.gc) },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
       uSunColor: { value: new THREE.Color(1, 0.95, 0.85) },
       uSkyZenith: { value: new THREE.Color() },
@@ -616,6 +618,7 @@ export class App {
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
     this.labels.setViewport(w, h);
+    this.terrain.setViewportHeight(h * this.renderer.getPixelRatio(), this.camera.fov);
     this.updateOrtho();
   }
 
@@ -723,7 +726,7 @@ export class App {
     cam.updateMatrixWorld();
     if (this.settings.mapMode) this.terrain.material.uniforms.uLeafRange.value = 1e9;
     else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * this.terrain.rangeK;
-    this.terrain.update(cam, !this.settings.mapMode);
+    this.terrain.update(cam, !this.settings.mapMode, this.renderer.domElement.width);
     this.sky.update(cam);
     this.skirt.mesh.visible = !this.settings.mapMode;
     this.renderer.setRenderTarget(null);

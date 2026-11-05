@@ -1,6 +1,7 @@
 // Terrain material: CDLOD vertex shader + rule-based surface materials, lighting, water, haze, hex overlay.
 
-import { ATMOS, NOISE } from './glsl';
+import { ATMOS } from './glsl';
+import { NOISE_LUT } from './noiseLut';
 
 export const TERRAIN_VS = /* glsl */ `
 attribute vec4 aNode; // x0, z0 (km), size (km), level
@@ -48,7 +49,7 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 
-export const TERRAIN_FS = ATMOS + NOISE + /* glsl */ `
+export const TERRAIN_FS = ATMOS + NOISE_LUT + /* glsl */ `
 uniform sampler2D uHeight;
 uniform float uHeightScale;
 uniform sampler2D uData;      // r moisture, g log10 drainage km², b deposition m, a river-op mask
@@ -140,6 +141,7 @@ void main() {
   vec3 V = -camToFrag / max(dist, 1e-5);
   vec2 xz = vWorld.xz;
   float fw = max(length(fwidth(xz)), 1e-5); // km per pixel here
+  gFw = fw;
 
   float h = H(uv);
   float ck = uCellKm;
@@ -155,12 +157,8 @@ void main() {
   vec2 dgrad = vec2(0.0);
   if (detailFade > 0.0) {
     float ws = 0.18; // km
-    float eps = 0.02;
-    float n0 = fbmAA(xz / ws, fw / ws, 4);
-    float nx = fbmAA((xz + vec2(eps, 0.0)) / ws, fw / ws, 4);
-    float nz = fbmAA((xz + vec2(0.0, eps)) / ws, fw / ws, 4);
     float amp = 14.0 * (0.3 + 1.6 * clamp(length(grad), 0.0, 1.0));
-    dgrad = vec2(nx - n0, nz - n0) / (eps * 1000.0) * amp * detailFade;
+    dgrad = noiseGradAt(xz, ws) / (ws * 1000.0) * amp * detailFade;
   }
   float g = length(grad + dgrad * 0.5);
   vec3 n = normalize(vec3(-(grad.x + dgrad.x) * uExag, 1.0, -(grad.y + dgrad.y) * uExag));
@@ -175,9 +173,9 @@ void main() {
   float depth = wl - h;
 
   // ---- noise fields (km space)
-  float nBig = fbmAA(xz / 9.0, fw / 9.0, 4);      // regional patchiness
-  float nMid = fbmAA(xz / 1.3, fw / 1.3, 5);      // stands, meadows
-  float nFine = fbmAA(xz / 0.12, fw / 0.12, 4);   // texture
+  float nBig = noiseAt(xz, 9.0);      // regional patchiness
+  float nMid = noiseAt(xz, 1.3);      // stands, meadows
+  float nFine = noiseAt(xz, 0.12);    // texture
 
   // ---- materials (sRGB-authored, converted to linear)
   vec3 cGrass = srgb(vec3(0.37, 0.45, 0.21));
@@ -199,9 +197,9 @@ void main() {
   float drySide = clamp(1.0 - moist * 1.6 + uTemp * 0.3, 0.0, 1.0);
   vec3 col = mix(mix(cGrass, cMeadow, smoothstep(-0.3, 0.4, nMid)), cDry, smoothstep(0.35, 0.75, drySide + nBig * 0.15));
   // close-up ground texture: tussocks, bare soil, flowers of colour variation
-  float gt = fbmAA(xz / 0.02, fw / 0.02, 3);
+  float gt = noiseAt(xz, 0.02);
   col *= 0.88 + 0.24 * (gt * 0.5 + 0.5);
-  col = mix(col, srgb(vec3(0.42, 0.36, 0.25)), smoothstep(0.55, 0.85, fbmAA(xz / 0.25 + 3.0, fw / 0.25, 3)) * 0.35);
+  col = mix(col, srgb(vec3(0.42, 0.36, 0.25)), smoothstep(0.55, 0.85, noiseAt(xz + 0.75, 0.25)) * 0.35);
   // above the treeline: thin alpine turf, browner and stonier
   float alpine = smoothstep(uTreeline - 50.0, uTreeline + 350.0, elev + nMid * 120.0);
   col = mix(col, cAlpine * (0.9 + 0.2 * nFine), alpine * (1.0 - drySide * 0.5));
@@ -226,10 +224,10 @@ void main() {
                * (1.0 - marsh * 0.8) * (1.0 - desert);
   forest = smoothstep(0.35, 0.65, forest);
   vec3 fcol = mix(cForest, cConifer, smoothstep(tl - 900.0, tl - 200.0, elev));
-  float crowns = fbmAA(xz / 0.035, fw / 0.035, 3);
+  float crowns = noiseAt(xz, 0.035);
   // individual crowns with dark gaps between them, only where they resolve on screen
   float crownVis = 1.0 - smoothstep(0.006, 0.02, fw);
-  float gaps = smoothstep(0.25, 0.7, vnoise(xz / 0.012));
+  float gaps = crownVis > 0.0 ? smoothstep(0.25, 0.7, cellAt(xz, 0.012)) : 1.0;
   fcol *= 0.85 + 0.25 * (nFine * 0.5 + 0.5) + 0.2 * crowns;
   fcol *= mix(1.0, 0.55 + 0.6 * gaps, crownVis);
   col = mix(col, fcol, forest);
@@ -237,8 +235,7 @@ void main() {
   // canopy bumps: perturb the normal where forested (reads as volume at grazing light)
   if (forest > 0.01) {
     float cs = 0.06;
-    float c0 = fbmAA(xz / cs, fw / cs, 3), c1 = fbmAA((xz + vec2(0.01, 0.0)) / cs, fw / cs, 3), c2 = fbmAA((xz + vec2(0.0, 0.01)) / cs, fw / cs, 3);
-    vec2 cg = vec2(c1 - c0, c2 - c0) / 0.01 * 0.012 * forest;
+    vec2 cg = noiseGradAt(xz, cs) / cs * 0.012 * forest;
     n = normalize(n + vec3(-cg.x, 0.0, -cg.y));
   }
 
@@ -296,7 +293,8 @@ void main() {
     vec3 shallow = isWater ? srgb(vec3(0.2, 0.52, 0.52)) : srgb(vec3(0.24, 0.38, 0.4));
     vec3 deep = srgb(vec3(0.03, 0.13, 0.27));
     vec3 wcol = mix(shallow, deep, 1.0 - exp(-d / 25.0));
-    vec3 wn = normalize(vec3(fbmAA(xz / 0.08, fw / 0.08, 2) * 0.04, 1.0, fbmAA(xz / 0.08 + 7.0, fw / 0.08, 2) * 0.04));
+    vec2 ripple = noiseGradAt(xz, 0.08) * 0.008;
+    vec3 wn = normalize(vec3(ripple.x, 1.0, ripple.y));
     float fres = 0.02 + 0.98 * pow(1.0 - max(dot(wn, V), 0.0), 5.0);
     vec3 refl = skyColor(reflect(-V, wn));
     vec3 wc = wcol * (uSunColor * max(dot(wn, uSunDir), 0.0) * shadow * 1.4 + skyAmb * 0.7);
