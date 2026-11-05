@@ -357,8 +357,8 @@ export class Erosion {
   }
 
   /** Read back terrain (metres), water depth (m) and deposition. */
-  readback(): { height: Float32Array; water: Float32Array; deposit: Float32Array } {
-    const raw = this.gc.read(this.T.read);
+  async readback(): Promise<{ height: Float32Array; water: Float32Array; deposit: Float32Array }> {
+    const raw = await this.gc.readAsync(this.T.read);
     const n = this.nx * this.ny;
     const height = new Float32Array(n), water = new Float32Array(n), deposit = new Float32Array(n);
     for (let i = 0; i < n; i++) {

@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "shots": "tsx scripts/shots.ts",
+    "perf": "tsx scripts/perf.ts",
     "terrain": "tsx scripts/terrain.ts"
   },
   "dependencies": {

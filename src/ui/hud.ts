@@ -47,7 +47,7 @@ export function mountHud(app: App) {
     const t = app.timings;
     const cam = app.camera.position;
     const agl = (cam.y / (0.001 * app.settings.exag) - app.surfaceAt(cam.x, cam.z)) / 1000;
-    stats.textContent = `${app.fps.toFixed(0)} fps · ${app.terrain.nodeCount} patches · alt ${agl.toFixed(1)} km` +
+    stats.textContent = `${app.frameGpuMs.toFixed(1)} ms gpu · ${app.terrain.nodeCount} patches · alt ${agl.toFixed(1)} km` +
       (t.evaluate ? ` · ops ${t.evaluate.toFixed(0)} ms` : '') +
       (t.erosion ? ` · erosion ${(t.erosion / 1000).toFixed(1)} s` : '') +
       (t.hydrology ? ` · hydro ${t.hydrology.toFixed(0)} ms` : '');
