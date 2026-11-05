@@ -83,6 +83,20 @@ function bands(rows: number): { y: number; height: number }[] {
   return out;
 }
 
+const SURFACE_FS = HEIGHT_COMMON + /* glsl */ `
+void main() {
+  float h = H(vUv);
+  float hL = H(vUv - vec2(uTexel.x, 0.0)), hR = H(vUv + vec2(uTexel.x, 0.0));
+  float hD = H(vUv - vec2(0.0, uTexel.y)), hU = H(vUv + vec2(0.0, uTexel.y));
+  vec2 grad = vec2(hR - hL, hU - hD) / (2.0 * uCellM);
+  outColor = vec4(grad, (hL + hR + hD + hU - 4.0 * h) / uCellM, length(grad));
+}`;
+
+const SETTLED_HEIGHT_FS = HEIGHT_COMMON + /* glsl */ `
+void main() {
+  outColor = vec4(H(vUv));
+}`;
+
 export class DerivedMaps {
   readonly gc: GPUCompute;
   private shadowMat: THREE.RawShaderMaterial;
@@ -92,6 +106,10 @@ export class DerivedMaps {
   private showing: LightingMaps | null = null;
   private job: { run: () => void }[] = [];
   private jobEnd: (() => void) | null = null;
+  private surfaceMat: THREE.RawShaderMaterial;
+  private settledMat: THREE.RawShaderMaterial;
+  private surfaceTarget: THREE.WebGLRenderTarget | null = null;
+  private settledTarget: THREE.WebGLRenderTarget | null = null;
 
   constructor(gc: GPUCompute) {
     this.gc = gc;
@@ -100,6 +118,42 @@ export class DerivedMaps {
     });
     this.shadowMat = gc.material(SHADOW_FS, { ...u(), uSun: { value: new THREE.Vector3(0, 1, 0) } });
     this.aoMat = gc.material(AO_FS, u());
+    this.surfaceMat = gc.material(SURFACE_FS, u());
+    this.settledMat = gc.material(SETTLED_HEIGHT_FS, u());
+  }
+
+  private mipmapped(previous: THREE.WebGLRenderTarget | null, w: number, h: number, format: THREE.AnyPixelFormat, type: THREE.TextureDataType, internal: 'RGBA16F' | 'R32F') {
+    if (previous && previous.width === w && previous.height === h) return previous;
+    previous?.dispose();
+    const rt = new THREE.WebGLRenderTarget(w, h, {
+      type,
+      format: format as THREE.PixelFormat,
+      internalFormat: internal,
+      minFilter: THREE.LinearMipmapLinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
+      generateMipmaps: true,
+    });
+    return rt;
+  }
+
+  /** Slope, curvature and mean slope per texel: one mipmapped fetch per pixel instead of five raw ones. */
+  surface(s: LightingSource): THREE.Texture {
+    this.surfaceTarget = this.mipmapped(this.surfaceTarget, s.w, s.h, THREE.RGBAFormat, THREE.HalfFloatType, 'RGBA16F');
+    this.bind(this.surfaceMat, s, s.w, s.h);
+    this.surfaceMat.uniforms.uExag.value = 1;
+    this.gc.run(this.surfaceMat, this.surfaceTarget);
+    return this.surfaceTarget.texture;
+  }
+
+  /** The finished height field in metres, single channel and mipmapped, for the time after the simulation. */
+  settledHeight(s: LightingSource): THREE.Texture {
+    this.settledTarget = this.mipmapped(this.settledTarget, s.w, s.h, THREE.RedFormat, THREE.FloatType, 'R32F');
+    this.bind(this.settledMat, s, s.w, s.h);
+    this.settledMat.uniforms.uExag.value = 1;
+    this.gc.run(this.settledMat, this.settledTarget);
+    return this.settledTarget.texture;
   }
 
   get current(): { shadow: THREE.Texture; ao: THREE.Texture } {

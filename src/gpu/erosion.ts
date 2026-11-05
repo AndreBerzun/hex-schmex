@@ -369,8 +369,13 @@ export class Erosion {
     return { height, water, deposit };
   }
 
-  dispose() {
+  /** Frees the simulation's GPU memory between bakes; the next `start` allocates it again. */
+  releaseTargets() {
     this.T.dispose(); this.F.dispose(); this.V.dispose(); this.O1.dispose(); this.O2.dispose();
+  }
+
+  dispose() {
+    this.releaseTargets();
     for (const k in this.mats) this.mats[k].dispose();
   }
 }

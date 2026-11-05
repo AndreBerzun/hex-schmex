@@ -52,13 +52,12 @@ void main() {
 export const TERRAIN_FS = ATMOS + NOISE_LUT + /* glsl */ `
 uniform sampler2D uHeight;
 uniform float uHeightScale;
+uniform sampler2D uSurf;      // rg slope, b curvature (>0 concave), a mean slope magnitude
 uniform sampler2D uData;      // r moisture, g log10 drainage km², b deposition m, a river-op mask
 uniform sampler2D uWaterTex;  // water surface level, m
 uniform sampler2D uShadowTex;
 uniform sampler2D uAOTex;
 uniform vec2 uWorldKm;
-uniform vec2 uTexel;          // height texel in uv
-uniform float uCellKm;        // height texel in km
 uniform float uSea;
 uniform float uMaxElev;
 uniform float uSnowline;
@@ -85,8 +84,6 @@ varying float vOut;
 
 float H(vec2 uv) { return texture2D(uHeight, uv).r * uHeightScale; }
 vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
-// height at a world position (km), mirrored outside the map so gradients stay continuous
-float Hw(vec2 xz) { return H(mirrorUv(xz / uWorldKm)); }
 
 float sdHexFlat(vec2 p, float r) {
   const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
@@ -144,13 +141,10 @@ void main() {
   gFw = fw;
 
   float h = H(uv);
-  float ck = uCellKm;
-  float hL = Hw(xz - vec2(ck, 0.0)), hR = Hw(xz + vec2(ck, 0.0));
-  float hD = Hw(xz - vec2(0.0, ck)), hU = Hw(xz + vec2(0.0, ck));
-  float cellM = uCellKm * 1000.0;
   float outside = 1.0 - exp(-max(vOut, 0.0) / 30.0);
-  vec2 grad = vec2(hR - hL, hU - hD) / (2.0 * cellM);
-  float lap = (hL + hR + hD + hU - 4.0 * h) / cellM; // >0 concave (gully), <0 convex (ridge)
+  vec4 surf = texture2D(uSurf, uv);
+  vec2 grad = surf.rg * sign(1.0 - mod(xz / uWorldKm, 2.0));
+  float lap = surf.b;
 
   // close-up procedural detail: ridged micro-relief on slopes, fading where it would alias
   float detailFade = uDetailOn * (1.0 - smoothstep(0.004, 0.03, fw));
@@ -160,7 +154,7 @@ void main() {
     float amp = 14.0 * (0.3 + 1.6 * clamp(length(grad), 0.0, 1.0));
     dgrad = noiseGradAt(xz, ws) / (ws * 1000.0) * amp * detailFade;
   }
-  float g = length(grad + dgrad * 0.5);
+  float g = max(surf.a, length(grad + dgrad * 0.5));
   vec3 n = normalize(vec3(-(grad.x + dgrad.x) * uExag, 1.0, -(grad.y + dgrad.y) * uExag));
 
   vec4 data = uHasHydro > 0.5 ? texture2D(uData, uv) : vec4(0.5, 0.0, 0.0, 0.0);

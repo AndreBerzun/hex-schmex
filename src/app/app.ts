@@ -54,6 +54,7 @@ export interface HexStats {
   moisture: number;
 }
 
+const ERODE_UNWATCHED_FACTOR = 10;
 const DEBUG_NAMES = ['shaded', 'height', 'slope', 'flow', 'moisture', 'materials', 'light', 'erosion'];
 export { DEBUG_NAMES };
 
@@ -143,6 +144,7 @@ export class App {
       uHeightScale: { value: 1 },
       uWaterTex: { value: this.waterTex },
       uData: { value: placeholder(0.5) },
+      uSurf: { value: placeholder(0) },
       uShadowTex: { value: white },
       uAOTex: { value: white },
       uWorldKm: { value: new THREE.Vector2(1, 1) },
@@ -366,6 +368,7 @@ export class App {
       sun: this.sunDir,
     };
     this.derived.cancelFull();
+    this.uniforms.uSurf.value = this.derived.surface(src);
     this.derived.draft(src);
     this.showLighting(this.derived.current);
     if (quality === 'full') this.derived.startFull(src);
@@ -392,7 +395,9 @@ export class App {
     this.timings.erosion = performance.now() - (this.timings.erosionStart ?? 0);
     this.erosionCpu = { height: rb.height, deposit: rb.deposit };
     const ed = mapDims(this.grid, this.settings.erodedRes ?? this.world.terrain.erodedRes);
-    this.setHeightSource({ texture: er.texture, scale: er.cellM, nx: er.nx, ny: er.ny, cpu: rb.height, kmPerPx: ed.kmPerPx });
+    const settled = this.derived.settledHeight({ texture: er.texture, w: er.nx, h: er.ny, scale: er.cellM, exag: 1, cellM: er.cellM, sun: this.sunDir });
+    er.releaseTargets();
+    this.setHeightSource({ texture: settled, scale: 1, nx: er.nx, ny: er.ny, cpu: rb.height, kmPerPx: ed.kmPerPx });
     this.labels.updateHeights((x, z) => this.heightAt(x, z));
     await this.runHydrology(gen);
   }
@@ -732,14 +737,14 @@ export class App {
 
   private stepErosion(budgetMs: number) {
     const er = this.erosion!;
-    const units = this.erosionPacer.unitsFor(budgetMs);
+    const units = this.erosionPacer.unitsFor(this.redraws > 0 ? budgetMs : budgetMs * ERODE_UNWATCHED_FACTOR);
     er.step(units);
     this.erosionPacer.issued(units);
     if (er.iteration % 40 < 2 || er.done) this.refreshLighting('draft');
     this.uniforms.uHeight.value = er.texture;
     this.stageInfo = `eroding ${er.iteration}/${er.params.iterations}`;
     this.onStage('eroding', this.stageInfo);
-    this.invalidate();
+    if (er.iteration % 8 < units || er.done) this.invalidate();
     if (er.done) {
       this.setStage('hydrology', 'reading back…');
       void this.finishErosion(this.bakeGen);

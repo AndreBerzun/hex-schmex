@@ -10,7 +10,7 @@ import { TERRAIN_FS, TERRAIN_VS } from './terrainShader';
 
 const GRID_N = 32;
 const MAX_NODES = 1024;
-const MIN_RANGE_K = 2.5;
+const MIN_RANGE_K = 3;
 
 export interface HeightSource {
   texture: THREE.Texture;
@@ -62,14 +62,21 @@ class BoundsPyramid {
     const max0 = new Float32Array(n0 * n0);
     const { nx, ny, cpu, kmPerPx } = src;
     const S = 6;
+    const samples = n0 * S + 1;
+    const columnOf = new Int32Array(samples), rowOf = new Int32Array(samples);
+    for (let t = 0; t < samples; t++) {
+      columnOf[t] = Math.min(nx - 1, Math.max(0, Math.floor(mirror(ox + (t / S) * leafKm, worldW) / kmPerPx)));
+      rowOf[t] = Math.min(ny - 1, Math.max(0, Math.floor(mirror(oz + (t / S) * leafKm, worldH) / kmPerPx)));
+    }
     for (let cz = 0; cz < n0; cz++) for (let cx = 0; cx < n0; cx++) {
       let mn = Infinity, mx = -Infinity;
-      for (let b = 0; b <= S; b++) for (let a = 0; a <= S; a++) {
-        const x = mirror(ox + (cx + a / S) * leafKm, worldW), z = mirror(oz + (cz + b / S) * leafKm, worldH);
-        const i = Math.min(nx - 1, Math.max(0, Math.floor(x / kmPerPx))), j = Math.min(ny - 1, Math.max(0, Math.floor(z / kmPerPx)));
-        const v = cpu[j * nx + i];
-        if (v < mn) mn = v;
-        if (v > mx) mx = v;
+      for (let b = 0; b <= S; b++) {
+        const row = rowOf[cz * S + b] * nx;
+        for (let a = 0; a <= S; a++) {
+          const v = cpu[row + columnOf[cx * S + a]];
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
       }
       min0[cz * n0 + cx] = mn;
       max0[cz * n0 + cx] = mx;
