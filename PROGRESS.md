@@ -44,11 +44,44 @@ Current milestone: **M6 Brushes** (next). M1–M5 done; M4 look still has known 
 - No MCP server (it would need an SDK dependency; the CLI covers the same tools for Claude Code). It can be added later on top of `src/agent/tools.ts`.
 - Hex ids more than one hex outside the grid are rejected by the resolver (they used to resolve silently to off-map points).
 
+## Performance on the GM's laptop (2026-11-05)
+Hardware: i5-10210U with Intel UHD (CML GT2), 1920×1080, Chromium. `npm run perf` prints the numbers below for any world; the HUD shows GPU ms per frame.
+
+GPU ms per frame at 1280×720, alpine-valley, before → after:
+
+| View | Before | After |
+|---|---|---|
+| region-oblique | 85.7 | 17.2 |
+| region-topdown | 166.7 | 15.1 |
+| range-mid | 90.5 | 12.9 |
+| valley-low | 110.5 | 15.2 |
+| hex-closeup | 109.3 | 15.6 |
+
+In the real UI (canvas 1224×922, Chromium's default OpenGL backend): 16–21 ms in every view. Filling the whole 1920×1080 costs 23–32 ms, so §3's 60 fps holds only roughly on this GPU, and it is below the Iris Xe the brief names.
+
+Why it was slow, in order of cost: about 45 octaves of procedural noise per pixel, triangles of 3–7 px that make the GPU shade each pixel several times, five unfiltered 32-bit float fetches per pixel for slope and curvature, the sky drawn under the terrain.
+
+What changed:
+- **Baked noise.** One 1024² tileable lookup texture with mipmaps replaces the per-pixel noise. It filters itself, and scales too small to see skip their fetch.
+- **Mesh follows the viewport.** Patch grid 64 → 32 and the LOD range set from viewport height, for a target of 8 px per quad at the split distance. `MIN_RANGE_K` is 3 because below ~2.83 neighbouring patches can differ by two levels and crack.
+- **Baked slope and settled height.** Slope, curvature and mean slope live in one mipmapped RGBA16F texture, the finished height in a mipmapped R32F. The mean slope keeps rock and snow on far mountains, where the slope of averaged heights would flatten them.
+- **Draw on demand.** No camera or terrain change means no frame. Idle draws 0 frames, which is what lets the laptop cool down.
+- **Paced GPU work.** At most one batch is in flight, checked with a fence. Worst frame gap during a bake went from ~5 s to ~0.9 s, a single hitch while the erosion shaders compile; p95 is 17–19 ms. Erosion runs smaller batches while the camera moves.
+- **Sliced lighting.** Lighting shows a 512 px draft at once, then computes full resolution in 64 bands and swaps it in. Read-back is asynchronous. The simulation's ~440 MB of targets are freed after each bake.
+- MSAA stays: it costs about 2 ms and the ridgelines need it.
+
+Bake time is unchanged at about 26 s for alpine-valley: ops 1.9 s, drainage 3.5 s, GPU erosion 18–24 s, hydrology 0.7 s. The erosion iterations themselves are the bottleneck (55 ms each at 2048²).
+
+The noise in the textures is not the old noise, so forest and meadow patches moved a little, with the same character. Rivers, shadows and shapes match.
+
+Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, without Playwright. They use ANGLE on Vulkan, the only backend that gets the real GPU headless here; `--software` on shots selects SwiftShader. Shots now render at the world's full resolution.
+
 ## What looks off (honest, as of the last shots)
 - Region oblique: forest/meadow patches read as high-contrast camouflage from above; greens are too saturated.
 - Valley-low: valley floors look like a uniform lawn; the river is a soft blurry line rather than a channel.
 - Badlands: flat-looking and washed out; the banding doesn't read.
-- Close-ups are blobby at shot resolution (SwiftShader shots run at eres 512–640, ~300 m/px).
+- Close-ups stay soft near the ground: 95 m/px carries the shapes, and the shader detail only adds a little.
+- Coastal-marches hex-closeup: tributaries read as beaded blobs instead of a continuous channel (pre-existing, same on master).
 - Perf: op evaluate is ~1.3–1.9 s for the examples vs the 300 ms target.
 
 ## Deviations from the brief
@@ -56,7 +89,7 @@ Current milestone: **M6 Brushes** (next). M1–M5 done; M4 look still has known 
 - Basin ops mark a lake-intent mask; accidental pits are filled, so lakes appear where the GM asked for them rather than everywhere. Closed lakes in dry areas become playas.
 - Past the map edge the terrain is mirrored and fades into haze instead of ending in a skirt.
 - `hills` takes `wavelengthKm` instead of `frequency`.
+- BRIEF §11's Playwright + SwiftShader shots were replaced by a dependency-free CDP driver on the real GPU.
 
 ## Open questions / risks
-- SwiftShader is slow: shots use reduced erosion resolution/iterations (stated on each shot run).
 - The pipe model alone tends to look smooth at ~80–160 m/px; if gullies don't read, add a stream-power/droplet pass.

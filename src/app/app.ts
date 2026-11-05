@@ -54,7 +54,7 @@ export interface HexStats {
   moisture: number;
 }
 
-const ERODE_UNWATCHED_FACTOR = 10;
+const ERODE_UNWATCHED_FACTOR = 20;
 const DEBUG_NAMES = ['shaded', 'height', 'slope', 'flow', 'moisture', 'materials', 'light', 'erosion'];
 export { DEBUG_NAMES };
 
@@ -371,7 +371,8 @@ export class App {
     this.uniforms.uSurf.value = this.derived.surface(src);
     this.derived.draft(src);
     this.showLighting(this.derived.current);
-    if (quality === 'full') this.derived.startFull(src);
+    if (quality === 'full' && this.stage === 'ready') this.derived.startFull(src);
+    else if (quality === 'full') this.lightingStale = true;
     this.needShadow = false;
   }
 
@@ -451,9 +452,9 @@ export class App {
     this.uniforms.uHasHydro.value = 1;
     // river threshold: streams draining > ~120 km² at default; scale is in log10 km²
     this.uniforms.uRiverMinLog.value = 2.1;
+    this.setStage('ready', '');
     if (this.lightingStale) this.refreshLighting('full');
     this.lightingStale = false;
-    this.setStage('ready', '');
     this.invalidate();
   }
 

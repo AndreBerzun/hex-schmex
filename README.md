@@ -14,10 +14,11 @@ Status: M1–M5 done, M6 (brushes) next. See `PROGRESS.md`.
 ## Quick start
 
 ```bash
-npm install
+npm ci --ignore-scripts
 npm run dev                         # app with live map-file link
 npm run terrain -- help             # CLI for looking at / editing maps/*.json
 npm test                            # unit tests
 npm run shots                       # headless screenshots into shots/
+npm run perf                        # frame and bake timings on this machine's GPU
 npm run build:single                # one self-contained HTML file in dist-single/
 ```
