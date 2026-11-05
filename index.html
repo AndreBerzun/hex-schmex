@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terrain Prompter</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="toolbar"></header>
+      <aside id="ops-panel"></aside>
+      <main id="viewport">
+        <canvas id="view"></canvas>
+        <div id="hover" class="hud hidden"></div>
+        <div id="status" class="hud"></div>
+        <div id="stats" class="hud"></div>
+      </main>
+      <aside id="prompt-panel"></aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

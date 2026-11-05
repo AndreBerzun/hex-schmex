@@ -1,0 +1,312 @@
+// Terrain material: CDLOD vertex shader + rule-based surface materials, lighting, water, haze, hex overlay.
+
+import { ATMOS, NOISE } from './glsl';
+
+export const TERRAIN_VS = /* glsl */ `
+attribute vec4 aNode; // x0, z0 (km), size (km), level
+uniform sampler2D uHeight;
+uniform float uHeightScale;
+uniform sampler2D uWaterTex;
+uniform vec2 uWorldKm;
+uniform float uGridN;
+uniform float uLeafRange;
+uniform float uExag;
+uniform float uDetailOn;
+varying vec3 vWorld;
+varying vec2 vUv;
+varying float vLevel;
+
+float surf(vec2 uv) {
+  float h = texture2D(uHeight, uv).r * uHeightScale;
+  float w = texture2D(uWaterTex, uv).r;
+  return w - h > 0.25 ? w : h;
+}
+
+void main() {
+  vec2 g = position.xz * uGridN;
+  float size = aNode.z;
+  float level = aNode.w;
+  vec2 xz = aNode.xy + g / uGridN * size;
+  vec2 uv = clamp(xz / uWorldKm, 0.0, 1.0);
+  vec3 wp = vec3(xz.x, surf(uv) * 0.001 * uExag, xz.y);
+  float range = uLeafRange * exp2(level);
+  float prev = level > 0.5 ? range * 0.5 : 0.0;
+  float mStart = mix(prev, range, 0.6);
+  float k = clamp((distance(cameraPosition, wp) - mStart) / max(1e-4, range - mStart), 0.0, 1.0);
+  vec2 gm = g - fract(g * 0.5) * 2.0 * k;
+  xz = clamp(aNode.xy + gm / uGridN * size, vec2(0.0), uWorldKm);
+  uv = xz / uWorldKm;
+  wp = vec3(xz.x, surf(uv) * 0.001 * uExag, xz.y);
+  vWorld = wp;
+  vUv = uv;
+  vLevel = level;
+  gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+}`;
+
+export const TERRAIN_FS = ATMOS + NOISE + /* glsl */ `
+uniform sampler2D uHeight;
+uniform float uHeightScale;
+uniform sampler2D uData;      // r moisture, g log10 drainage km², b deposition m, a river-op mask
+uniform sampler2D uWaterTex;  // water surface level, m
+uniform sampler2D uShadowTex;
+uniform sampler2D uAOTex;
+uniform vec2 uWorldKm;
+uniform vec2 uTexel;          // height texel in uv
+uniform float uCellKm;        // height texel in km
+uniform float uSea;
+uniform float uMaxElev;
+uniform float uSnowline;
+uniform float uTreeline;
+uniform float uTemp;
+uniform float uHasHydro;
+uniform int uDebug;
+uniform float uRiverMinLog;   // log10 km² where streams start to show
+// hex overlay
+uniform float uHexOn;
+uniform float uHexOpacity;
+uniform float uHexSize;       // centre-to-vertex km
+uniform float uHexFlat;       // 1 = flat-top
+uniform vec2 uHexOrigin;      // centre of hex 0101, km
+uniform vec2 uHexGrid;        // cols, rows
+uniform vec2 uHexHover;       // 1-based col,row (0 = none)
+uniform vec2 uHexSel;
+uniform float uDetailOn;
+varying vec3 vWorld;
+varying vec2 vUv;
+varying float vLevel;
+
+float H(vec2 uv) { return texture2D(uHeight, uv).r * uHeightScale; }
+
+float sdHexFlat(vec2 p, float r) {
+  const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
+  p = abs(p);
+  p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
+  p -= vec2(clamp(p.x, -k.z * r, k.z * r), r);
+  return length(p) * sign(p.y);
+}
+
+// returns (col, row) 1-based in xy, signed edge distance (km, <0 inside) in z
+vec3 hexAt(vec2 xz) {
+  vec2 p = xz - uHexOrigin;
+  float s = uHexSize;
+  float q, r;
+  if (uHexFlat > 0.5) { q = (2.0 / 3.0 * p.x) / s; r = (-1.0 / 3.0 * p.x + 0.57735027 * p.y) / s; }
+  else { q = (0.57735027 * p.x - 1.0 / 3.0 * p.y) / s; r = (2.0 / 3.0 * p.y) / s; }
+  float x = q, z = r, y = -x - z;
+  float rx = floor(x + 0.5), ry = floor(y + 0.5), rz = floor(z + 0.5);
+  float dx = abs(rx - x), dy = abs(ry - y), dz = abs(rz - z);
+  if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
+  vec2 c; float col, row;
+  if (uHexFlat > 0.5) {
+    c = vec2(s * 1.5 * rx, s * 1.7320508 * (rz + rx * 0.5));
+    col = rx; row = rz + (rx - mod(rx, 2.0)) * 0.5;
+  } else {
+    c = vec2(s * 1.7320508 * (rx + rz * 0.5), s * 1.5 * rz);
+    col = rx + (rz - mod(rz, 2.0)) * 0.5; row = rz;
+  }
+  vec2 lp = p - c;
+  if (uHexFlat < 0.5) lp = lp.yx;
+  float d = sdHexFlat(lp, s * 0.8660254);
+  return vec3(col + 1.0, row + 1.0, d);
+}
+
+vec3 matColor(float id) {
+  // debug palette for material ids
+  if (id < 0.5) return vec3(0.3, 0.6, 0.2);
+  if (id < 1.5) return vec3(0.05, 0.3, 0.08);
+  if (id < 2.5) return vec3(0.5, 0.5, 0.5);
+  if (id < 3.5) return vec3(1.0);
+  if (id < 4.5) return vec3(0.75, 0.6, 0.35);
+  if (id < 5.5) return vec3(0.9, 0.85, 0.5);
+  if (id < 6.5) return vec3(0.35, 0.4, 0.2);
+  if (id < 7.5) return vec3(0.75, 0.35, 0.15);
+  return vec3(0.1, 0.3, 0.8);
+}
+
+void main() {
+  vec2 uv = vUv;
+  vec3 camToFrag = vWorld - cameraPosition;
+  float dist = length(camToFrag);
+  vec3 V = -camToFrag / max(dist, 1e-5);
+  vec2 xz = vWorld.xz;
+  float fw = max(length(fwidth(xz)), 1e-5); // km per pixel here
+
+  float h = H(uv);
+  vec2 e = uTexel;
+  float hL = H(uv - vec2(e.x, 0.0)), hR = H(uv + vec2(e.x, 0.0));
+  float hD = H(uv - vec2(0.0, e.y)), hU = H(uv + vec2(0.0, e.y));
+  float cellM = uCellKm * 1000.0;
+  vec2 grad = vec2(hR - hL, hU - hD) / (2.0 * cellM);
+  float lap = (hL + hR + hD + hU - 4.0 * h) / cellM; // >0 concave (gully), <0 convex (ridge)
+
+  // close-up procedural detail: ridged micro-relief on slopes, fading where it would alias
+  float detailFade = uDetailOn * (1.0 - smoothstep(0.004, 0.03, fw));
+  vec2 dgrad = vec2(0.0);
+  if (detailFade > 0.0) {
+    float ws = 0.18; // km
+    float eps = 0.02;
+    float n0 = fbmAA(xz / ws, fw / ws, 4);
+    float nx = fbmAA((xz + vec2(eps, 0.0)) / ws, fw / ws, 4);
+    float nz = fbmAA((xz + vec2(0.0, eps)) / ws, fw / ws, 4);
+    float amp = 14.0 * (0.3 + 1.6 * clamp(length(grad), 0.0, 1.0));
+    dgrad = vec2(nx - n0, nz - n0) / (eps * 1000.0) * amp * detailFade;
+  }
+  float g = length(grad + dgrad * 0.5);
+  vec3 n = normalize(vec3(-(grad.x + dgrad.x) * uExag, 1.0, -(grad.y + dgrad.y) * uExag));
+
+  vec4 data = uHasHydro > 0.5 ? texture2D(uData, uv) : vec4(0.5, 0.0, 0.0, 0.0);
+  float moist = data.r;
+  float logA = data.g;
+  float dep = data.b;
+  float riverOp = data.a;
+  float wl = uHasHydro > 0.5 ? texture2D(uWaterTex, uv).r : -1e5;
+  float depth = wl - h;
+
+  // ---- noise fields (km space)
+  float nBig = fbmAA(xz / 9.0, fw / 9.0, 4);      // regional patchiness
+  float nMid = fbmAA(xz / 1.3, fw / 1.3, 5);      // stands, meadows
+  float nFine = fbmAA(xz / 0.12, fw / 0.12, 4);   // texture
+
+  // ---- materials (sRGB-authored, converted to linear)
+  vec3 cGrass = srgb(vec3(0.36, 0.45, 0.19));
+  vec3 cMeadow = srgb(vec3(0.44, 0.5, 0.24));
+  vec3 cDry = srgb(vec3(0.6, 0.54, 0.33));
+  vec3 cSand = srgb(vec3(0.82, 0.74, 0.54));
+  vec3 cBad = srgb(vec3(0.66, 0.36, 0.2));
+  vec3 cForest = srgb(vec3(0.11, 0.2, 0.09));
+  vec3 cConifer = srgb(vec3(0.08, 0.15, 0.09));
+  vec3 cRock = srgb(vec3(0.43, 0.41, 0.38));
+  vec3 cRockDark = srgb(vec3(0.28, 0.27, 0.26));
+  vec3 cScree = srgb(vec3(0.55, 0.53, 0.5));
+  vec3 cSnow = srgb(vec3(0.93, 0.95, 0.98));
+  vec3 cMarsh = srgb(vec3(0.27, 0.32, 0.16));
+  vec3 cGravel = srgb(vec3(0.62, 0.6, 0.56));
+
+  float elev = h - uSea;
+  float drySide = clamp(1.0 - moist * 1.6 + uTemp * 0.3, 0.0, 1.0);
+  vec3 col = mix(mix(cGrass, cMeadow, smoothstep(-0.3, 0.4, nMid)), cDry, smoothstep(0.35, 0.75, drySide + nBig * 0.15));
+  // desert sands and badlands where very dry
+  float desert = smoothstep(0.78, 0.92, drySide + nBig * 0.1) * (1.0 - smoothstep(0.25, 0.5, g));
+  col = mix(col, cSand * (0.92 + 0.12 * nMid), desert);
+  float bad = smoothstep(0.7, 0.85, drySide) * smoothstep(0.18, 0.4, g);
+  vec3 badCol = mix(cBad, cBad * vec3(1.2, 1.05, 0.9), 0.5 + 0.5 * sin(h / 18.0 + nMid * 2.0));
+  col = mix(col, badCol, bad);
+  float id = desert > 0.5 ? 5.0 : bad > 0.5 ? 7.0 : 0.0;
+
+  // marsh: flat, wet, low
+  float marsh = smoothstep(0.72, 0.85, moist + nMid * 0.08) * (1.0 - smoothstep(0.015, 0.05, g)) * (1.0 - smoothstep(250.0, 500.0, elev));
+  col = mix(col, mix(cMarsh, srgb(vec3(0.2, 0.3, 0.3)), smoothstep(0.2, 0.6, nFine) * 0.5), marsh);
+  if (marsh > 0.5) id = 6.0;
+
+  // forest canopy: below the treeline, moist enough, not too steep, clumped
+  float tl = uTreeline + nBig * 180.0;
+  float forest = smoothstep(0.4, 0.55, moist + nMid * 0.22 + nBig * 0.08)
+               * (1.0 - smoothstep(tl - 150.0, tl + 60.0, elev))
+               * (1.0 - smoothstep(0.55, 0.85, g))
+               * (1.0 - marsh * 0.8) * (1.0 - desert);
+  forest = smoothstep(0.35, 0.65, forest);
+  vec3 fcol = mix(cForest, cConifer, smoothstep(tl - 900.0, tl - 200.0, elev));
+  float crowns = fbmAA(xz / 0.035, fw / 0.035, 3);
+  fcol *= 0.8 + 0.35 * (nFine * 0.5 + 0.5) + 0.25 * crowns;
+  col = mix(col, fcol, forest);
+  if (forest > 0.5) id = 1.0;
+  // canopy bumps: perturb the normal where forested (reads as volume at grazing light)
+  if (forest > 0.01) {
+    float cs = 0.06;
+    float c0 = fbmAA(xz / cs, fw / cs, 3), c1 = fbmAA((xz + vec2(0.01, 0.0)) / cs, fw / cs, 3), c2 = fbmAA((xz + vec2(0.0, 0.01)) / cs, fw / cs, 3);
+    vec2 cg = vec2(c1 - c0, c2 - c0) / 0.01 * 0.012 * forest;
+    n = normalize(n + vec3(-cg.x, 0.0, -cg.y));
+  }
+
+  // rock on steep slopes, more on convex ridges, banded strata hint
+  float rockAmt = smoothstep(0.55, 0.95, g + nMid * 0.12 - lap * 0.6 + nFine * 0.05);
+  vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.5 * sin(h / 40.0 + nMid * 3.0));
+  rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
+  col = mix(col, rcol, rockAmt);
+  if (rockAmt > 0.5) id = 2.0;
+
+  // scree / talus: deposition on moderate slopes at altitude, and at the foot of cliffs
+  float scree = smoothstep(2.0, 12.0, dep) * smoothstep(0.12, 0.35, g) * (1.0 - smoothstep(0.75, 1.0, g)) * smoothstep(tl - 400.0, tl + 200.0, elev);
+  col = mix(col, cScree * (0.9 + 0.2 * nFine), scree * 0.8);
+  if (scree > 0.5) id = 4.0;
+
+  // snow: altitude + aspect (more on north/shaded faces) + slope (sheds off cliffs)
+  float north = clamp(-n.z, -1.0, 1.0); // north is -z
+  float sl = uSnowline - north * 260.0 + nBig * 160.0 + nMid * 90.0 - lap * 900.0;
+  float snow = smoothstep(sl - 120.0, sl + 160.0, elev) * (1.0 - smoothstep(1.0, 1.6, g + nFine * 0.15));
+  col = mix(col, cSnow * (0.94 + 0.06 * nFine), snow);
+  if (snow > 0.5) id = 3.0;
+
+  // beaches near sea level
+  float beach = (1.0 - smoothstep(1.5, 6.0, elev + nMid * 3.0)) * (1.0 - smoothstep(0.03, 0.12, g)) * step(-1.0, elev);
+  col = mix(col, cSand, beach * (1.0 - snow));
+
+  // streams and rivers from flow accumulation (+ explicit river ops)
+  float area = uHasHydro > 0.5 ? smoothstep(uRiverMinLog, uRiverMinLog + 0.6, logA) : 0.0;
+  float river = max(area, riverOp) * (1.0 - smoothstep(0.35, 0.8, g));
+  float bed = smoothstep(uRiverMinLog - 0.6, uRiverMinLog, logA) * (1.0 - smoothstep(0.1, 0.3, g)) * (1.0 - forest * 0.6);
+  col = mix(col, cGravel * (0.85 + 0.2 * nFine), bed * 0.55 * (1.0 - snow));
+  // gully darkening
+  col *= 1.0 - clamp(lap * 2.5, 0.0, 0.25) * (1.0 - snow * 0.7);
+
+  // ---- lighting
+  float shadow = texture2D(uShadowTex, uv).r;
+  float ao = texture2D(uAOTex, uv).r;
+  float ndl = max(dot(n, uSunDir), 0.0);
+  vec3 skyAmb = mix(srgb(vec3(0.33, 0.35, 0.33)), uSkyZenith * 1.1, n.y * 0.5 + 0.5);
+  vec3 light = uSunColor * ndl * shadow * 2.6 + skyAmb * (0.25 + 0.75 * ao) * 0.95;
+  vec3 c = col * light;
+  // snow and wet surfaces: a bit of specular
+  vec3 Hh = normalize(uSunDir + V);
+  c += uSunColor * pow(max(dot(n, Hh), 0.0), 40.0) * 0.15 * snow * shadow;
+
+  // ---- water: sea and lakes (depth-tinted), rivers (shader-painted channels)
+  bool isWater = depth > 0.0;
+  if (isWater || river > 0.01) {
+    float d = isWater ? depth : 1.5;
+    vec3 shallow = srgb(vec3(0.2, 0.55, 0.55));
+    vec3 deep = srgb(vec3(0.03, 0.13, 0.27));
+    vec3 wcol = mix(shallow, deep, 1.0 - exp(-d / 25.0));
+    vec3 wn = normalize(vec3(fbmAA(xz / 0.08, fw / 0.08, 2) * 0.04, 1.0, fbmAA(xz / 0.08 + 7.0, fw / 0.08, 2) * 0.04));
+    float fres = 0.02 + 0.98 * pow(1.0 - max(dot(wn, V), 0.0), 5.0);
+    vec3 refl = skyColor(reflect(-V, wn));
+    vec3 wc = wcol * (uSunColor * max(dot(wn, uSunDir), 0.0) * shadow * 1.4 + skyAmb * 0.7);
+    wc = mix(wc, refl, fres * 0.85);
+    wc += uSunColor * pow(max(dot(reflect(-uSunDir, wn), V), 0.0), 200.0) * 3.0 * shadow;
+    // shoreline: shallow water shows the bed, plus a faint foam line on the sea
+    float shore = isWater ? 1.0 - smoothstep(0.0, 3.0, depth) : 0.0;
+    wc = mix(wc, c * 0.8 + wcol * 0.3, shore * 0.6);
+    float foam = isWater && wl <= uSea + 0.5 ? (1.0 - smoothstep(0.0, 1.2, depth)) * (0.6 + 0.4 * nFine) : 0.0;
+    wc = mix(wc, vec3(0.85), foam * 0.35);
+    float wa = isWater ? smoothstep(0.0, 0.4, depth) : river;
+    c = mix(c, wc, wa);
+    if (wa > 0.5) id = 8.0;
+  }
+
+  // ---- debug views
+  if (uDebug == 1) c = srgb(vec3(clamp(h / uMaxElev, 0.0, 1.0)));
+  else if (uDebug == 2) c = srgb(vec3(clamp(g, 0.0, 1.5) / 1.5));
+  else if (uDebug == 3) c = srgb(mix(vec3(0.05), vec3(0.2, 0.6, 1.0), clamp((logA + 1.0) / 4.0, 0.0, 1.0)));
+  else if (uDebug == 4) c = srgb(mix(vec3(0.7, 0.45, 0.2), vec3(0.1, 0.4, 0.9), moist));
+  else if (uDebug == 5) c = srgb(matColor(id)) * (0.5 + 0.5 * ndl);
+  else if (uDebug == 6) c = srgb(vec3(shadow * (0.3 + 0.7 * ao)));
+  else if (uDebug == 7) c = srgb(vec3(clamp(dep / 30.0, 0.0, 1.0), clamp(-lap * 3.0, 0.0, 1.0), clamp(lap * 3.0, 0.0, 1.0)));
+
+  if (uDebug == 0) c = applyAtmosphere(c, vWorld, cameraPosition);
+
+  // ---- hex overlay (after haze so it stays legible; fades gently with distance)
+  if (uHexOn > 0.5) {
+    vec3 hx = hexAt(xz);
+    bool inGrid = hx.x >= 1.0 && hx.y >= 1.0 && hx.x <= uHexGrid.x && hx.y <= uHexGrid.y;
+    float ed = -hx.z;
+    float fwd = max(fwidth(hx.z), 1e-6);
+    float line = 1.0 - smoothstep(0.7 * fwd, 1.7 * fwd, ed);
+    float fade = mix(1.0, 0.55, smoothstep(50.0, 300.0, dist));
+    if (inGrid) {
+      c = mix(c, srgb(vec3(0.06, 0.06, 0.05)), line * uHexOpacity * fade);
+      if (abs(hx.x - uHexHover.x) < 0.5 && abs(hx.y - uHexHover.y) < 0.5) c = mix(c, srgb(vec3(1.0, 0.95, 0.75)), 0.12 + line * 0.5);
+      if (abs(hx.x - uHexSel.x) < 0.5 && abs(hx.y - uHexSel.y) < 0.5) c = mix(c, srgb(vec3(1.0, 0.8, 0.3)), line * 0.9);
+    }
+  }
+  gl_FragColor = vec4(toDisplay(c), 1.0);
+}`;
