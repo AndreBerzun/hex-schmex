@@ -121,6 +121,6 @@ window.__tp = {
     app.setView(v);
     return true;
   },
-  renderFrames(n = 2) { for (let i = 0; i < n; i++) { app.invalidate(); app.frame(); } },
+  renderFrames(n = 2) { for (let i = 0; i < n; i++) { app.frame(); app.render(); } },
   timings: () => app.timings,
 };
