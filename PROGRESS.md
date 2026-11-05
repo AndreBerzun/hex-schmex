@@ -9,7 +9,7 @@ Current milestone: **M6 Brushes** (next). M1–M5 done; M4 look still has known 
 | M2 Op stack | done | all §4 op types, ops panel, undo/redo, save/load, examples, Vitest |
 | M3 Erosion | done (pause/resume control still missing) | CPU stream power + GPU pipe/thermal, hydrology, debug views |
 | M4 Look | first pass done, gaps open | see "What looks off" |
-| M5 Prompter | done, live API untested | tool loop, context, map image, providers, panel, CLI |
+| M5 Prompter | done (reworked) | Claude Code + terrain CLI + live file link, no API key |
 | M6 Brushes | next | |
 | M7 Polish | not started | |
 
@@ -32,13 +32,16 @@ Current milestone: **M6 Brushes** (next). M1–M5 done; M4 look still has known 
 - **`hills` uses `wavelengthKm` instead of `frequency`**: easier for both the GM and the LLM to reason about.
 - **Rivers/valleys/canyons are monotonic**: the floor is sampled along the line, lowered by `depth`, then forced non-increasing from source to mouth (the line is auto-reversed if it was drawn uphill).
 
-## M5 prompter notes
-- `src/llm/`: `tools.ts` (schemas + executor on a draft world), `context.ts` (ops in hex terms, per-hex mean/max elevation and dominant-surface tables, ~2.5k tokens for 20×16), `mapImage.ts` (800 px top-down hillshade + surface colours + hex ids with a 3×5 bitmap font, pure TS so the CLI sends it too), `systemPrompt.ts` (static, op catalogue generated from `OP_DESCS`), `prompter.ts` (the tool loop), providers.
-- The provider uses the official `@anthropic-ai/sdk` (browser mode = the `anthropic-dangerous-direct-browser-access` header), `client.beta.messages.create` with prompt caching on the static system prompt, `output_config.effort` (default medium, selectable) and server-side refusal fallbacks (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). Shapes were checked against the bundled Claude API docs and the SDK 1.5.0 type definitions (tsc passes).
-- **Not tested against the live API**: no key was available in this session. The mock provider exercises the whole loop (tests + a browser run). First thing to try with a key: `npm run prompt -- worlds/alpine-valley.json "add a volcanic peak in 1208" --dry-run`.
-- Each prompt is one fresh conversation (context + optional image + request); earlier prompts go in as a short text history, not as replayed turns. Edits apply to a draft and commit as one transaction; if the world changed while waiting, nothing is applied.
-- `query_region` is limited to one call per request (BRIEF: one round-trip max). The loop stops after 6 model turns.
-- In the browser the context and image use the eroded terrain; the CLI uses the CPU op stack at 384 px (no GPU in Node), and says so in the context.
+## M5 prompter notes (reworked at the GM's request)
+- **Decision (GM, overrides BRIEF §5):** no API key, no Anthropic SDK, no prompt box in the app. The prompter is a Claude Code session on the GM's own account, driving a terrain CLI. An earlier SDK-based version (browser provider, mock, prompt panel) was built and then removed.
+- `npm run terrain -- …` (`scripts/terrain.ts`):
+  - look: `context`, `map` (PNG with hex ids, `--ops` overlays), `query`, `ops`, `show`
+  - edit: `add`, `update`, `remove`, `move`, `set`, `apply` (a batch as one edit), `new`, `undo` (snapshots in `maps/.history/`)
+  - Every write records `meta.edits` (label + changed ops), so the next session and the browser know what happened.
+- Live link: `vite-plugins/mapLink.ts` serves `maps/*.json` to the dev server and pushes file changes to the page as an HMR custom event. `src/app/mapLink.ts` applies each external write as one undoable commit, lists it in the right panel with Revert, and writes UI edits back to the file. Verified end to end in Chromium (CLI add → browser commit; UI edit → file; Revert keeps later edits).
+- Procedure: `TERRAIN_AGENT.md` and the project skill `.claude/skills/terrain/SKILL.md`; CLAUDE.md points to them. The op catalogue is printed from the schema (`terrain ops`), so the docs can't drift.
+- The CLI sees the op stack before erosion, evaluated on the CPU at 384 px. The browser shows the eroded result.
+- No MCP server (it would need an SDK dependency; the CLI covers the same tools for Claude Code). It can be added later on top of `src/agent/tools.ts`.
 - Hex ids more than one hex outside the grid are rejected by the resolver (they used to resolve silently to off-map points).
 
 ## What looks off (honest, as of the last shots)

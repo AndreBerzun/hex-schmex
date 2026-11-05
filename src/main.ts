@@ -5,7 +5,8 @@ import type { World } from './core/types';
 import { mountToolbar } from './ui/toolbar';
 import { mountHud } from './ui/hud';
 import { mountOpsPanel } from './ui/opsPanel';
-import { mountPromptPanel } from './ui/promptPanel';
+import { mountLinkPanel } from './ui/linkPanel';
+import { MapLink } from './app/mapLink';
 import { exampleWorld, EXAMPLES } from './worlds';
 import { defaultViews, viewNames } from './app/views';
 
@@ -36,7 +37,20 @@ try {
   document.getElementById('viewport')!.innerHTML = `<div class="empty">WebGL2 with float render targets is required.<br>${String(e)}</div>`;
   throw e;
 }
-const store = new Store(initialWorld());
+// Live link to a map file on disk (dev server only): ?file=<name>, else the last linked file.
+const linkName = params.get('file') ?? (shot ? null : (() => { try { return localStorage.getItem('tp:link'); } catch { return null; } })());
+let linked: { name: string; text: string; world: World } | null = null;
+if (MapLink.available && linkName) {
+  try {
+    const text = await MapLink.fetchText(linkName);
+    linked = { name: linkName, text, world: loadWorld(JSON.parse(text)) };
+  } catch (e) {
+    console.warn(String(e));
+    if (!params.has('file')) try { localStorage.removeItem('tp:link'); } catch { /* ignore */ }
+  }
+}
+const store = new Store(linked?.world ?? initialWorld());
+const link = MapLink.available ? new MapLink(store) : null;
 // per-viewer view preferences (hex grid off while sculpting, etc.)
 const PREF_KEYS = ['hexGrid', 'labels', 'exag', 'timeOfDay'] as const;
 if (!shot) {
@@ -68,8 +82,9 @@ if (!shot) {
   mountToolbar(document.getElementById('toolbar')!, app, store, EXAMPLES);
   mountHud(app);
   mountOpsPanel(document.getElementById('ops-panel')!, app, store);
-  mountPromptPanel(document.getElementById('prompt-panel')!, app, store);
+  mountLinkPanel(document.getElementById('prompt-panel')!, store, link);
 }
+if (link && linked) link.adopt(linked.name, linked.text);
 
 let saveTimer = 0;
 store.subscribe((c) => {

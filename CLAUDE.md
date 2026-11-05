@@ -17,4 +17,7 @@ This is **Terrain Prompter**, a browser terrain generator for a Shadowdark westm
 - `npm run build`: static build; `npm run build:single` builds a single self-contained HTML file
 - `npm test`: Vitest
 - `npm run shots`: headless screenshots of the camera presets into `shots/`
-- `npm run prompt -- <world.json> "<prompt>"`: apply a prompt headlessly (M5)
+- `npm run terrain -- <command>`: look at and edit map files from the terminal (replaces the planned `npm run prompt`; see `TERRAIN_AGENT.md`)
+
+## Editing terrain
+When the user asks for terrain changes on a map, follow `TERRAIN_AGENT.md` (also the `terrain` skill). The app has no built-in LLM client by design: Claude Code is the prompter.

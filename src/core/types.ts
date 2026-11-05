@@ -263,5 +263,13 @@ export interface World {
   climate: ClimateSettings;
   /** Reserved for later phases (structures). Hex ids are stable keys. */
   features: Feature[];
-  meta: { name: string; notes?: string; createdAt: string; updatedAt: string; views?: Record<string, ViewSpec> };
+  meta: {
+    name: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+    views?: Record<string, ViewSpec>;
+    /** recent edits made through the terrain CLI (newest last), so the next session knows what happened */
+    edits?: { at: string; label: string; ops: string[] }[];
+  };
 }

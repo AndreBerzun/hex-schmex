@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { evaluate } from '../src/core/ops';
-import { defaultWorld, loadWorld } from '../src/core/world';
-import { buildContext } from '../src/llm/context';
-import { renderMapImage } from '../src/llm/mapImage';
-import { MockProvider } from '../src/llm/mockProvider';
-import { fieldProbe } from '../src/llm/probe';
-import { runPrompt } from '../src/llm/prompter';
-import { ToolExecutor } from '../src/llm/tools';
+import { defaultWorld } from '../src/core/world';
+import { buildContext } from '../src/agent/context';
+import { renderMapImage } from '../src/agent/mapImage';
+import { fieldProbe } from '../src/agent/probe';
+import { ToolExecutor } from '../src/agent/tools';
 import type { RidgeOp } from '../src/core/types';
 
 const base = () => {
@@ -79,19 +77,13 @@ describe('context and map image', () => {
   });
 });
 
-describe('prompt loop (mock provider)', () => {
-  it('applies a prompt as edits on a copy and reports changed ops', async () => {
+describe('map overlays', () => {
+  it('draws op geometry without throwing', () => {
     const w = base();
-    const out = await runPrompt({ world: w, prompt: 'add a volcanic peak in 0403', provider: new MockProvider(), probe: null });
-    expect(out.changed).toBe(true);
-    expect(w.ops.length).toBe(0); // input untouched
-    expect(out.world.ops[0].type).toBe('peak');
-    expect(out.changedOps).toEqual([out.world.ops[0].id]);
-    // refinement updates the existing op instead of adding one
-    const out2 = await runPrompt({ world: out.world, prompt: 'make it higher', provider: new MockProvider(), probe: null });
-    expect(out2.world.ops.length).toBe(1);
-    expect((out2.world.ops[0] as { height: number }).height).toBeGreaterThan((out.world.ops[0] as { height: number }).height);
-    // the result loads as a valid world
-    expect(() => loadWorld(JSON.parse(JSON.stringify(out2.world)))).not.toThrow();
+    const ex = new ToolExecutor(w, null, w);
+    ex.run('add_op', { op: { type: 'river', label: 'R', points: ['0202', '0505'] } });
+    ex.run('add_op', { op: { type: 'basin', label: 'L', region: { hex: '0303', radius: 1 } } });
+    const r = renderMapImage(w, fieldProbe(w, evaluate(w, { res: 96 })), 160, w.ops.map((op) => ({ op })));
+    expect(r.rgba.some((v, i) => i % 4 === 0 && v === 225)).toBe(true);
   });
 });

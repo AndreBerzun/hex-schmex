@@ -1,8 +1,9 @@
 // Headless screenshots of the camera presets (BRIEF §11).
-// Usage: npm run shots -- [world ...] [--eres 512] [--iters 160] [--size 1280x720] [--views a,b]
+// Usage: npm run shots -- [world | maps/<name>.json ...] [--eres 512] [--iters 160] [--size 1280x720] [--views a,b]
+// A bare name is an example in worlds/; a maps/ path renders that map file (via the dev server's map link).
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { createServer } from 'vite';
 
 const args = process.argv.slice(2);
@@ -41,12 +42,15 @@ const browser = await pw.chromium.launch({ args: ['--use-angle=swiftshader', '--
 mkdirSync('shots', { recursive: true });
 const log: string[] = [];
 try {
-  for (const world of worlds) {
+  for (const arg of worlds) {
+    const isMap = arg.endsWith('.json') || arg.includes('/');
+    const world = isMap ? basename(arg, '.json') : arg;
+    const src = isMap ? `file=${encodeURIComponent(world)}` : `world=${world}`;
     const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
     page.on('console', (m: { type(): string; text(): string }) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${world}] ${m.type()}: ${m.text()}`); });
     page.on('pageerror', (e: Error) => console.log(`[${world}] pageerror: ${e.message}`));
     const t0 = Date.now();
-    await page.goto(`${url}?shot=1&world=${world}&eres=${eres}&iters=${iters}${extra ? '&' + extra : ''}`);
+    await page.goto(`${url}?shot=1&${src}&eres=${eres}&iters=${iters}${extra ? '&' + extra : ''}`);
     await page.waitForFunction(() => !!(window as unknown as { __tp?: unknown }).__tp, null, { timeout: 60000 });
     await page.evaluate(() => (window as unknown as { __tp: { finish(): Promise<void> } }).__tp.finish());
     const timings = await page.evaluate(() => (window as unknown as { __tp: { timings(): unknown } }).__tp.timings());

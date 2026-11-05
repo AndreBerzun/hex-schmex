@@ -1,75 +1,12 @@
-// Tool definitions for op editing (BRIEF §5) and their executor against a draft world.
+// Op-editing tools (BRIEF §5) executed against a draft world. Driven by the terrain CLI (scripts/terrain.ts),
+// which a Claude Code session calls; see TERRAIN_AGENT.md.
 
-import type Anthropic from '@anthropic-ai/sdk';
 import { hexId, makeGrid, parseHexId } from '../core/hex';
-import { OP_DESC_BY_TYPE, OP_DESCS, normalizeOp } from '../core/opSchema';
+import { OP_DESC_BY_TYPE, normalizeOp } from '../core/opSchema';
 import type { Op, World } from '../core/types';
 import { setWorldParam } from '../core/world';
 import { describeOp } from './context';
 import { hexSummary, type TerrainProbe } from './probe';
-
-type Tool = Anthropic.Beta.BetaTool;
-
-const OP_TYPES = OP_DESCS.filter((d) => d.type !== 'stroke').map((d) => d.type);
-
-export const TOOLS: Tool[] = [
-  {
-    name: 'add_op',
-    description: 'Add a terrain op to the stack. `op` has `type`, a descriptive `label`, and the parameters listed for that type in the system prompt. Geometry uses hex expressions ("0507", "0507:NE", {hex,dx,dy}, compass words, region forms). Missing parameters get defaults. Returns the new op id.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        op: {
-          type: 'object',
-          description: 'The op: {type, label, ...params, blend?, mask?}',
-          properties: { type: { type: 'string', enum: OP_TYPES }, label: { type: 'string' } },
-          required: ['type', 'label'],
-        },
-        index: { type: 'integer', description: 'Position in the stack (0 = evaluated first). Default: end.' },
-      },
-      required: ['op'],
-    },
-  },
-  {
-    name: 'update_op',
-    description: 'Change parameters of an existing op. `patch` holds only the keys to change (e.g. {"height": 2800} or {"points": ["0304","0809"]}); `enabled`, `label`, `blend` and `mask` can be patched too. Prefer this over adding a new op when the user refines something that already exists.',
-    input_schema: {
-      type: 'object',
-      properties: { id: { type: 'string' }, patch: { type: 'object' } },
-      required: ['id', 'patch'],
-    },
-  },
-  {
-    name: 'remove_op',
-    description: 'Remove an op from the stack.',
-    input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
-  },
-  {
-    name: 'reorder_op',
-    description: 'Move an op to a new index in the stack (ops are evaluated in order; later ops act on the result of earlier ones).',
-    input_schema: { type: 'object', properties: { id: { type: 'string' }, index: { type: 'integer' } }, required: ['id', 'index'] },
-  },
-  {
-    name: 'set_world_param',
-    description: 'Set a world parameter by dotted path. Allowed: terrain.seaLevelM, terrain.maxElevationM, base.(type|elevation|amplitude|wavelengthKm|octaves|warpKm), erosion.(enabled|preset|strength), climate.(windFromDeg|baseMoisture|snowlineM|treelineM|temperature), meta.name, seed. erosion.preset is "light" | "medium" | "heavy". base.type is "fbm" (rolling) | "ridged" (craggy) | "mixed". climate.temperature is -1 cold .. 1 hot.',
-    input_schema: {
-      type: 'object',
-      properties: { path: { type: 'string' }, value: { description: 'number, string or boolean' } },
-      required: ['path', 'value'],
-    },
-  },
-  {
-    name: 'query_region',
-    description: 'Look before you edit: elevation stats (min/mean/max m, mean slope, dominant surface, water fraction) for up to 60 hexes of the CURRENT terrain (before the edits of this request). Give `hexes`, or `bbox` as two corner hex ids. Use at most once per request, and only when the context table is not enough.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        hexes: { type: 'array', items: { type: 'string' } },
-        bbox: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 2 },
-      },
-    },
-  },
-];
 
 export interface ToolLogEntry {
   name: string;

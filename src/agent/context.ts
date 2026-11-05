@@ -65,12 +65,7 @@ function simplify(pts: Vec2[], max: number): Vec2[] {
   return out;
 }
 
-export interface ContextOptions {
-  /** recent prompts and what was done, oldest first */
-  history?: { prompt: string; summary: string }[];
-}
-
-export function buildContext(world: World, probe: TerrainProbe | null, opts: ContextOptions = {}): string {
+export function buildContext(world: World, probe: TerrainProbe | null): string {
   const grid = makeGrid(world.grid);
   const t = world.terrain, c = world.climate, e = world.erosion, b = world.base;
   const L: string[] = [];
@@ -94,10 +89,14 @@ export function buildContext(world: World, probe: TerrainProbe | null, opts: Con
     L.push('');
     L.push(...elevationTables(grid, stats, probe.kind));
   }
-  if (opts.history?.length) {
+  if (world.meta.notes) {
     L.push('');
-    L.push('# Recent requests in this session (oldest first)');
-    for (const h of opts.history.slice(-6)) L.push(`- "${h.prompt}" -> ${h.summary}`);
+    L.push(`# GM notes\n${world.meta.notes}`);
+  }
+  if (world.meta.edits?.length) {
+    L.push('');
+    L.push('# Recent edits (oldest first)');
+    for (const e of world.meta.edits.slice(-10)) L.push(`- ${e.at.slice(0, 16).replace('T', ' ')} ${e.label}${e.ops.length ? ` [${e.ops.join(', ')}]` : ''}`);
   }
   return L.join('\n');
 }
