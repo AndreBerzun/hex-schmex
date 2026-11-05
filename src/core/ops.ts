@@ -24,6 +24,8 @@ export interface Heightfield {
   moisture: Float32Array;
   /** 0..1 explicit river channels from river ops / river strokes */
   river: Float32Array;
+  /** 0..1 where a lake is intended (basin ops): erosion keeps these depressions open */
+  lake: Float32Array;
 }
 
 export interface EvalOptions {
@@ -59,6 +61,7 @@ export function evaluate(world: World, opts: EvalOptions = {}): Heightfield {
     height: new Float32Array(nx * ny),
     moisture: new Float32Array(nx * ny),
     river: new Float32Array(nx * ny),
+    lake: new Float32Array(nx * ny),
   };
   const ctx: Ctx = { world, grid, hf, seaLevel: world.terrain.seaLevelM, maxElev: world.terrain.maxElevationM };
   evalBase(ctx);
@@ -228,7 +231,12 @@ function maskWeight(op: Op, x: number, y: number): number {
 }
 
 /** Generic per-pixel loop over a bbox. fn returns [value, weight]. */
-function forEachPx(ctx: Ctx, op: Op, box: BBox | null, fn: (x: number, y: number, h: number, k: number) => [number, number] | null) {
+/**
+ * Generic per-pixel loop over a bbox. fn returns [value, weight] or [value, weight, coreWeight]:
+ * coreWeight > 0 replaces the height outright (ignoring the blend mode), e.g. a river bed that must
+ * fill a dip to stay monotonic.
+ */
+function forEachPx(ctx: Ctx, op: Op, box: BBox | null, fn: (x: number, y: number, h: number, k: number) => [number, number] | [number, number, number] | null) {
   const { hf } = ctx;
   const [i0, j0, i1, j1] = pxBox(hf, box);
   const mode = op.blend ?? DEFAULT_BLEND[op.type];
@@ -241,9 +249,12 @@ function forEachPx(ctx: Ctx, op: Op, box: BBox | null, fn: (x: number, y: number
       const k = j * hf.nx + i;
       const r = fn(x, y, H[k], k);
       if (!r) continue;
-      const w = r[1] * maskWeight(op, x, y);
+      const mw = maskWeight(op, x, y);
+      const w = r[1] * mw;
       if (w <= 0) continue;
-      H[k] = blendValue(mode, rel, H[k], r[0], w, ctx.maxElev);
+      let v = blendValue(mode, rel, H[k], r[0], w, ctx.maxElev);
+      if (r.length === 3 && r[2] > 0) v = lerp(v, r[0], r[2] * mw);
+      H[k] = v;
     }
   }
 }
@@ -252,8 +263,21 @@ function prepLine(points: Vec2[], step: number): Vec2[] {
   return smoothPolyline(points, step);
 }
 
+/** The smoothed path a linear op actually carves along (exported for tests and overlays). */
+export function opPath(op: Op, kmPerPx: number): Vec2[] {
+  switch (op.type) {
+    case 'river': return prepLine(op.points, Math.max(kmPerPx, 1.5));
+    case 'valley': return prepLine(op.points, Math.max(kmPerPx, Math.min(2, op.width / 3)));
+    case 'canyon': return prepLine(op.points, Math.max(kmPerPx, Math.min(2, op.width / 3)));
+    case 'ridge': return prepLine(op.points, Math.max(1.5, op.width / 4));
+    case 'escarpment': return prepLine(op.points, 2);
+    case 'stroke': return op.points;
+    default: return [];
+  }
+}
+
 /** Sample the current heightfield along a line and build a monotonic (non-increasing) floor profile. */
-function monotonicFloor(ctx: Ctx, pts: Vec2[], depth: number, smoothKm: number, autoReverse: boolean) {
+function monotonicFloor(ctx: Ctx, pts: Vec2[], depth: number, smoothKm: number, autoReverse: boolean, outletFrac = 1) {
   const { hf } = ctx;
   let info = polylineInfo(pts);
   const step = Math.max(hf.kmPerPx * 0.75, 0.1);
@@ -291,8 +315,8 @@ function monotonicFloor(ctx: Ctx, pts: Vec2[], depth: number, smoothKm: number, 
     }
     sm[i] = s / c;
   }
-  // Never carve below the outlet: a valley grades into whatever it drains onto.
-  const outlet = sm[n - 1] - Math.min(depth, 30);
+  // A valley grades into whatever it drains onto (outletFrac < 1); canyons and rivers keep their depth.
+  const outlet = sm[n - 1] - depth * outletFrac;
   const floor = new Float32Array(n);
   let run = Infinity;
   for (let i = 0; i < n; i++) {
@@ -332,7 +356,10 @@ function applyOp(ctx: Ctx, op: Op) {
       return forEachPx(ctx, op, box, (x, y) => {
         const d = regionSdf(op.region, x, y) + 3 * sn.fbm(x / 10, y / 10, 3);
         const w = smoothstep(op.falloffKm, -op.falloffKm, d);
-        return w > 0 ? [-op.depth, w] : null;
+        if (w <= 0) return null;
+        const k = Math.min(ctx.hf.nx - 1, Math.floor(x / ctx.hf.kmPerPx)) + Math.min(ctx.hf.ny - 1, Math.floor(y / ctx.hf.kmPerPx)) * ctx.hf.nx;
+        ctx.hf.lake[k] = Math.max(ctx.hf.lake[k], smoothstep(0, 0.3, w));
+        return [-op.depth, w];
       });
     }
     case 'valley': return opCarve(ctx, op, op.points, op.depth, op.width, op.profile, false);
@@ -420,8 +447,8 @@ function opPeak(ctx: Ctx, op: PeakOp) {
       case 'massif': v = Math.pow(p * p * (3 - 2 * p), 1.2) * (0.35 + 1.0 * det); break;
       case 'volcano': {
         const cone = Math.pow(p, 1.9);
-        const crater = smoothstep(0.22, 0.0, u);
-        v = cone - crater * 0.32 + 0.06 * det * p;
+        const crater = smoothstep(0.26, 0.0, u);
+        v = cone - crater * 0.58 + 0.06 * det * p;
         break;
       }
     }
@@ -451,7 +478,7 @@ function opPlateau(ctx: Ctx, op: PlateauOp) {
 function opCarve(ctx: Ctx, op: Op, points: Vec2[], depth: number, width: number, profile: 'V' | 'U', markRiver: boolean) {
   if (points.length < 2 || width <= 0) return;
   const pts = prepLine(points, Math.max(ctx.hf.kmPerPx, Math.min(2, width / 3)));
-  const fl = monotonicFloor(ctx, pts, depth, width * 0.75, true);
+  const fl = monotonicFloor(ctx, pts, depth, width * 0.75, true, 0.25);
   const sn = opNoise(ctx, op);
   const hit: PolylineHit = { d: 0, s: 0, side: 1 };
   const box = bboxOfPoints(fl.info.pts, width * 1.3);
@@ -462,19 +489,21 @@ function opCarve(ctx: Ctx, op: Op, points: Vec2[], depth: number, width: number,
     const u = hit.d / w;
     if (u >= 1) return null;
     // the head of a valley rises into a cirque instead of ending in a wall
-    const f = lerp(Math.max(h, fl.at(hit.s)), fl.at(hit.s), smoothstep(-cap * 0.3, cap, hit.s));
+    // (monotonic: the extra height only ever decreases downstream)
+    const f = fl.at(hit.s) + depth * 0.8 * (1 - smoothstep(0, cap, hit.s));
     let r: number;
     if (profile === 'U') {
       const q = clamp((u - 0.28) / 0.72, 0, 1);
       r = f + (Math.max(h, f) - f) * q * q;
     } else {
-      r = f + (Math.max(h, f) - f) * Math.pow(u, 0.9);
+      // narrow stream floor, then straight walls
+      const q = Math.max(0, (u - 0.05) / 0.95);
+      r = f + (Math.max(h, f) - f) * q;
     }
-    if (markRiver) {
-      const rw = Math.max(ctx.hf.kmPerPx * 0.7, width * 0.05);
-      ctx.hf.river[k] = Math.max(ctx.hf.river[k], 1 - smoothstep(rw * 0.5, rw * 0.5 + ctx.hf.kmPerPx, hit.d));
-    }
-    return [r, 1];
+    const rw = Math.max(ctx.hf.kmPerPx * 0.7, width * 0.05);
+    if (markRiver) ctx.hf.river[k] = Math.max(ctx.hf.river[k], 1 - smoothstep(rw * 0.5, rw * 0.5 + ctx.hf.kmPerPx, hit.d));
+    // the thalweg itself is graded exactly (fills dips so the floor never climbs)
+    return [r, 1, 1 - smoothstep(rw * 0.5, rw * 0.5 + ctx.hf.kmPerPx * 1.5, hit.d)];
   });
 }
 
@@ -500,7 +529,8 @@ function opRiver(ctx: Ctx, op: RiverOp | StrokeOp, points: Vec2[], width: number
     }
     ctx.hf.river[k] = Math.max(ctx.hf.river[k], 1 - smoothstep(half, half + ctx.hf.kmPerPx, hit.d));
     ctx.hf.moisture[k] += 0.25 * (1 - smoothstep(half, half + flood * 1.5, hit.d));
-    return [r, 1];
+    // the channel bed is graded exactly: it fills dips (alluvium) so the river never flows uphill
+    return [r, 1, 1 - smoothstep(half, half + ctx.hf.kmPerPx * 1.5, hit.d)];
   });
 }
 
@@ -525,7 +555,8 @@ function opCanyon(ctx: Ctx, op: CanyonOp) {
     const n = 4;
     const q = t * n;
     t = lerp(t, (Math.floor(q) + smoothstep(0.5, 1, q - Math.floor(q))) / n, 0.45);
-    return [f + (Math.max(h, f) - f) * t, 1];
+    const core = 1 - smoothstep(ctx.hf.kmPerPx * 0.6, ctx.hf.kmPerPx * 2, hit.d);
+    return [f + (Math.max(h, f) - f) * t, 1, core];
   });
 }
 

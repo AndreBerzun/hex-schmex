@@ -16,8 +16,10 @@ export interface FluvialOptions {
   k: number;
   /** drainage-area exponent */
   m?: number;
-  /** metres of sediment that can settle in a closed depression per iteration (deep basins stay lakes) */
+  /** metres of sediment that can settle in a closed depression per iteration */
   pitFillM?: number;
+  /** 0..1 per cell: intended lakes (basin ops) where depressions are kept open */
+  lakeMask?: Float32Array;
   /** hillslope diffusion per iteration (0..0.25) */
   diffusion?: number;
 }
@@ -104,8 +106,9 @@ export function fluvialErode(h: Float32Array, nx: number, ny: number, kmPerPx: n
         const f = (o.k * Math.pow(area[k], m)) / rdist[k];
         h[k] = (h[k] + f * hr) / (1 + f);
       } else {
-        // closed depression: sediment settles toward the spill level, a few metres per iteration
-        h[k] += Math.min(filled[k] - h[k], pitFillM);
+        // closed depression: sediment settles toward the spill level (unless a lake is intended here)
+        const keep = o.lakeMask ? o.lakeMask[k] : 0;
+        h[k] += Math.min(filled[k] - h[k], pitFillM) * (1 - keep);
       }
     }
     // --- light hillslope diffusion so valley walls relax a little
@@ -123,12 +126,13 @@ export function fluvialErode(h: Float32Array, nx: number, ny: number, kmPerPx: n
 }
 
 /** Run stream-power erosion at <= maxRes and add the (upsampled) incision back onto the design heights. */
-export function fluvialOnDesign(h: Float32Array, nx: number, ny: number, kmPerPx: number, seaM: number, opts: FluvialOptions, maxRes: number): Float32Array {
+export function fluvialOnDesign(h: Float32Array, nx: number, ny: number, kmPerPx: number, seaM: number, opts: FluvialOptions, maxRes: number, lake?: Float32Array): Float32Array {
   const f = Math.max(1, Math.max(nx, ny) / maxRes);
   const fx = Math.round(nx / f), fy = Math.round(ny / f);
   const lo = f > 1 ? resample(h, nx, ny, fx, fy) : h.slice();
   const orig = lo.slice();
-  fluvialErode(lo, fx, fy, kmPerPx * (nx / fx), seaM, opts);
+  const lakeMask = lake ? (f > 1 ? resample(lake, nx, ny, fx, fy) : lake) : undefined;
+  fluvialErode(lo, fx, fy, kmPerPx * (nx / fx), seaM, { ...opts, lakeMask });
   for (let i = 0; i < lo.length; i++) lo[i] -= orig[i];
   const delta = f > 1 ? resample(lo, fx, fy, nx, ny) : lo;
   const out = h.slice();
@@ -138,5 +142,5 @@ export function fluvialOnDesign(h: Float32Array, nx: number, ny: number, kmPerPx
 
 /** Fluvial options derived from the world's erosion settings. */
 export function fluvialOptionsFor(e: ErosionSettings): FluvialOptions {
-  return { iterations: Math.round(12 + e.iterations / 12), k: 0.012 * e.strength, pitFillM: 2.5 };
+  return { iterations: Math.round(12 + e.iterations / 12), k: 0.012 * e.strength, pitFillM: 12 };
 }

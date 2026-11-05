@@ -158,7 +158,8 @@ void main() {
   float moist = data.r;
   float logA = data.g;
   float dep = data.b;
-  float riverOp = data.a;
+  float riverOp = max(data.a, 0.0);
+  float playa = smoothstep(-0.3, -0.8, data.a);
   float wl = uHasHydro > 0.5 ? texture2D(uWaterTex, uv).r : -1e5;
   float depth = wl - h;
 
@@ -236,6 +237,9 @@ void main() {
   float snow = smoothstep(sl - 120.0, sl + 160.0, elev) * (1.0 - smoothstep(1.0, 1.6, g + nFine * 0.15));
   col = mix(col, cSnow * (0.94 + 0.06 * nFine), snow);
   if (snow > 0.5) id = 3.0;
+
+  // playa: salt-crusted dry lake bed
+  col = mix(col, srgb(vec3(0.86, 0.83, 0.76)) * (0.94 + 0.08 * nMid), playa);
 
   // beaches near sea level
   float beach = (1.0 - smoothstep(1.5, 6.0, elev + nMid * 3.0)) * (1.0 - smoothstep(0.03, 0.12, g)) * step(-1.0, elev);

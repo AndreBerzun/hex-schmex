@@ -275,7 +275,7 @@ export class App {
       this.setStage('eroding', 'carving drainage network…');
       let fl: { height: Float32Array; ms: number };
       try {
-        fl = await this.workers.fluvial(hf.height.slice(), hf.nx, hf.ny, hf.kmPerPx, this.world.terrain.seaLevelM, fluvialOptionsFor(this.world.erosion), this.settings.fluvialRes);
+        fl = await this.workers.fluvial(hf.height.slice(), hf.nx, hf.ny, hf.kmPerPx, this.world.terrain.seaLevelM, fluvialOptionsFor(this.world.erosion), this.settings.fluvialRes, hf.lake);
       } catch (e) {
         console.error(e);
         this.setStage('error', String(e));
@@ -358,10 +358,11 @@ export class App {
     const ds = downsample(src.cpu, src.nx, src.ny, f);
     const kmPerPx = src.kmPerPx * f;
     const bias = resample(this.design.moisture, this.design.nx, this.design.ny, ds.nx, ds.ny);
+    const lakeIntent = resample(this.design.lake, this.design.nx, this.design.ny, ds.nx, ds.ny);
     let out: HydroOutput & { ms: number };
     try {
       out = await this.workers.hydrology({
-        nx: ds.nx, ny: ds.ny, kmPerPx, height: ds.data, seaLevelM: this.world.terrain.seaLevelM, climate: this.world.climate, moistureBias: bias,
+        nx: ds.nx, ny: ds.ny, kmPerPx, height: ds.data, seaLevelM: this.world.terrain.seaLevelM, climate: this.world.climate, moistureBias: bias, lakeIntent,
       });
     } catch (e) {
       console.error(e);
@@ -379,14 +380,15 @@ export class App {
       data[i * 4] = out.moisture[i];
       data[i * 4 + 1] = out.logArea[i];
       data[i * 4 + 2] = dep ? dep[i] : 0;
-      data[i * 4 + 3] = Math.min(1, riverOp[i] * 1.5);
+      // a: river-op mask 0..1, or -1 for dry playa
+      data[i * 4 + 3] = out.waterKind[i] === 3 ? -1 : Math.min(1, riverOp[i] * 1.5);
     }
     this.dataTex?.dispose();
     this.dataTex = new THREE.DataTexture(data, ds.nx, ds.ny, THREE.RGBAFormat, THREE.FloatType);
     this.dataTex.minFilter = this.dataTex.magFilter = THREE.LinearFilter;
     this.dataTex.needsUpdate = true;
     const wl = new Float32Array(n);
-    for (let i = 0; i < n; i++) wl[i] = out.waterKind[i] ? out.waterLevel[i] : ds.data[i] - 20;
+    for (let i = 0; i < n; i++) wl[i] = out.waterKind[i] === 1 || out.waterKind[i] === 2 ? out.waterLevel[i] : ds.data[i] - 20;
     const wt = new THREE.DataTexture(wl, ds.nx, ds.ny, THREE.RedFormat, THREE.FloatType);
     wt.minFilter = wt.magFilter = THREE.LinearFilter;
     wt.needsUpdate = true;
@@ -419,7 +421,7 @@ export class App {
     if (!hy) return h;
     const i = Math.min(hy.nx - 1, Math.max(0, Math.floor(x / hy.kmPerPx))), j = Math.min(hy.ny - 1, Math.max(0, Math.floor(z / hy.kmPerPx)));
     const k = j * hy.nx + i;
-    return hy.waterKind[k] ? Math.max(h, hy.waterLevel[k]) : h;
+    return hy.waterKind[k] === 1 || hy.waterKind[k] === 2 ? Math.max(h, hy.waterLevel[k]) : h;
   }
 
   /** Ray-march the heightfield. Returns the hit point in world km (y in scene units) or null. */
@@ -497,7 +499,8 @@ export class App {
       const k = j * hy.nx + i;
       moisture = hy.moisture[k];
       logA = hy.logArea[k];
-      water = hy.waterKind[k] > 0;
+      water = hy.waterKind[k] === 1 || hy.waterKind[k] === 2;
+      if (hy.waterKind[k] === 3) return { mat: 'playa', water: false, moisture };
     }
     const elev = h - w.terrain.seaLevelM;
     const dry = 1 - moisture * 1.6 + w.climate.temperature * 0.3;
@@ -711,7 +714,7 @@ export class App {
     const cam = this.settings.mapMode ? this.ortho : this.camera;
     cam.updateMatrixWorld();
     if (this.settings.mapMode) this.terrain.material.uniforms.uLeafRange.value = 1e9;
-    else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * 2.2;
+    else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * this.terrain.rangeK;
     this.terrain.update(cam);
     this.sky.update(cam);
     this.skirt.mesh.visible = !this.settings.mapMode;

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "seed": 777,
+  "grid": { "cols": 20, "rows": 16, "hexMiles": 6, "orientation": "flat" },
+  "terrain": { "seaLevelM": 0, "maxElevationM": 3000, "designRes": 1024, "erodedRes": 2048 },
+  "base": { "type": "fbm", "elevation": 900, "amplitude": 140, "wavelengthKm": 34, "octaves": 6, "warpKm": 14 },
+  "climate": { "windFromDeg": 270, "baseMoisture": 0.16, "snowlineM": 4200, "treelineM": 2700, "temperature": 0.65 },
+  "erosion": { "enabled": true, "preset": "light" },
+  "meta": {
+    "name": "Badlands",
+    "notes": "Terraced mesas, a red gorge cutting the region SW-NE, dry washes and a dune field.",
+    "views": {
+      "range-mid": { "from": "0812", "fromAbsM": 3600, "to": "0507", "toAglM": -300 },
+      "valley-low": { "from": "1311", "fromAglM": 120, "to": "0909", "toAglM": 0 },
+      "hex-closeup": { "from": "0406:S", "fromAglM": 2600, "to": "0405" }
+    }
+  },
+  "ops": [
+    { "id": "mesa-w", "type": "plateau", "label": "Old Table", "region": { "center": "0405", "radiusKm": 12 }, "height": 1450, "edgeSteepness": 0.9, "terraces": 4 },
+    { "id": "mesa-n", "type": "plateau", "label": "High Shelf", "region": { "polygon": ["1102", "1702", "1806", "1306"] }, "height": 1600, "edgeSteepness": 0.85, "terraces": 5 },
+    { "id": "mesa-s", "type": "plateau", "label": "Broken Butte", "region": { "center": "1213", "radiusKm": 7 }, "height": 1350, "edgeSteepness": 0.95, "terraces": 3 },
+    { "id": "rim", "type": "escarpment", "label": "Western Rim", "points": ["0108", "0511", "0716"], "heightDelta": 320, "side": "left", "width": 1.2, "reachKm": 18 },
+    { "id": "gorge", "type": "canyon", "label": "Red Gorge", "points": ["2002", "1705", "1309", "0911", "0614", "0216"], "depth": 520, "width": 5, "wallSteepness": 0.85 },
+    { "id": "side", "type": "canyon", "label": "Ochre Draw", "points": ["0904", "1007", "1309"], "depth": 260, "width": 2.6, "wallSteepness": 0.75 },
+    { "id": "dunes", "type": "hills", "label": "Shifting Sands", "region": { "center": "1610", "radiusKm": 20 }, "amplitude": 70, "wavelengthKm": 1.8, "style": "dunes", "falloffKm": 8 },
+    { "id": "breaks", "type": "hills", "label": "The Breaks", "region": { "rect": ["0207", "0814"] }, "amplitude": 160, "wavelengthKm": 3, "style": "rugged", "falloffKm": 10 },
+    { "id": "wash", "type": "river", "label": "Bone Wash (dry)", "points": ["1814", "1612", "1412", "1309"], "width": 0.35, "depth": 6, "floodplainKm": 1.5 },
+    { "id": "oasis", "type": "moisture", "label": "Gorge seeps", "region": { "center": "0911", "radiusKm": 10 }, "delta": 0.35, "falloffKm": 8 }
+  ],
+  "features": []
+}

@@ -46,12 +46,12 @@ export class WorkerClient {
     return this.call({ kind: 'evaluate', world: JSON.parse(JSON.stringify(world)), res });
   }
 
-  async fluvial(height: Float32Array, nx: number, ny: number, kmPerPx: number, seaM: number, opts: FluvialOptions, maxRes: number): Promise<{ height: Float32Array; ms: number }> {
+  async fluvial(height: Float32Array, nx: number, ny: number, kmPerPx: number, seaM: number, opts: FluvialOptions, maxRes: number, lake?: Float32Array): Promise<{ height: Float32Array; ms: number }> {
     if (!this.worker) {
       const t0 = performance.now();
-      return { height: fluvialOnDesign(height, nx, ny, kmPerPx, seaM, opts, maxRes), ms: performance.now() - t0 };
+      return { height: fluvialOnDesign(height, nx, ny, kmPerPx, seaM, opts, maxRes, lake), ms: performance.now() - t0 };
     }
-    return this.call({ kind: 'fluvial', height, nx, ny, kmPerPx, seaM, opts, maxRes });
+    return this.call({ kind: 'fluvial', height, nx, ny, kmPerPx, seaM, opts, maxRes, lake });
   }
 
   async hydrology(input: HydroInput): Promise<HydroOutput & { ms: number }> {

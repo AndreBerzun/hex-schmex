@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "seed": 9131,
+  "grid": { "cols": 20, "rows": 16, "hexMiles": 6, "orientation": "flat" },
+  "terrain": { "seaLevelM": 0, "maxElevationM": 3000, "designRes": 1024, "erodedRes": 2048 },
+  "base": { "type": "mixed", "elevation": 230, "amplitude": 170, "wavelengthKm": 38, "octaves": 7, "warpKm": 20 },
+  "climate": { "windFromDeg": 255, "baseMoisture": 0.66, "snowlineM": 2300, "treelineM": 1500, "temperature": -0.1 },
+  "erosion": { "enabled": true, "preset": "medium" },
+  "meta": {
+    "name": "Coastal Marches",
+    "notes": "A ragged western coast with a fjord, forested hill country, a marshy river mouth in the south and moorland fells in the north-east.",
+    "views": {
+      "range-mid": { "from": "0710", "fromAbsM": 5200, "to": "0606", "toAglM": -200 },
+      "valley-low": { "from": "0907", "fromAglM": 180, "to": "0306", "toAglM": -100 },
+      "hex-closeup": { "from": "1214:S", "fromAglM": 3800, "to": "1213" }
+    }
+  },
+  "ops": [
+    { "id": "coast-w", "type": "coast", "label": "Western sea", "side": "W", "extentKm": 34, "targetElevation": -180, "falloffKm": 16, "roughness": 0.85 },
+    { "id": "bay-s", "type": "coast", "label": "Gull Bay", "region": { "center": "0716", "radiusKm": 17 }, "targetElevation": -60, "falloffKm": 10, "roughness": 0.6 },
+    { "id": "hills", "type": "hills", "label": "Wooded hill country", "region": { "polygon": ["0503", "1103", "1309", "1012", "0511"] }, "amplitude": 320, "wavelengthKm": 6, "style": "rolling", "falloffKm": 12 },
+    { "id": "fells", "type": "ridge", "label": "Greyback Fells", "points": ["1202", "1504", "1807", "2009"], "height": 1250, "width": 17, "sharpness": 0.45, "roughness": 0.55, "asymmetry": -0.2 },
+    { "id": "fjord", "type": "valley", "label": "Kelda Fjord", "points": ["0906", "0706", "0507", "0306", "0106"], "depth": 520, "width": 4.5, "profile": "U" },
+    { "id": "watch", "type": "peak", "label": "Watch Hill", "center": "0909", "height": 420, "radius": 9, "shape": "dome" },
+    { "id": "marsh", "type": "lowlands", "label": "Saltmarsh flats", "region": { "center": "1114", "radiusKm": 15 }, "targetElevation": 4, "flatness": 0.96, "falloffKm": 10 },
+    { "id": "river", "type": "river", "label": "Eel River", "points": ["1705", "1508", "1410", "1212", "1114", "0915"], "width": 0.45, "depth": 10, "floodplainKm": 3 },
+    { "id": "wet", "type": "moisture", "label": "Marsh wetness", "region": { "center": "1114", "radiusKm": 16 }, "delta": 0.45, "falloffKm": 8 },
+    { "id": "moor", "type": "moisture", "label": "Dry moor tops", "region": { "center": "1605", "radiusKm": 22 }, "delta": -0.25, "falloffKm": 12 }
+  ],
+  "features": []
+}

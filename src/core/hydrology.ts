@@ -17,6 +17,8 @@ export interface HydroInput {
   climate: ClimateSettings;
   /** additive moisture bias (same grid) */
   moistureBias?: Float32Array;
+  /** 0..1 intended lakes (basin ops). Unintended depressions need to be big to count as lakes. */
+  lakeIntent?: Float32Array;
   minLakeDepthM?: number;
   minLakeCells?: number;
 }
@@ -24,7 +26,7 @@ export interface HydroInput {
 export interface HydroOutput {
   /** water surface where wet; height - 1 where dry (so linear filtering behaves at shores) */
   waterLevel: Float32Array;
-  /** 0 dry, 1 sea, 2 lake */
+  /** 0 dry, 1 sea, 2 lake, 3 dry playa (endorheic basin in a dry climate) */
   waterKind: Uint8Array;
   /** log10 of upstream drainage area in km² */
   logArea: Float32Array;
@@ -127,6 +129,7 @@ export function computeHydrology(inp: HydroInput): HydroOutput {
   const seen = new Uint8Array(n);
   const stack: number[] = [];
   const comp: number[] = [];
+  const comps: number[][] = [];
   for (let k = 0; k < n; k++) {
     if (waterKind[k] !== 2 || seen[k]) continue;
     comp.length = 0;
@@ -142,7 +145,17 @@ export function computeHydrology(inp: HydroInput): HydroOutput {
         if (!seen[q] && waterKind[q] === 2) { seen[q] = 1; stack.push(q); }
       }
     }
-    if (comp.length < minCells) for (const c of comp) waterKind[c] = 0;
+    let intended = 0, maxDepth = 0;
+    for (const c of comp) {
+      if (inp.lakeIntent && inp.lakeIntent[c] > 0.5) intended++;
+      maxDepth = Math.max(maxDepth, filled[c] - h[c]);
+    }
+    // accidental depressions (noise, erosion debris) must be big and deep to read as lakes;
+    // intended ones (basin ops) only need to exist
+    const big = comp.length >= minCells * 4 && maxDepth >= 12;
+    const keep = intended > 0 ? comp.length >= 3 : comp.length >= minCells && big;
+    if (!keep) for (const c of comp) waterKind[c] = 0;
+    else comps.push(comp.slice());
   }
   const waterLevel = new Float32Array(n);
   for (let k = 0; k < n; k++) {
@@ -174,6 +187,12 @@ export function computeHydrology(inp: HydroInput): HydroOutput {
   for (let k = 0; k < n; k++) logArea[k] = Math.log10(area[k]);
 
   const moisture = computeMoisture(inp, waterKind, logArea);
+  // closed lakes in a dry climate are playas (salt flats) rather than open water
+  for (const comp of comps) {
+    let m = 0;
+    for (const c of comp) m += moisture[c];
+    if (m / comp.length < 0.28) for (const c of comp) { waterKind[c] = 3; waterLevel[c] = h[c] - 1; }
+  }
   return { waterLevel, waterKind, logArea, moisture, receiver };
 }
 

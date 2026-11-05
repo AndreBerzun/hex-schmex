@@ -92,6 +92,8 @@ export class Terrain {
   private box = new THREE.Box3();
   private projView = new THREE.Matrix4();
   exag = 1.5;
+  /** LOD range multiplier: range of level 0 = leafKm * rangeK (higher = more triangles) */
+  rangeK = 4;
   /** extra metres of slack in bounds (erosion/deposition, water) */
   boundsSlackM = 150;
   nodeCount = 0;
@@ -116,7 +118,7 @@ export class Terrain {
     this.leafKm = (GRID_N * src.kmPerPx) / 2;
     this.maxLevel = Math.max(1, Math.ceil(Math.log2(Math.max(worldW, worldH) / this.leafKm)));
     this.bounds = new BoundsPyramid(src, worldW, worldH, this.leafKm, this.maxLevel);
-    this.material.uniforms.uLeafRange.value = this.leafKm * 2.2;
+    this.material.uniforms.uLeafRange.value = this.leafKm * this.rangeK;
   }
 
   update(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {

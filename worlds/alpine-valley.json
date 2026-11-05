@@ -1,25 +1,220 @@
 {
   "version": 1,
   "seed": 4242,
-  "grid": { "cols": 20, "rows": 16, "hexMiles": 6, "orientation": "flat" },
-  "terrain": { "seaLevelM": 0, "maxElevationM": 4500, "designRes": 1024, "erodedRes": 2048 },
-  "base": { "type": "mixed", "elevation": 380, "amplitude": 220, "wavelengthKm": 45, "octaves": 7, "warpKm": 18 },
-  "climate": { "windFromDeg": 250, "baseMoisture": 0.55, "snowlineM": 2500, "treelineM": 1950, "temperature": -0.1 },
-  "erosion": { "enabled": true, "preset": "medium" },
-  "meta": { "name": "Alpine Valley", "notes": "A high range across the north, a glacial trough draining south into a braided river and a lake on the southern plain." },
+  "grid": {
+    "cols": 20,
+    "rows": 16,
+    "hexMiles": 6,
+    "orientation": "flat"
+  },
+  "terrain": {
+    "seaLevelM": 0,
+    "maxElevationM": 4500,
+    "designRes": 1024,
+    "erodedRes": 2048
+  },
+  "base": {
+    "type": "mixed",
+    "elevation": 380,
+    "amplitude": 220,
+    "wavelengthKm": 45,
+    "octaves": 7,
+    "warpKm": 18
+  },
+  "climate": {
+    "windFromDeg": 250,
+    "baseMoisture": 0.55,
+    "snowlineM": 2500,
+    "treelineM": 1950,
+    "temperature": -0.1
+  },
+  "erosion": {
+    "enabled": true,
+    "preset": "medium"
+  },
+  "meta": {
+    "name": "Alpine Valley",
+    "notes": "A high range across the north, a glacial trough draining south into a braided river and a lake on the southern plain.",
+    "views": {
+      "range-mid": {
+        "from": "0909",
+        "fromAbsM": 6500,
+        "to": "0903",
+        "toAglM": -900
+      },
+      "valley-low": {
+        "from": "1110",
+        "fromAglM": 160,
+        "to": "1003",
+        "toAglM": -200
+      },
+      "hex-closeup": {
+        "from": "0904:S",
+        "fromAglM": 4500,
+        "to": "0903"
+      }
+    }
+  },
   "ops": [
-    { "type": "lowlands", "label": "Southern plain", "region": { "side": "S", "fraction": 0.35 }, "targetElevation": 160, "flatness": 0.75, "falloffKm": 25 },
-    { "type": "hills", "label": "Foothills", "region": { "rect": ["0205", "1909"] }, "amplitude": 380, "wavelengthKm": 7, "style": "rugged", "falloffKm": 14 },
-    { "type": "ridge", "label": "Northern Spine", "points": ["0104", "0503", "0904", "1303", "1704", "2002"], "height": 2900, "width": 24, "sharpness": 0.7, "roughness": 0.7, "asymmetry": 0.3 },
-    { "type": "ridge", "label": "Greyfang spur", "points": ["1404", "1607", "1709"], "height": 1500, "width": 12, "sharpness": 0.6, "roughness": 0.6, "asymmetry": 0 },
-    { "type": "peak", "label": "The Old Horn", "center": "0903", "height": 1300, "radius": 11, "shape": "massif" },
-    { "type": "peak", "label": "Widow's Tooth", "center": "1702", "height": 900, "radius": 8, "shape": "cone" },
-    { "type": "ridge", "label": "Southern Teeth", "points": ["0213", "0512", "0812"], "height": 1100, "width": 13, "sharpness": 0.5, "roughness": 0.6, "asymmetry": -0.2 },
-    { "type": "valley", "label": "Glacier Trough", "points": ["1002", "1004", "1106", "1108"], "depth": 1100, "width": 9, "profile": "U" },
-    { "type": "river", "label": "Braidwater", "points": ["1106", "1108", "1110", "1012", "1214", "1416", "1517"], "width": 0.5, "depth": 18, "floodplainKm": 5 },
-    { "type": "basin", "label": "Mirror Lake basin", "region": { "center": "0610", "radiusKm": 9 }, "depth": 140, "falloffKm": 7 },
-    { "type": "moisture", "label": "Wet western woods", "region": { "center": "0508", "radiusKm": 35 }, "delta": 0.35, "falloffKm": 15 },
-    { "type": "moisture", "label": "Dry eastern steppe", "region": { "rect": ["1610", "2016"] }, "delta": -0.35, "falloffKm": 15 }
+    {
+      "type": "lowlands",
+      "label": "Southern plain",
+      "region": {
+        "side": "S",
+        "fraction": 0.35
+      },
+      "targetElevation": 160,
+      "flatness": 0.75,
+      "falloffKm": 25,
+      "id": "plain"
+    },
+    {
+      "type": "hills",
+      "label": "Foothills",
+      "region": {
+        "rect": [
+          "0205",
+          "1909"
+        ]
+      },
+      "amplitude": 380,
+      "wavelengthKm": 7,
+      "style": "rugged",
+      "falloffKm": 14,
+      "id": "foothills"
+    },
+    {
+      "type": "ridge",
+      "label": "Northern Spine",
+      "points": [
+        "0104",
+        "0503",
+        "0904",
+        "1303",
+        "1704",
+        "2002"
+      ],
+      "height": 2900,
+      "width": 24,
+      "sharpness": 0.7,
+      "roughness": 0.7,
+      "asymmetry": 0.3,
+      "id": "spine"
+    },
+    {
+      "type": "ridge",
+      "label": "Greyfang spur",
+      "points": [
+        "1404",
+        "1607",
+        "1709"
+      ],
+      "height": 1500,
+      "width": 12,
+      "sharpness": 0.6,
+      "roughness": 0.6,
+      "asymmetry": 0,
+      "id": "spur"
+    },
+    {
+      "type": "peak",
+      "label": "The Old Horn",
+      "center": "0903",
+      "height": 1300,
+      "radius": 11,
+      "shape": "massif",
+      "id": "horn"
+    },
+    {
+      "type": "peak",
+      "label": "Widow's Tooth",
+      "center": "1702",
+      "height": 900,
+      "radius": 8,
+      "shape": "cone",
+      "id": "tooth"
+    },
+    {
+      "type": "ridge",
+      "label": "Southern Teeth",
+      "points": [
+        "0213",
+        "0512",
+        "0812"
+      ],
+      "height": 1100,
+      "width": 13,
+      "sharpness": 0.5,
+      "roughness": 0.6,
+      "asymmetry": -0.2,
+      "id": "teeth"
+    },
+    {
+      "type": "valley",
+      "label": "Glacier Trough",
+      "points": [
+        "1002",
+        "1004",
+        "1106",
+        "1108"
+      ],
+      "depth": 1100,
+      "width": 9,
+      "profile": "U",
+      "id": "trough"
+    },
+    {
+      "type": "river",
+      "label": "Braidwater",
+      "points": [
+        "1106",
+        "1108",
+        "1110",
+        "1012",
+        "1214",
+        "1416",
+        "1517"
+      ],
+      "width": 0.5,
+      "depth": 18,
+      "floodplainKm": 5,
+      "id": "braidwater"
+    },
+    {
+      "type": "basin",
+      "label": "Mirror Lake basin",
+      "region": {
+        "center": "0610",
+        "radiusKm": 9
+      },
+      "depth": 140,
+      "falloffKm": 7,
+      "id": "lake"
+    },
+    {
+      "type": "moisture",
+      "label": "Wet western woods",
+      "region": {
+        "center": "0508",
+        "radiusKm": 35
+      },
+      "delta": 0.35,
+      "falloffKm": 15,
+      "id": "wet"
+    },
+    {
+      "type": "moisture",
+      "label": "Dry eastern steppe",
+      "region": {
+        "rect": [
+          "1610",
+          "2016"
+        ]
+      },
+      "delta": -0.35,
+      "falloffKm": 15,
+      "id": "dry"
+    }
   ],
   "features": []
 }
