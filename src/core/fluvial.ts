@@ -44,6 +44,12 @@ export function fluvialErode(h: Float32Array, nx: number, ny: number, kmPerPx: n
   const heap = new MinHeap(Math.max(1024, (nx + ny) * 8));
   const cellArea = kmPerPx * kmPerPx;
   const eps = 1e-3;
+  const areaPower = m === 0.5 ? Math.sqrt : (a: number) => Math.pow(a, m);
+  const neighbour = new Int32Array(DX.map((dx, d) => DY[d] * nx + dx));
+  const neighbourKm = new Float32Array(DD.map((dd) => dd * kmPerPx));
+  const onBorder = new Uint8Array(n);
+  for (let i = 0; i < nx; i++) onBorder[i] = onBorder[(ny - 1) * nx + i] = 1;
+  for (let j = 0; j < ny; j++) onBorder[j * nx] = onBorder[j * nx + nx - 1] = 1;
 
   for (let it = 0; it < o.iterations; it++) {
     // --- priority flood: order, filled surface, receivers
@@ -62,32 +68,39 @@ export function fluvialErode(h: Float32Array, nx: number, ny: number, kmPerPx: n
     while (heap.size > 0) {
       const c = heap.pop();
       order[oc++] = c;
+      const interior = !onBorder[c];
       const ci = c % nx, cj = (c / nx) | 0;
       for (let d = 0; d < 8; d++) {
-        const i = ci + DX[d], j = cj + DY[d];
-        if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
-        const k = j * nx + i;
+        if (!interior) {
+          const i = ci + DX[d], j = cj + DY[d];
+          if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+        }
+        const k = c + neighbour[d];
         if (closed[k]) continue;
         closed[k] = 1;
         filled[k] = Math.max(h[k], filled[c] + eps);
         recv[k] = c;
-        rdist[k] = DD[d] * kmPerPx;
+        rdist[k] = neighbourKm[d];
         heap.push(filled[k], k);
       }
     }
     // steepest descent on the filled surface where it's not flat (nicer than flood parents)
     for (let k = 0; k < n; k++) {
       if (recv[k] < 0) continue;
+      const interior = !onBorder[k];
       const ci = k % nx, cj = (k / nx) | 0;
+      const fk = filled[k];
       let best = -1, bestS = 0, bestD = 0;
       for (let d = 0; d < 8; d++) {
-        const i = ci + DX[d], j = cj + DY[d];
-        if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
-        const q = j * nx + i;
-        const s = (filled[k] - filled[q]) / DD[d];
-        if (s > bestS) { bestS = s; best = q; bestD = DD[d]; }
+        if (!interior) {
+          const i = ci + DX[d], j = cj + DY[d];
+          if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
+        }
+        const q = k + neighbour[d];
+        const s = (fk - filled[q]) / DD[d];
+        if (s > bestS) { bestS = s; best = q; bestD = d; }
       }
-      if (best >= 0 && bestS > eps * 3) { recv[k] = best; rdist[k] = bestD * kmPerPx; }
+      if (best >= 0 && bestS > eps * 3) { recv[k] = best; rdist[k] = neighbourKm[bestD]; }
     }
     // --- drainage area
     area.fill(cellArea);
@@ -103,7 +116,7 @@ export function fluvialErode(h: Float32Array, nx: number, ny: number, kmPerPx: n
       if (r < 0 || h[k] < seaM) continue;
       const hr = h[r];
       if (h[k] > hr) {
-        const f = (o.k * Math.pow(area[k], m)) / rdist[k];
+        const f = (o.k * areaPower(area[k])) / rdist[k];
         h[k] = (h[k] + f * hr) / (1 + f);
       } else {
         // closed depression: sediment settles toward the spill level (unless a lake is intended here)

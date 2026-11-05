@@ -11,8 +11,10 @@ import type { Vec2, World } from '../core/types';
 import { GPUCompute } from '../gpu/compute';
 import { DerivedMaps } from '../gpu/derived';
 import { Erosion } from '../gpu/erosion';
+import { GpuPacer, GpuTimer } from '../gpu/pacing';
 import { HexLabels } from '../render/labels';
 import { Sky, Skirt } from '../render/sky';
+import { bakeNoiseLut } from '../render/noiseLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { WorkerClient } from './workerClient';
 
@@ -52,6 +54,7 @@ export interface HexStats {
   moisture: number;
 }
 
+const ERODE_UNWATCHED_FACTOR = 20;
 const DEBUG_NAMES = ['shaded', 'height', 'slope', 'flow', 'moisture', 'materials', 'light', 'erosion'];
 export { DEBUG_NAMES };
 
@@ -93,10 +96,17 @@ export class App {
   private bakeGen = 0;
   private clock = new THREE.Clock();
   private sunDir = new THREE.Vector3();
-  private needShadow = true;
+  private needShadow = false;
+  private lightingStale = false;
   private erosionCpu: { height: Float32Array; deposit: Float32Array } | null = null;
   private running = false;
   private fpsAcc = { t: 0, n: 0, fps: 0 };
+  private redraws = 2;
+  private erosionPacer: GpuPacer;
+  private timer: GpuTimer;
+  /** GPU time of the last rendered frame, ms (0 until the driver reports one) */
+  frameGpuMs = 0;
+  renderedFrames = 0;
 
   constructor(canvas: HTMLCanvasElement, opts: { preserveDrawingBuffer?: boolean } = {}) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: !!opts.preserveDrawingBuffer, powerPreference: 'high-performance' });
@@ -117,6 +127,9 @@ export class App {
 
     this.gc = new GPUCompute(this.renderer);
     this.derived = new DerivedMaps(this.gc);
+    this.erosionPacer = new GpuPacer(gl);
+    this.timer = new GpuTimer(gl);
+    this.controls.addEventListener('change', () => this.invalidate());
     const placeholder = (v: number) => {
       const t = new THREE.DataTexture(new Float32Array([v, v, v, v]), 1, 1, THREE.RGBAFormat, THREE.FloatType);
       t.needsUpdate = true;
@@ -131,6 +144,7 @@ export class App {
       uHeightScale: { value: 1 },
       uWaterTex: { value: this.waterTex },
       uData: { value: placeholder(0.5) },
+      uSurf: { value: placeholder(0) },
       uShadowTex: { value: white },
       uAOTex: { value: white },
       uWorldKm: { value: new THREE.Vector2(1, 1) },
@@ -146,6 +160,7 @@ export class App {
       uDebug: { value: 0 },
       uRiverMinLog: { value: 2.1 },
       uDetailOn: { value: 1 },
+      uNoise: { value: bakeNoiseLut(this.gc) },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
       uSunColor: { value: new THREE.Color(1, 0.95, 0.85) },
       uSkyZenith: { value: new THREE.Color() },
@@ -186,20 +201,27 @@ export class App {
     const t = s.timeOfDay;
     const az = ((90 + ((t - 6) / 12) * 180) * Math.PI) / 180;
     const elev = Math.max(0.03, Math.sin(((t - 6) / 12) * Math.PI)) * (55 * Math.PI / 180);
+    const sunBefore = this.sunDir.clone();
     this.sunDir.set(Math.cos(elev) * Math.sin(az), Math.sin(elev), -Math.cos(elev) * Math.cos(az)).normalize();
+    if (!sunBefore.equals(this.sunDir)) this.needShadow = true;
     (u.uSunDir.value as THREE.Vector3).copy(this.sunDir);
     const low = 1 - Math.min(1, elev / 0.6);
     (u.uSunColor.value as THREE.Color).setRGB(1.0, 0.93 - 0.25 * low, 0.82 - 0.45 * low);
     (u.uSkyZenith.value as THREE.Color).setRGB(0.16, 0.32, 0.62).multiplyScalar(0.9 + 0.2 * (1 - low));
     (u.uSkyHorizon.value as THREE.Color).setRGB(0.62 + 0.15 * low, 0.72 + 0.03 * low, 0.86 - 0.12 * low);
-    this.needShadow = true;
+    this.invalidate();
+  }
+
+  /** Request a redraw. Nothing is drawn while the view and the terrain stand still. */
+  invalidate(frames = 2) {
+    this.redraws = Math.max(this.redraws, frames);
   }
 
   setSettings(p: Partial<AppSettings>) {
     const prevExag = this.settings.exag;
     Object.assign(this.settings, p);
     this.applySettings();
-    if (p.exag !== undefined && p.exag !== prevExag) this.refreshLighting(true);
+    if (p.exag !== undefined && p.exag !== prevExag) this.needShadow = true;
     if (p.mapMode !== undefined) this.updateOrtho();
   }
 
@@ -223,6 +245,7 @@ export class App {
     u.uHexFlat.value = this.grid.orientation === 'flat' ? 1 : 0;
     (u.uHexOrigin.value as THREE.Vector2).set(this.grid.origin[0], this.grid.origin[1]);
     (u.uHexGrid.value as THREE.Vector2).set(this.grid.cols, this.grid.rows);
+    this.invalidate();
   }
 
   /** Load a world and bake it. `keepCamera` keeps the current view (edits). */
@@ -325,29 +348,57 @@ export class App {
     (this.uniforms.uTexel.value as THREE.Vector2).set(1 / src.nx, 1 / src.ny);
     this.uniforms.uCellKm.value = src.kmPerPx;
     this.terrain.setSource(src, this.worldW, this.worldH);
-    this.refreshLighting(true);
+    this.refreshLighting('draft');
+    this.lightingStale = true;
+    this.invalidate();
   }
 
-  private refreshLighting(ao: boolean) {
+  /** `draft` is cheap and immediate; `full` is scheduled in slices and swapped in when complete. */
+  private refreshLighting(quality: 'draft' | 'full') {
     const t = this.uniforms.uHeight.value as THREE.Texture;
     const tex = this.uniforms.uTexel.value as THREE.Vector2;
     if (!t || tex.x >= 1) return;
-    this.derived.update(t, Math.round(1 / tex.x), Math.round(1 / tex.y), this.uniforms.uHeightScale.value as number, this.settings.exag,
-      (this.uniforms.uCellKm.value as number) * 1000, this.sunDir, { shadow: true, ao }, 2048);
-    this.uniforms.uShadowTex.value = this.derived.shadow.texture;
-    this.uniforms.uAOTex.value = this.derived.ao.texture;
+    const src = {
+      texture: t,
+      w: Math.round(1 / tex.x),
+      h: Math.round(1 / tex.y),
+      scale: this.uniforms.uHeightScale.value as number,
+      exag: this.settings.exag,
+      cellM: (this.uniforms.uCellKm.value as number) * 1000,
+      sun: this.sunDir,
+    };
+    this.derived.cancelFull();
+    this.uniforms.uSurf.value = this.derived.surface(src);
+    this.derived.draft(src);
+    this.showLighting(this.derived.current);
+    if (quality === 'full' && this.stage === 'ready') this.derived.startFull(src);
+    else if (quality === 'full') this.lightingStale = true;
     this.needShadow = false;
+  }
+
+  private showLighting(maps: { shadow: THREE.Texture; ao: THREE.Texture }) {
+    this.uniforms.uShadowTex.value = maps.shadow;
+    this.uniforms.uAOTex.value = maps.ao;
+    this.invalidate();
+  }
+
+  private stepLighting() {
+    if (!this.derived.fullPending) return;
+    if (this.derived.stepFull()) this.showLighting(this.derived.current);
   }
 
   private async finishErosion(gen: number) {
     const er = this.erosion!;
     const t0 = performance.now();
-    const rb = er.readback();
+    const rb = await er.readback();
+    if (gen !== this.bakeGen) return;
     this.timings.readback = performance.now() - t0;
     this.timings.erosion = performance.now() - (this.timings.erosionStart ?? 0);
     this.erosionCpu = { height: rb.height, deposit: rb.deposit };
     const ed = mapDims(this.grid, this.settings.erodedRes ?? this.world.terrain.erodedRes);
-    this.setHeightSource({ texture: er.texture, scale: er.cellM, nx: er.nx, ny: er.ny, cpu: rb.height, kmPerPx: ed.kmPerPx });
+    const settled = this.derived.settledHeight({ texture: er.texture, w: er.nx, h: er.ny, scale: er.cellM, exag: 1, cellM: er.cellM, sun: this.sunDir });
+    er.releaseTargets();
+    this.setHeightSource({ texture: settled, scale: 1, nx: er.nx, ny: er.ny, cpu: rb.height, kmPerPx: ed.kmPerPx });
     this.labels.updateHeights((x, z) => this.heightAt(x, z));
     await this.runHydrology(gen);
   }
@@ -402,6 +453,9 @@ export class App {
     // river threshold: streams draining > ~120 km² at default; scale is in log10 km²
     this.uniforms.uRiverMinLog.value = 2.1;
     this.setStage('ready', '');
+    if (this.lightingStale) this.refreshLighting('full');
+    this.lightingStale = false;
+    this.invalidate();
   }
 
   // ------------------------------------------------------------------ sampling / picking
@@ -543,6 +597,7 @@ export class App {
     this.hover = h;
     (this.uniforms.uHexHover.value as THREE.Vector2).set(this.settings.hexGrid ? h?.col ?? 0 : 0, this.settings.hexGrid ? h?.row ?? 0 : 0);
     this.onHover(h ? this.hexStats(h.col, h.row) : null);
+    this.invalidate();
   }
 
   // ------------------------------------------------------------------ cameras
@@ -570,6 +625,7 @@ export class App {
     this.ortho.up.set(0, 0, -1);
     this.ortho.lookAt(W / 2, 0, H / 2);
     this.ortho.updateProjectionMatrix();
+    this.invalidate();
   }
 
   /** Point a camera according to a view spec (hex ids, compass words, km). */
@@ -584,6 +640,7 @@ export class App {
     this.controls.target.set(to[0], ty * s, to[1]);
     this.camera.lookAt(this.controls.target);
     this.controls.update();
+    this.invalidate();
   }
 
   goToHex(id: string) {
@@ -605,6 +662,7 @@ export class App {
   flyTo(pos: THREE.Vector3, target: THREE.Vector3, dur = 1.6) {
     this.settings.mapMode = false;
     this.flight = { p0: this.camera.position.clone(), p1: pos, t0: this.controls.target.clone(), t1: target, start: performance.now(), dur: dur * 1000 };
+    this.invalidate();
   }
 
   // ------------------------------------------------------------------ frame loop
@@ -616,7 +674,9 @@ export class App {
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
     this.labels.setViewport(w, h);
+    this.terrain.setViewportHeight(h * this.renderer.getPixelRatio(), this.camera.fov);
     this.updateOrtho();
+    this.invalidate();
   }
 
   start() {
@@ -632,21 +692,27 @@ export class App {
 
   get fps() { return this.fpsAcc.fps; }
 
-  /** One frame: progressive erosion within budget, then render. */
+  /** One frame: paced erosion and lighting work, then a redraw if something changed. */
   frame() {
     const dt = this.clock.getDelta();
     this.fpsAcc.t += dt; this.fpsAcc.n++;
     if (this.fpsAcc.t > 0.5) { this.fpsAcc.fps = this.fpsAcc.n / this.fpsAcc.t; this.fpsAcc.t = 0; this.fpsAcc.n = 0; }
-    if (this.stage === 'eroding' && this.erosion) this.stepErosion(this.settings.erosionBudgetMs);
-    if (this.needShadow) this.refreshLighting(false);
+    this.frameGpuMs = this.timer.poll() ?? this.frameGpuMs;
+    const gpuBusy = !this.erosionPacer.idle();
+    const lightingWork = !gpuBusy && this.derived.fullPending;
+    if (!gpuBusy) {
+      if (this.stage === 'eroding' && this.erosion) this.stepErosion(this.settings.erosionBudgetMs);
+      this.stepLighting();
+      if (this.needShadow) this.refreshLighting('full');
+    }
     if (this.flight) {
       const f = this.flight;
       const k = Math.min(1, (performance.now() - f.start) / f.dur);
       const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       this.camera.position.lerpVectors(f.p0, f.p1, e);
-      // arc up a little mid-flight so you see where you're going
       this.camera.position.y += Math.sin(e * Math.PI) * f.p0.distanceTo(f.p1) * 0.12;
       this.controls.target.lerpVectors(f.t0, f.t1, e);
+      this.invalidate();
       if (k >= 1) this.flight = null;
     }
     this.controls.enabled = !this.settings.mapMode;
@@ -662,23 +728,24 @@ export class App {
       } else this.setHover(null);
     }
     this.onFrame(dt);
-    this.render();
+    const redraw = this.redraws > 0 && !gpuBusy;
+    if (redraw) {
+      this.redraws--;
+      this.render();
+    }
+    if (redraw || lightingWork || this.stage === 'eroding') this.erosionPacer.mark();
   }
 
   private stepErosion(budgetMs: number) {
     const er = this.erosion!;
-    const t0 = performance.now();
-    const gl = this.renderer.getContext();
-    let n = 0;
-    do {
-      er.step(2);
-      n += 2;
-      if (budgetMs > 50) gl.finish();
-    } while (!er.done && performance.now() - t0 < budgetMs && n < 64);
-    if (er.iteration % 40 < 2 || er.done) this.refreshLighting(false);
+    const units = this.erosionPacer.unitsFor(this.redraws > 0 ? budgetMs : budgetMs * ERODE_UNWATCHED_FACTOR);
+    er.step(units);
+    this.erosionPacer.issued(units);
+    if (er.iteration % 40 < 2 || er.done) this.refreshLighting('draft');
     this.uniforms.uHeight.value = er.texture;
     this.stageInfo = `eroding ${er.iteration}/${er.params.iterations}`;
     this.onStage('eroding', this.stageInfo);
+    if (er.iteration % 8 < units || er.done) this.invalidate();
     if (er.done) {
       this.setStage('hydrology', 'reading back…');
       void this.finishErosion(this.bakeGen);
@@ -695,12 +762,16 @@ export class App {
         this.onStage('eroding', `eroding ${this.erosion.iteration}/${this.erosion.params.iterations}`);
         await new Promise((r) => setTimeout(r, 0));
       }
-      this.uniforms.uHeight.value = this.erosion.texture;
-      this.setStage('hydrology', 'reading back…');
-      await this.finishErosion(this.bakeGen);
+      if (this.stage === 'eroding') {
+        this.uniforms.uHeight.value = this.erosion.texture;
+        this.setStage('hydrology', 'reading back…');
+        await this.finishErosion(this.bakeGen);
+      }
     }
     while (this.stage !== 'ready' && this.stage !== 'error') await new Promise((r) => setTimeout(r, 20));
-    this.refreshLighting(true);
+    this.refreshLighting('full');
+    this.derived.finishFull();
+    this.showLighting(this.derived.current);
   }
 
   private keepAboveGround() {
@@ -723,11 +794,14 @@ export class App {
     cam.updateMatrixWorld();
     if (this.settings.mapMode) this.terrain.material.uniforms.uLeafRange.value = 1e9;
     else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * this.terrain.rangeK;
-    this.terrain.update(cam, !this.settings.mapMode);
+    this.terrain.update(cam, !this.settings.mapMode, this.renderer.domElement.width);
     this.sky.update(cam);
     this.skirt.mesh.visible = !this.settings.mapMode;
     this.renderer.setRenderTarget(null);
+    this.timer.begin();
     this.renderer.render(this.scene, cam);
+    this.timer.end();
+    this.renderedFrames++;
   }
 
   /** Tidy elevation table for the LLM context and exports. */

@@ -7,7 +7,8 @@ This is **Terrain Prompter**, a browser terrain generator for a Shadowdark westm
 - Keep `PROGRESS.md` updated: current milestone, what's done, what looks off visually, open decisions, and anything that deviates from the brief, with the reason.
 - Commit in small, meaningful steps with clear messages. Push regularly.
 - After every visual change, run `npm run shots` and compare the output to `reference/` (BRIEF §11). Be honest about the gap. Don't call something "realistic" if the screenshot doesn't support it.
-- WebGL2 is the baseline (headless screenshots use SwiftShader). Don't make WebGPU required.
+- WebGL2 is the baseline. Don't make WebGPU required.
+- The target machine has integrated Intel graphics. Check render changes with `npm run perf`; per-pixel procedural noise and sub-8-pixel triangles are what made this slow before.
 - Determinism matters: seeded randomness only.
 - Verify third-party APIs (three.js, Anthropic Messages API / tool use) against current docs instead of memory.
 - When a design decision isn't covered by the brief, make the reasonable call, note it in `PROGRESS.md`, and move on. Don't stall.
@@ -16,7 +17,8 @@ This is **Terrain Prompter**, a browser terrain generator for a Shadowdark westm
 - `npm run dev`: dev server
 - `npm run build`: static build; `npm run build:single` builds a single self-contained HTML file
 - `npm test`: Vitest
-- `npm run shots`: headless screenshots of the camera presets into `shots/`
+- `npm run shots`: headless screenshots of the camera presets into `shots/` (real GPU; `--software` for SwiftShader)
+- `npm run perf`: bake timeline, frame gaps and GPU ms per camera preset
 - `npm run terrain -- <command>`: look at and edit map files from the terminal (replaces the planned `npm run prompt`; see `TERRAIN_AGENT.md`)
 
 ## Editing terrain

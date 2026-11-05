@@ -119,9 +119,23 @@ export class GPUCompute {
     r.autoClear = prevAuto;
   }
 
+  /** One horizontal band of a pass, so a costly full-resolution pass can spread over many frames. */
+  runBand(mat: THREE.Material, target: THREE.WebGLRenderTarget, y: number, height: number) {
+    target.scissorTest = true;
+    target.scissor.set(0, y, target.width, height);
+    this.run(mat, target);
+    target.scissorTest = false;
+  }
+
   read(target: THREE.WebGLRenderTarget): Float32Array {
     const out = new Float32Array(target.width * target.height * 4);
     this.renderer.readRenderTargetPixels(target, 0, 0, target.width, target.height, out);
+    return out;
+  }
+
+  async readAsync(target: THREE.WebGLRenderTarget): Promise<Float32Array> {
+    const out = new Float32Array(target.width * target.height * 4);
+    await this.renderer.readRenderTargetPixelsAsync(target, 0, 0, target.width, target.height, out);
     return out;
   }
 }
