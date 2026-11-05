@@ -97,3 +97,30 @@ input[type=number] { width: 72px; }
 .warn { color: #d6b36a; font-size: 11px; }
 dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; max-width: 520px; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+
+/* prompt panel */
+.prompt-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); }
+.prompt-body textarea { resize: vertical; min-height: 64px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px; font: inherit; }
+.prompt-actions { display: flex; align-items: center; gap: 6px; }
+.prompt-status { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.llm-settings summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.llm-settings .row { display: grid; grid-template-columns: 70px 1fr; gap: 6px; align-items: center; margin: 4px 0; }
+.llm-settings .row > span { color: var(--muted); font-size: 12px; }
+.llm-settings input[type=password] { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 4px; color: var(--text); min-width: 0; }
+.llm-settings .warn { font-size: 11px; color: #c9a86a; margin: 4px 0; line-height: 1.35; }
+.prompt-history { overflow: auto; flex: 1; padding: 4px 0; }
+.prompt-entry { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.prompt-entry .p { font-weight: 600; color: #f0e6cc; }
+.prompt-entry .x { margin-top: 4px; white-space: pre-wrap; }
+.prompt-entry .x.err { color: var(--danger); }
+.prompt-entry.reverted { opacity: 0.55; }
+.prompt-entry .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chip { font-family: var(--mono); font-size: 11px; background: #2d2a1e; border: 1px solid #5d5232; border-radius: 10px; padding: 0 6px; }
+.prompt-entry .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; color: var(--muted); font-size: 11px; }
+.tool-log { margin-top: 5px; font-size: 11px; }
+.tool-log summary { cursor: pointer; color: var(--muted); }
+.tool-log .tl { margin: 4px 0 0 8px; word-break: break-word; }
+.tool-log .tl.err b { color: var(--danger); }
+.tool-log .tl.ok b { color: var(--ok); }
+.tool-log code { font-family: var(--mono); color: #b7bcc2; }
+.tool-log .res { color: var(--muted); font-family: var(--mono); white-space: pre-wrap; }

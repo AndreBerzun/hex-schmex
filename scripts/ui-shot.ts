@@ -19,5 +19,5 @@ if (actions) await p.evaluate(actions);
 await p.waitForTimeout(1500);
 await p.mouse.move(700, 500);
 await p.waitForTimeout(800);
-await p.screenshot({ path: process.argv[4] ?? 'shots/_tmp/ui.png' });
+await p.screenshot({ path: process.argv[4] ?? 'shots/_tmp/ui.png', timeout: 180000 });
 await b.close(); await server.close();

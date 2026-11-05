@@ -46,6 +46,7 @@ export class Resolver {
       const [hexPart, dirPart] = s.split(':');
       const h = parseHexId(hexPart);
       if (!h) throw new ResolveError(`not a hex id or direction: "${e}"`);
+      this.checkNear(h, hexPart);
       const c = hexCenter(g, h.col, h.row);
       if (dirPart) {
         const d = COMPASS[dirPart.trim().toUpperCase()];
@@ -58,6 +59,7 @@ export class Resolver {
       if ('hex' in e) {
         const h = parseHexId(e.hex);
         if (!h) throw new ResolveError(`bad hex "${e.hex}"`);
+        this.checkNear(h, e.hex);
         const c = hexCenter(g, h.col, h.row);
         return [c[0] + (e.dx ?? 0) * g.flat, c[1] + (e.dy ?? 0) * g.flat];
       }
@@ -65,6 +67,12 @@ export class Resolver {
       if ('x' in e) return [e.x, e.y];
     }
     throw new ResolveError(`cannot resolve point ${JSON.stringify(e)}`);
+  }
+
+  /** Hex ids may point a little past the grid (river mouths, coasts) but not far off the map. */
+  private checkNear(h: { col: number; row: number }, id: string) {
+    const g = this.grid;
+    if (h.col < 0 || h.row < 0 || h.col > g.cols + 1 || h.row > g.rows + 1) throw new ResolveError(`hex "${id}" is outside the ${g.cols}x${g.rows} grid`);
   }
 
   points(list: unknown): Vec2[] {
