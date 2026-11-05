@@ -15,6 +15,9 @@ uniform float uDetailOn;
 varying vec3 vWorld;
 varying vec2 vUv;
 varying float vLevel;
+varying float vOut;
+
+vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
 
 float surf(vec2 uv) {
   float h = texture2D(uHeight, uv).r * uHeightScale;
@@ -27,18 +30,20 @@ void main() {
   float size = aNode.z;
   float level = aNode.w;
   vec2 xz = aNode.xy + g / uGridN * size;
-  vec2 uv = clamp(xz / uWorldKm, 0.0, 1.0);
+  vec2 uv = mirrorUv(xz / uWorldKm);
   vec3 wp = vec3(xz.x, surf(uv) * 0.001 * uExag, xz.y);
   float range = uLeafRange * exp2(level);
   float prev = level > 0.5 ? range * 0.5 : 0.0;
   float mStart = mix(prev, range, 0.6);
   float k = clamp((distance(cameraPosition, wp) - mStart) / max(1e-4, range - mStart), 0.0, 1.0);
   vec2 gm = g - fract(g * 0.5) * 2.0 * k;
-  xz = clamp(aNode.xy + gm / uGridN * size, vec2(0.0), uWorldKm);
-  uv = xz / uWorldKm;
+  xz = aNode.xy + gm / uGridN * size;
+  uv = mirrorUv(xz / uWorldKm);
   wp = vec3(xz.x, surf(uv) * 0.001 * uExag, xz.y);
   vWorld = wp;
   vUv = uv;
+  vec2 o = max(-xz, xz - uWorldKm);
+  vOut = max(o.x, o.y);
   vLevel = level;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
@@ -71,11 +76,16 @@ uniform vec2 uHexGrid;        // cols, rows
 uniform vec2 uHexHover;       // 1-based col,row (0 = none)
 uniform vec2 uHexSel;
 uniform float uDetailOn;
+uniform float uSurroundKm;
 varying vec3 vWorld;
 varying vec2 vUv;
 varying float vLevel;
+varying float vOut;
 
 float H(vec2 uv) { return texture2D(uHeight, uv).r * uHeightScale; }
+vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
+// height at a world position (km), mirrored outside the map so gradients stay continuous
+float Hw(vec2 xz) { return H(mirrorUv(xz / uWorldKm)); }
 
 float sdHexFlat(vec2 p, float r) {
   const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
@@ -132,10 +142,11 @@ void main() {
   float fw = max(length(fwidth(xz)), 1e-5); // km per pixel here
 
   float h = H(uv);
-  vec2 e = uTexel;
-  float hL = H(uv - vec2(e.x, 0.0)), hR = H(uv + vec2(e.x, 0.0));
-  float hD = H(uv - vec2(0.0, e.y)), hU = H(uv + vec2(0.0, e.y));
+  float ck = uCellKm;
+  float hL = Hw(xz - vec2(ck, 0.0)), hR = Hw(xz + vec2(ck, 0.0));
+  float hD = Hw(xz - vec2(0.0, ck)), hU = Hw(xz + vec2(0.0, ck));
   float cellM = uCellKm * 1000.0;
+  float outside = 1.0 - exp(-max(vOut, 0.0) / 30.0);
   vec2 grad = vec2(hR - hL, hU - hD) / (2.0 * cellM);
   float lap = (hL + hR + hD + hU - 4.0 * h) / cellM; // >0 concave (gully), <0 convex (ridge)
 
@@ -169,15 +180,16 @@ void main() {
   float nFine = fbmAA(xz / 0.12, fw / 0.12, 4);   // texture
 
   // ---- materials (sRGB-authored, converted to linear)
-  vec3 cGrass = srgb(vec3(0.36, 0.45, 0.19));
-  vec3 cMeadow = srgb(vec3(0.44, 0.5, 0.24));
-  vec3 cDry = srgb(vec3(0.6, 0.54, 0.33));
-  vec3 cSand = srgb(vec3(0.82, 0.74, 0.54));
+  vec3 cGrass = srgb(vec3(0.37, 0.45, 0.21));
+  vec3 cMeadow = srgb(vec3(0.47, 0.5, 0.27));
+  vec3 cDry = srgb(vec3(0.62, 0.56, 0.34));
+  vec3 cSand = srgb(vec3(0.78, 0.7, 0.5));
   vec3 cBad = srgb(vec3(0.66, 0.36, 0.2));
-  vec3 cForest = srgb(vec3(0.11, 0.2, 0.09));
-  vec3 cConifer = srgb(vec3(0.08, 0.15, 0.09));
-  vec3 cRock = srgb(vec3(0.43, 0.41, 0.38));
-  vec3 cRockDark = srgb(vec3(0.28, 0.27, 0.26));
+  vec3 cForest = srgb(vec3(0.14, 0.25, 0.1));
+  vec3 cConifer = srgb(vec3(0.1, 0.19, 0.11));
+  vec3 cAlpine = srgb(vec3(0.47, 0.46, 0.3));
+  vec3 cRock = srgb(vec3(0.46, 0.44, 0.41));
+  vec3 cRockDark = srgb(vec3(0.3, 0.29, 0.28));
   vec3 cScree = srgb(vec3(0.55, 0.53, 0.5));
   vec3 cSnow = srgb(vec3(0.93, 0.95, 0.98));
   vec3 cMarsh = srgb(vec3(0.27, 0.32, 0.16));
@@ -186,6 +198,13 @@ void main() {
   float elev = h - uSea;
   float drySide = clamp(1.0 - moist * 1.6 + uTemp * 0.3, 0.0, 1.0);
   vec3 col = mix(mix(cGrass, cMeadow, smoothstep(-0.3, 0.4, nMid)), cDry, smoothstep(0.35, 0.75, drySide + nBig * 0.15));
+  // close-up ground texture: tussocks, bare soil, flowers of colour variation
+  float gt = fbmAA(xz / 0.02, fw / 0.02, 3);
+  col *= 0.88 + 0.24 * (gt * 0.5 + 0.5);
+  col = mix(col, srgb(vec3(0.42, 0.36, 0.25)), smoothstep(0.55, 0.85, fbmAA(xz / 0.25 + 3.0, fw / 0.25, 3)) * 0.35);
+  // above the treeline: thin alpine turf, browner and stonier
+  float alpine = smoothstep(uTreeline - 50.0, uTreeline + 350.0, elev + nMid * 120.0);
+  col = mix(col, cAlpine * (0.9 + 0.2 * nFine), alpine * (1.0 - drySide * 0.5));
   // desert sands and badlands where very dry
   float desert = smoothstep(0.78, 0.92, drySide + nBig * 0.1) * (1.0 - smoothstep(0.25, 0.5, g));
   col = mix(col, cSand * (0.92 + 0.12 * nMid), desert);
@@ -201,14 +220,18 @@ void main() {
 
   // forest canopy: below the treeline, moist enough, not too steep, clumped
   float tl = uTreeline + nBig * 180.0;
-  float forest = smoothstep(0.4, 0.55, moist + nMid * 0.22 + nBig * 0.08)
+  float forest = smoothstep(0.5, 0.6, moist + nBig * 0.28 + nMid * 0.12)
                * (1.0 - smoothstep(tl - 150.0, tl + 60.0, elev))
                * (1.0 - smoothstep(0.55, 0.85, g))
                * (1.0 - marsh * 0.8) * (1.0 - desert);
   forest = smoothstep(0.35, 0.65, forest);
   vec3 fcol = mix(cForest, cConifer, smoothstep(tl - 900.0, tl - 200.0, elev));
   float crowns = fbmAA(xz / 0.035, fw / 0.035, 3);
-  fcol *= 0.8 + 0.35 * (nFine * 0.5 + 0.5) + 0.25 * crowns;
+  // individual crowns with dark gaps between them, only where they resolve on screen
+  float crownVis = 1.0 - smoothstep(0.006, 0.02, fw);
+  float gaps = smoothstep(0.25, 0.7, vnoise(xz / 0.012));
+  fcol *= 0.85 + 0.25 * (nFine * 0.5 + 0.5) + 0.2 * crowns;
+  fcol *= mix(1.0, 0.55 + 0.6 * gaps, crownVis);
   col = mix(col, fcol, forest);
   if (forest > 0.5) id = 1.0;
   // canopy bumps: perturb the normal where forested (reads as volume at grazing light)
@@ -220,7 +243,7 @@ void main() {
   }
 
   // rock on steep slopes, more on convex ridges, banded strata hint
-  float rockAmt = smoothstep(0.55, 0.95, g + nMid * 0.12 - lap * 0.6 + nFine * 0.05);
+  float rockAmt = smoothstep(0.55, 0.95, g + nMid * 0.12 - lap * 0.6 + nFine * 0.05 + alpine * 0.25);
   vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.5 * sin(h / 40.0 + nMid * 3.0));
   rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
   col = mix(col, rcol, rockAmt);
@@ -247,7 +270,8 @@ void main() {
 
   // streams and rivers from flow accumulation (+ explicit river ops)
   float area = uHasHydro > 0.5 ? smoothstep(uRiverMinLog, uRiverMinLog + 0.6, logA) : 0.0;
-  float river = max(area, riverOp) * (1.0 - smoothstep(0.35, 0.8, g));
+  // explicit channels: the mask is a soft ~1 px line at hydro resolution; keep only its core
+  float river = max(area, smoothstep(0.45, 0.8, riverOp)) * (1.0 - smoothstep(0.35, 0.8, g));
   float bed = smoothstep(uRiverMinLog - 0.6, uRiverMinLog, logA) * (1.0 - smoothstep(0.1, 0.3, g)) * (1.0 - forest * 0.6);
   col = mix(col, cGravel * (0.85 + 0.2 * nFine), bed * 0.55 * (1.0 - snow));
   // gully darkening
@@ -257,8 +281,9 @@ void main() {
   float shadow = texture2D(uShadowTex, uv).r;
   float ao = texture2D(uAOTex, uv).r;
   float ndl = max(dot(n, uSunDir), 0.0);
-  vec3 skyAmb = mix(srgb(vec3(0.33, 0.35, 0.33)), uSkyZenith * 1.1, n.y * 0.5 + 0.5);
-  vec3 light = uSunColor * ndl * shadow * 2.6 + skyAmb * (0.25 + 0.75 * ao) * 0.95;
+  shadow = mix(shadow, 1.0, outside * 0.7);
+  vec3 skyAmb = mix(srgb(vec3(0.3, 0.29, 0.24)), uSkyZenith * 1.15, n.y * 0.5 + 0.5);
+  vec3 light = uSunColor * ndl * shadow * 3.1 + skyAmb * (0.2 + 0.8 * ao) * 0.62;
   vec3 c = col * light;
   // snow and wet surfaces: a bit of specular
   vec3 Hh = normalize(uSunDir + V);
@@ -267,8 +292,8 @@ void main() {
   // ---- water: sea and lakes (depth-tinted), rivers (shader-painted channels)
   bool isWater = depth > 0.0;
   if (isWater || river > 0.01) {
-    float d = isWater ? depth : 1.5;
-    vec3 shallow = srgb(vec3(0.2, 0.55, 0.55));
+    float d = isWater ? depth : 4.0;
+    vec3 shallow = isWater ? srgb(vec3(0.2, 0.52, 0.52)) : srgb(vec3(0.24, 0.38, 0.4));
     vec3 deep = srgb(vec3(0.03, 0.13, 0.27));
     vec3 wcol = mix(shallow, deep, 1.0 - exp(-d / 25.0));
     vec3 wn = normalize(vec3(fbmAA(xz / 0.08, fw / 0.08, 2) * 0.04, 1.0, fbmAA(xz / 0.08 + 7.0, fw / 0.08, 2) * 0.04));
@@ -297,6 +322,18 @@ void main() {
   else if (uDebug == 7) c = srgb(vec3(clamp(dep / 30.0, 0.0, 1.0), clamp(-lap * 3.0, 0.0, 1.0), clamp(lap * 3.0, 0.0, 1.0)));
 
   if (uDebug == 0) c = applyAtmosphere(c, vWorld, cameraPosition);
+  // outside the map: desaturate and fade into haze so the region doesn't read as a slab
+  if (vOut > 0.0) {
+    float lum = dot(c, vec3(0.3, 0.55, 0.15));
+    c = mix(c, vec3(lum), outside * 0.6);
+    // fade fully into the sky colour seen along this ray before the surround ends
+    vec3 vd = normalize(vWorld - cameraPosition);
+    vec3 skyC = skyColor(normalize(vec3(vd.x, max(vd.y, 0.0), vd.z)));
+    c = mix(c, skyC, max(outside * 0.45, smoothstep(uSurroundKm * 0.45, uSurroundKm * 0.92, vOut)));
+  }
+  // map border
+  float fwo = max(fwidth(vOut), 1e-5);
+  c = mix(c, srgb(vec3(0.12, 0.1, 0.08)), (1.0 - smoothstep(fwo * 0.8, fwo * 2.2, abs(vOut))) * 0.65);
 
   // ---- hex overlay (after haze so it stays legible; fades gently with distance)
   if (uHexOn > 0.5) {

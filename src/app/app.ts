@@ -13,7 +13,7 @@ import { DerivedMaps } from '../gpu/derived';
 import { Erosion } from '../gpu/erosion';
 import { HexLabels } from '../render/labels';
 import { Sky, Skirt } from '../render/sky';
-import { Terrain, type HeightSource } from '../render/terrain';
+import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { WorkerClient } from './workerClient';
 
 export type Stage = 'idle' | 'evaluating' | 'eroding' | 'hydrology' | 'ready' | 'error';
@@ -81,7 +81,7 @@ export class App {
   stage: Stage = 'idle';
   stageInfo = '';
   timings: Record<string, number> = {};
-  settings: AppSettings = { exag: 1.6, timeOfDay: 15.5, hexGrid: true, labels: true, debug: 0, mapMode: false, erosion: true, erosionBudgetMs: 12, fluvialRes: 512 };
+  settings: AppSettings = { exag: 1.8, timeOfDay: 15.5, hexGrid: true, labels: true, debug: 0, mapMode: false, erosion: true, erosionBudgetMs: 12, fluvialRes: 512 };
   hover: { col: number; row: number } | null = null;
   onStage: (s: Stage, info: string) => void = () => {};
   onHover: (h: HexStats | null) => void = () => {};
@@ -150,9 +150,10 @@ export class App {
       uSunColor: { value: new THREE.Color(1, 0.95, 0.85) },
       uSkyZenith: { value: new THREE.Color() },
       uSkyHorizon: { value: new THREE.Color() },
-      uHazeDensity: { value: 0.011 },
-      uHazeScaleH: { value: 2.2 },
+      uHazeDensity: { value: 0.018 },
+      uHazeScaleH: { value: 2.6 },
       uHexOn: { value: 1 },
+      uSurroundKm: { value: 100 },
       uHexOpacity: { value: 0.55 },
       uHexSize: { value: 1 },
       uHexFlat: { value: 1 },
@@ -165,7 +166,7 @@ export class App {
     this.sky = new Sky(this.uniforms);
     this.skirt = new Skirt(this.uniforms);
     this.labels = new HexLabels();
-    this.scene.add(this.sky.mesh, this.terrain.mesh, this.skirt.mesh, this.labels.mesh);
+    this.scene.add(this.sky.mesh, this.terrain.mesh, this.labels.mesh);
     this.applySettings();
     this.installPointer(canvas);
   }
@@ -218,6 +219,7 @@ export class App {
     u.uTreeline.value = w.climate.treelineM;
     u.uTemp.value = w.climate.temperature;
     u.uHexSize.value = this.grid.size;
+    u.uSurroundKm.value = Math.max(this.worldW, this.worldH) * this.terrain.surround;
     u.uHexFlat.value = this.grid.orientation === 'flat' ? 1 : 0;
     (u.uHexOrigin.value as THREE.Vector2).set(this.grid.origin[0], this.grid.origin[1]);
     (u.uHexGrid.value as THREE.Vector2).set(this.grid.cols, this.grid.rows);
@@ -408,6 +410,8 @@ export class App {
   heightAt(x: number, z: number): number {
     const s = this.heightSrc;
     if (!s) return 0;
+    x = mirror(x, this.worldW);
+    z = mirror(z, this.worldH);
     const fx = Math.min(s.nx - 1.001, Math.max(0, x / s.kmPerPx - 0.5)), fz = Math.min(s.ny - 1.001, Math.max(0, z / s.kmPerPx - 0.5));
     const i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j;
     const a = s.cpu;
@@ -419,6 +423,8 @@ export class App {
     const h = this.heightAt(x, z);
     const hy = this.hydro;
     if (!hy) return h;
+    x = mirror(x, this.worldW);
+    z = mirror(z, this.worldH);
     const i = Math.min(hy.nx - 1, Math.max(0, Math.floor(x / hy.kmPerPx))), j = Math.min(hy.ny - 1, Math.max(0, Math.floor(z / hy.kmPerPx)));
     const k = j * hy.nx + i;
     return hy.waterKind[k] === 1 || hy.waterKind[k] === 2 ? Math.max(h, hy.waterLevel[k]) : h;
@@ -437,7 +443,8 @@ export class App {
     let step = 0.05;
     for (let i = 0; i < 4000 && t < maxT; i++) {
       const p = o.clone().addScaledVector(d, t);
-      if (p.x >= -1 && p.z >= -1 && p.x <= this.worldW + 1 && p.z <= this.worldH + 1) {
+      const ext = Math.max(this.worldW, this.worldH) * this.terrain.surround;
+      if (p.x >= -ext && p.z >= -ext && p.x <= this.worldW + ext && p.z <= this.worldH + ext) {
         const hy = this.surfaceAt(p.x, p.z) * s;
         const above = p.y > hy;
         if (!above && prevAbove && i > 0) {
@@ -534,7 +541,7 @@ export class App {
     const same = (!h && !this.hover) || (h && this.hover && h.col === this.hover.col && h.row === this.hover.row);
     if (same) return;
     this.hover = h;
-    (this.uniforms.uHexHover.value as THREE.Vector2).set(h?.col ?? 0, h?.row ?? 0);
+    (this.uniforms.uHexHover.value as THREE.Vector2).set(this.settings.hexGrid ? h?.col ?? 0 : 0, this.settings.hexGrid ? h?.row ?? 0 : 0);
     this.onHover(h ? this.hexStats(h.col, h.row) : null);
   }
 
@@ -542,10 +549,11 @@ export class App {
 
   resetCamera() {
     const W = this.worldW, H = this.worldH;
-    const t = new THREE.Vector3(W / 2, 0.4, H / 2 + H * 0.04);
+    const t = new THREE.Vector3(W / 2, 0.4, H / 2 - H * 0.04);
     this.controls.target.copy(t);
-    const d = Math.max(W, H) * 1.05;
-    this.camera.position.set(W / 2, d * 0.78, H / 2 + d * 0.82);
+    // ~38 degrees down from the south, far enough that the north edge goes hazy (reference 03)
+    const d = Math.max(W, H) * 1.3;
+    this.camera.position.set(W / 2, d * 0.62, H / 2 + d * 0.8);
     this.camera.lookAt(t);
     this.controls.update();
     this.updateOrtho();
@@ -715,7 +723,7 @@ export class App {
     cam.updateMatrixWorld();
     if (this.settings.mapMode) this.terrain.material.uniforms.uLeafRange.value = 1e9;
     else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * this.terrain.rangeK;
-    this.terrain.update(cam);
+    this.terrain.update(cam, !this.settings.mapMode);
     this.sky.update(cam);
     this.skirt.mesh.visible = !this.settings.mapMode;
     this.renderer.setRenderTarget(null);

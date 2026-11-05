@@ -56,7 +56,7 @@ export function mountToolbar(el: HTMLElement, app: App, store: Store, examples: 
   const todLbl = h('span', { text: fmtTime(app.settings.timeOfDay) });
   const view = h('div', { class: 'group' },
     toggle('Map', 'Top-down map mode (orthographic)', () => app.settings.mapMode, (v) => app.setSettings({ mapMode: v })),
-    toggle('Hexes', 'Hex grid overlay', () => app.settings.hexGrid, (v) => app.setSettings({ hexGrid: v })),
+    toggle('Hexes', 'Hex grid, labels and hover outline on/off (G). Turn off while sculpting; remembered across reloads.', () => app.settings.hexGrid, (v) => app.setSettings({ hexGrid: v })),
     toggle('Labels', 'Hex labels', () => app.settings.labels, (v) => app.setSettings({ labels: v })),
     dbg,
     h('label', { class: 'inline' }, 'exag', exag, exagLbl),

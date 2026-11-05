@@ -1,12 +1,15 @@
 // CDLOD terrain: a quadtree of fixed-size grid patches, drawn instanced. The vertex shader samples the
 // heightmap and geomorphs vertices toward the next-coarser grid near the end of each LOD range, so
 // there are no cracks or popping.
+//
+// The quadtree covers the map plus a surround. Outside the map the heightmap is sampled mirrored and
+// the shader fades it into haze, so the region reads as part of a larger world instead of a slab.
 
 import * as THREE from 'three';
 import { TERRAIN_FS, TERRAIN_VS } from './terrainShader';
 
 const GRID_N = 64;
-const MAX_NODES = 2048;
+const MAX_NODES = 4096;
 
 export interface HeightSource {
   texture: THREE.Texture;
@@ -17,6 +20,13 @@ export interface HeightSource {
   /** CPU heights in metres (for LOD bounds, picking, readouts) */
   cpu: Float32Array;
   kmPerPx: number;
+}
+
+/** Mirror a coordinate into [0, size] (matches the shader). */
+export function mirror(v: number, size: number): number {
+  const u = v / size;
+  const m = 1 - Math.abs((((u % 2) + 2) % 2) - 1);
+  return m * size;
 }
 
 function makePatchGeometry(n: number): THREE.InstancedBufferGeometry {
@@ -42,28 +52,27 @@ function makePatchGeometry(n: number): THREE.InstancedBufferGeometry {
   return g;
 }
 
-/** Min/max height pyramid at leaf-node granularity. */
+/** Min/max height pyramid at leaf-node granularity over the extended (mirrored) domain. */
 class BoundsPyramid {
   levels: { min: Float32Array; max: Float32Array; n: number }[] = [];
-  constructor(src: HeightSource, worldW: number, worldH: number, leafKm: number, maxLevel: number) {
+  constructor(src: HeightSource, worldW: number, worldH: number, ox: number, oz: number, leafKm: number, maxLevel: number) {
     const n0 = 1 << maxLevel;
-    const min0 = new Float32Array(n0 * n0).fill(Infinity);
-    const max0 = new Float32Array(n0 * n0).fill(-Infinity);
+    const min0 = new Float32Array(n0 * n0);
+    const max0 = new Float32Array(n0 * n0);
     const { nx, ny, cpu, kmPerPx } = src;
-    const step = Math.max(1, Math.floor(leafKm / kmPerPx / 8));
-    for (let j = 0; j < ny; j += step) {
-      const z = (j + 0.5) * kmPerPx;
-      const cz = Math.min(n0 - 1, Math.floor(z / leafKm));
-      for (let i = 0; i < nx; i += step) {
-        const x = (i + 0.5) * kmPerPx;
-        const cx = Math.min(n0 - 1, Math.floor(x / leafKm));
+    const S = 6;
+    for (let cz = 0; cz < n0; cz++) for (let cx = 0; cx < n0; cx++) {
+      let mn = Infinity, mx = -Infinity;
+      for (let b = 0; b <= S; b++) for (let a = 0; a <= S; a++) {
+        const x = mirror(ox + (cx + a / S) * leafKm, worldW), z = mirror(oz + (cz + b / S) * leafKm, worldH);
+        const i = Math.min(nx - 1, Math.max(0, Math.floor(x / kmPerPx))), j = Math.min(ny - 1, Math.max(0, Math.floor(z / kmPerPx)));
         const v = cpu[j * nx + i];
-        const k = cz * n0 + cx;
-        if (v < min0[k]) min0[k] = v;
-        if (v > max0[k]) max0[k] = v;
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
       }
+      min0[cz * n0 + cx] = mn;
+      max0[cz * n0 + cx] = mx;
     }
-    void worldW; void worldH;
     this.levels.push({ min: min0, max: max0, n: n0 });
     for (let l = 1; l <= maxLevel; l++) {
       const p = this.levels[l - 1];
@@ -85,6 +94,9 @@ export class Terrain {
   private geom: THREE.InstancedBufferGeometry;
   private worldW = 1;
   private worldH = 1;
+  /** origin of the extended domain (negative: the surround) */
+  private ox = 0;
+  private oz = 0;
   leafKm = 1;
   private maxLevel = 1;
   private bounds: BoundsPyramid | null = null;
@@ -96,6 +108,8 @@ export class Terrain {
   rangeK = 4;
   /** extra metres of slack in bounds (erosion/deposition, water) */
   boundsSlackM = 150;
+  /** how far the surround extends beyond the map, as a fraction of the larger map side */
+  surround = 0.7;
   nodeCount = 0;
 
   constructor(uniforms: Record<string, THREE.IUniform>) {
@@ -104,7 +118,6 @@ export class Terrain {
       vertexShader: TERRAIN_VS,
       fragmentShader: TERRAIN_FS,
       uniforms: { ...uniforms, uGridN: { value: GRID_N }, uLeafRange: { value: 10 } },
-      extensions: {},
     });
     this.mesh = new THREE.Mesh(this.geom, this.material);
     this.mesh.frustumCulled = false;
@@ -116,12 +129,18 @@ export class Terrain {
     this.worldH = worldH;
     // leaf patches have ~2 vertices per height texel so close-up detail has geometry to live on
     this.leafKm = (GRID_N * src.kmPerPx) / 2;
-    this.maxLevel = Math.max(1, Math.ceil(Math.log2(Math.max(worldW, worldH) / this.leafKm)));
-    this.bounds = new BoundsPyramid(src, worldW, worldH, this.leafKm, this.maxLevel);
+    const ext = Math.max(worldW, worldH) * this.surround;
+    const span = Math.max(worldW, worldH) + 2 * ext;
+    this.maxLevel = Math.max(1, Math.ceil(Math.log2(span / this.leafKm)));
+    const root = this.leafKm * Math.pow(2, this.maxLevel);
+    // centre the root on the map
+    this.ox = worldW / 2 - root / 2;
+    this.oz = worldH / 2 - root / 2;
+    this.bounds = new BoundsPyramid(src, worldW, worldH, this.ox, this.oz, this.leafKm, this.maxLevel);
     this.material.uniforms.uLeafRange.value = this.leafKm * this.rangeK;
   }
 
-  update(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
+  update(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera, showSurround = true) {
     if (!this.bounds) return;
     this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projView);
@@ -132,16 +151,23 @@ export class Terrain {
     const s = 0.001 * this.exag;
     const slack = this.boundsSlackM * s;
     const ortho = (camera as THREE.OrthographicCamera).isOrthographicCamera;
-    const visit = (x0: number, z0: number, size: number, level: number) => {
-      if (x0 >= this.worldW || z0 >= this.worldH) return;
+    const ext = Math.max(this.worldW, this.worldH) * this.surround;
+    const lim = showSurround ? { x0: -ext, z0: -ext, x1: this.worldW + ext, z1: this.worldH + ext } : { x0: 0, z0: 0, x1: this.worldW, z1: this.worldH };
+    let orthoLeafRatio = 1;
+    if (ortho) {
+      const oc = camera as THREE.OrthographicCamera;
+      const viewKm = (oc.right - oc.left) / oc.zoom;
+      // ~1 patch vertex per 2 screen pixels at 1500 px wide
+      orthoLeafRatio = Math.max(1, ((viewKm / 1500) * 2 * GRID_N) / this.leafKm);
+    }
+    const visit = (ix: number, iz: number, level: number) => {
+      const size = this.leafKm * Math.pow(2, level);
+      const x0 = this.ox + ix * size, z0 = this.oz + iz * size;
+      if (x0 >= lim.x1 || z0 >= lim.z1 || x0 + size <= lim.x0 || z0 + size <= lim.z0) return;
       const L = this.bounds!.levels[level];
-      const n = L.n;
-      const ix = Math.round(x0 / size), iz = Math.round(z0 / size);
-      if (ix >= n || iz >= n) return;
-      const mn = L.min[iz * n + ix], mx = L.max[iz * n + ix];
-      if (mn === Infinity) return;
-      this.box.min.set(x0, Math.min(mn, 0) * s - slack, z0);
-      this.box.max.set(Math.min(x0 + size, this.worldW), Math.max(mx, 0) * s + slack, Math.min(z0 + size, this.worldH));
+      const mn = L.min[iz * L.n + ix], mx = L.max[iz * L.n + ix];
+      this.box.min.set(Math.max(x0, lim.x0), Math.min(mn, 0) * s - slack, Math.max(z0, lim.z0));
+      this.box.max.set(Math.min(x0 + size, lim.x1), Math.max(mx, 0) * s + slack, Math.min(z0 + size, lim.z1));
       if (!this.frustum.intersectsBox(this.box)) return;
       const add = () => {
         if (count >= MAX_NODES) return;
@@ -149,27 +175,16 @@ export class Terrain {
         count++;
       };
       if (level === 0) return add();
-      // ortho (map mode): pick level by pixel footprint instead of distance
       const subRange = leafRange * Math.pow(2, level - 1);
       const d = ortho ? Infinity : this.box.distanceToPoint(cam);
       const wantSplit = ortho ? size / this.leafKm > orthoLeafRatio : d < subRange;
       if (!wantSplit) return add();
-      const h = size / 2;
-      visit(x0, z0, h, level - 1);
-      visit(x0 + h, z0, h, level - 1);
-      visit(x0, z0 + h, h, level - 1);
-      visit(x0 + h, z0 + h, h, level - 1);
+      visit(ix * 2, iz * 2, level - 1);
+      visit(ix * 2 + 1, iz * 2, level - 1);
+      visit(ix * 2, iz * 2 + 1, level - 1);
+      visit(ix * 2 + 1, iz * 2 + 1, level - 1);
     };
-    let orthoLeafRatio = 1;
-    if (ortho) {
-      const oc = camera as THREE.OrthographicCamera;
-      const viewKm = (oc.right - oc.left) / oc.zoom;
-      // ~1 patch vertex per 2 screen pixels at 1500 px wide
-      orthoLeafRatio = Math.max(1, (viewKm / 1500) * 2 * GRID_N / this.leafKm);
-      // the shader morph uses distance; push ortho camera ranges to "infinite" detail by level choice only
-    }
-    const root = this.leafKm * Math.pow(2, this.maxLevel);
-    visit(0, 0, root, this.maxLevel);
+    visit(0, 0, this.maxLevel);
     (this.geom.getAttribute('aNode') as THREE.InstancedBufferAttribute).needsUpdate = true;
     this.geom.instanceCount = count;
     this.nodeCount = count;

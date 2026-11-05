@@ -37,6 +37,20 @@ try {
   throw e;
 }
 const store = new Store(initialWorld());
+// per-viewer view preferences (hex grid off while sculpting, etc.)
+const PREF_KEYS = ['hexGrid', 'labels', 'exag', 'timeOfDay'] as const;
+if (!shot) {
+  try {
+    const p = JSON.parse(localStorage.getItem('tp:prefs') ?? '{}');
+    for (const k of PREF_KEYS) if (p[k] !== undefined) (app.settings as unknown as Record<string, unknown>)[k] = p[k];
+  } catch { /* ignore */ }
+  setInterval(() => {
+    try {
+      const p = Object.fromEntries(PREF_KEYS.map((k) => [k, app.settings[k]]));
+      localStorage.setItem('tp:prefs', JSON.stringify(p));
+    } catch { /* ignore */ }
+  }, 2000);
+}
 if (params.has('eres')) app.settings.erodedRes = Number(params.get('eres'));
 if (params.has('iters')) app.settings.iterations = Number(params.get('iters'));
 if (params.has('noerosion')) app.settings.erosion = false;
