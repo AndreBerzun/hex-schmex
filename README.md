@@ -1,4 +1,4 @@
-# Terrain Prompter
+# hex-schmex: Terrain Prompter
 
 Browser-based terrain generator for a Shadowdark westmarches hexcrawl: prompt and paint realistic, eroded terrain at region scale, then fly down into any 6-mile hex.
 
@@ -7,4 +7,17 @@ Browser-based terrain generator for a Shadowdark westmarches hexcrawl: prompt an
 - `KICKOFF.md`: the first prompt for a coding session, plus follow-ups
 - `reference/`: visual targets (02–04) and the anti-target (01)
 
-Status: not started. See `PROGRESS.md` once work begins.
+- `TERRAIN_AGENT.md`: how a Claude Code session edits a map with the terrain CLI
+
+Status: M1–M5 done, M6 (brushes) next. See `PROGRESS.md`.
+
+## Quick start
+
+```bash
+npm install
+npm run dev                         # app with live map-file link
+npm run terrain -- help             # CLI for looking at / editing maps/*.json
+npm test                            # unit tests
+npm run shots                       # headless screenshots into shots/
+npm run build:single                # one self-contained HTML file in dist-single/
+```
