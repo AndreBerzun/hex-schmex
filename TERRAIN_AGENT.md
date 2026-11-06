@@ -31,8 +31,8 @@ npm run terrain -- query <map> 0507 0508 | --bbox 0305 0710      # min/mean/max,
 npm run terrain -- ops                                            # every op type and its parameters
 npm run terrain -- show <map> <op-id>
 
-npm run terrain -- new <map> [--from <example>] [--cols 20 --rows 16 --hex-miles 6 --orientation flat] [--title "…"]
-npm run terrain -- add <map> '{"type":"peak","label":"Ashcrown","center":"1208","height":2400,"radius":12,"shape":"volcano"}' --label "volcano in 1208"
+npm run terrain -- new <map> [--from <example>] [--cols 10 --rows 10 --hex-miles 6 --orientation flat] [--title "…"]
+npm run terrain -- add <map> '{"type":"peak","label":"Ashcrown","center":"0807","height":2400,"radius":12,"shape":"volcano"}' --label "volcano in 0807"
 npm run terrain -- update <map> <op-id> '{"height":2900}' --label "raise the northern spine"
 npm run terrain -- remove <map> <op-id> --label "…"
 npm run terrain -- move <map> <op-id> <index> --label "…"
@@ -83,7 +83,8 @@ Ops run top to bottom. Broad shapes (coast, lowlands, plateau) go before the fea
 - **Think in real landforms.** Mountains come in ranges, with foothills between them and the plains. High ranges carry U-shaped glacial valleys, and range fronts shed fans onto the plain. Water runs to the sea or into a closed basin.
 - **Mind the wind.** The side of a range facing the wind (`climate.windFromDeg`, the bearing the wind comes *from*) is wet; the lee side is in a rain shadow. Use `moisture` ops to push forests, swamps and steppe where the story wants them.
 - **Scale.**
-  - A range is 10–30 km wide (`width` is the half-width) and 30–150 km long.
+  - The default map is 10 × 10 hexes, about 96 × 111 km.
+  - A range is 10–25 km wide (`width` is the half-width) and 20–80 km long.
   - Hills have a few hundred metres of local relief; mountains have 1000–3000 m.
   - Stay under `terrain.maxElevationM`.
 - **Prefer a few broad ops.** A few well-parameterised ops beat many small ones: one ridge with 4–6 crest points instead of six peaks in a row.

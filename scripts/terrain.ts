@@ -113,7 +113,7 @@ Look
   show <map> <op-id>                     one op in full
 
 Edit (each command = one undo step in a linked browser; always pass --label "what and why")
-  new <map> [--from <example>] [--cols 20 --rows 16 --hex-miles 6 --orientation flat|pointy] [--title "…"]
+  new <map> [--from <example>] [--cols 10 --rows 10 --hex-miles 6 --orientation flat|pointy] [--title "…"]
   add <map> '<op json>' [--index n]
   update <map> <op-id> '<patch json>'
   remove <map> <op-id>
