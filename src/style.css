@@ -67,9 +67,9 @@ input[type=number] { width: 72px; }
 .op .op-type { font-size: 11px; color: var(--muted); font-family: var(--mono); }
 .op.drag-over { border-top: 2px solid var(--accent); }
 .op-form { padding: 8px 10px 12px; border-top: 1px solid var(--line); background: #191c20; }
-.op-form .row { display: grid; grid-template-columns: 96px 1fr; gap: 6px; align-items: center; margin: 3px 0; }
+.op-form .row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px; align-items: center; margin: 3px 0; }
 .op-form .row > span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.op-form .row.wide { grid-template-columns: 1fr; }
+.op-form .row.wide { grid-template-columns: minmax(0, 1fr); }
 .op-form textarea { width: 100%; min-height: 48px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--mono); font-size: 11px; padding: 4px; resize: vertical; }
 .op-form .range-row { display: flex; align-items: center; gap: 6px; }
 .op-form .range-row input[type=range] { flex: 1; width: auto; }

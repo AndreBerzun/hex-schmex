@@ -11,14 +11,14 @@ import type { Vec2, World } from '../core/types';
 import { GPUCompute } from '../gpu/compute';
 import { DerivedMaps } from '../gpu/derived';
 import { Erosion } from '../gpu/erosion';
-import { GpuPacer, GpuTimer } from '../gpu/pacing';
+import { GpuPacer, GpuTimer, isBlankReadback } from '../gpu/pacing';
 import { HexLabels } from '../render/labels';
 import { Sky, Skirt } from '../render/sky';
 import { bakeNoiseLut } from '../render/noiseLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { WorkerClient } from './workerClient';
 
-export type Stage = 'idle' | 'evaluating' | 'eroding' | 'hydrology' | 'ready' | 'error';
+export type Stage = 'idle' | 'evaluating' | 'draining' | 'eroding' | 'hydrology' | 'ready' | 'error';
 
 export type { ViewSpec } from '../core/types';
 import type { ViewSpec } from '../core/types';
@@ -273,6 +273,8 @@ export class App {
 
   async bake() {
     const gen = ++this.bakeGen;
+    this.timings = {};
+    this.erosionCpu = null;
     this.setStage('evaluating', 'evaluating op stack…');
     let hf: Heightfield & { ms: number };
     try {
@@ -297,7 +299,7 @@ export class App {
 
     if (this.settings.erosion && this.world.erosion.enabled) {
       // stage 1: large-scale drainage network (CPU stream power, in the worker)
-      this.setStage('eroding', 'carving drainage network…');
+      this.setStage('draining', 'carving drainage network…');
       let fl: { height: Float32Array; ms: number };
       try {
         fl = await this.workers.fluvial(hf.height.slice(), hf.nx, hf.ny, hf.kmPerPx, this.world.terrain.seaLevelM, fluvialOptionsFor(this.world.erosion), this.settings.fluvialRes, hf.lake);
@@ -328,7 +330,6 @@ export class App {
         this.erosion = new Erosion(this.gc, ed.nx, ed.ny, cellM, this.world.terrain.seaLevelM, params);
       } else this.erosion.setParams(params);
       this.erosion.start(this.designTex);
-      this.erosionCpu = null;
       this.timings.erosionStart = performance.now();
       // render the live simulation
       this.uniforms.uHeight.value = this.erosion.texture;
@@ -392,6 +393,11 @@ export class App {
     const t0 = performance.now();
     const rb = await er.readback();
     if (gen !== this.bakeGen) return;
+    if (this.heightSrc && isBlankReadback(this.heightSrc.cpu, rb.height)) {
+      er.releaseTargets();
+      this.setStage('error', 'the GPU returned an empty map, press Re-bake');
+      return;
+    }
     this.timings.readback = performance.now() - t0;
     this.timings.erosion = performance.now() - (this.timings.erosionStart ?? 0);
     this.erosionCpu = { height: rb.height, deposit: rb.deposit };
@@ -752,23 +758,10 @@ export class App {
     }
   }
 
-  /** Run erosion to completion synchronously (headless shots). */
+  /** Wait for the running bake on the same paced route the app uses, then finish the lighting (headless shots). */
   async finishNow() {
-    while (this.stage === 'evaluating') await new Promise((r) => setTimeout(r, 20));
-    if (this.stage === 'eroding' && this.erosion) {
-      while (!this.erosion.done) {
-        this.erosion.step(8);
-        this.renderer.getContext().finish();
-        this.onStage('eroding', `eroding ${this.erosion.iteration}/${this.erosion.params.iterations}`);
-        await new Promise((r) => setTimeout(r, 0));
-      }
-      if (this.stage === 'eroding') {
-        this.uniforms.uHeight.value = this.erosion.texture;
-        this.setStage('hydrology', 'reading back…');
-        await this.finishErosion(this.bakeGen);
-      }
-    }
     while (this.stage !== 'ready' && this.stage !== 'error') await new Promise((r) => setTimeout(r, 20));
+    if (this.stage === 'error') throw new Error(`bake failed: ${this.stageInfo}`);
     this.refreshLighting('full');
     this.derived.finishFull();
     this.showLighting(this.derived.current);

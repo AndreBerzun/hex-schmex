@@ -28,7 +28,8 @@ export class MapLink {
       if (d.name === this.name) this.onExternal(d.text);
     });
     store.subscribe((c) => {
-      if (this.applyingExternal || !this.name || c.kind === 'load') return;
+      if (this.applyingExternal || !this.name) return;
+      if (c.kind === 'load') { this.unlink(); return; }
       clearTimeout(this.saveTimer);
       this.saveTimer = window.setTimeout(() => void this.save(), 500);
     });
@@ -74,7 +75,9 @@ export class MapLink {
   }
 
   unlink() {
+    clearTimeout(this.saveTimer);
     this.name = null;
+    this.edits.length = 0;
     this.status = '';
     try { localStorage.removeItem('tp:link'); } catch { /* ignore */ }
     this.emit();
