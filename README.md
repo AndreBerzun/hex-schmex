@@ -20,5 +20,6 @@ npm run terrain -- help             # CLI for looking at / editing maps/*.json
 npm test                            # unit tests
 npm run shots                       # headless screenshots into shots/
 npm run perf                        # frame and bake timings on this machine's GPU
+npm run check:bake                  # edits and scripted bakes run erosion to the end
 npm run build:single                # one self-contained HTML file in dist-single/
 ```

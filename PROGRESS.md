@@ -76,6 +76,12 @@ The noise in the textures is not the old noise, so forest and meadow patches mov
 
 Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, without Playwright. They use ANGLE on Vulkan, the only backend that gets the real GPU headless here; `--software` on shots selects SwiftShader. Shots now render at the world's full resolution.
 
+## Bake bugs fixed (2026-11-06)
+- **Half-baked map after an edit.** The drainage stage shared its status with erosion, so the frame loop stepped the previous, finished erosion run during drainage and declared it done. The real run then stopped at about 6 steps and the map said "ready" with no water. Every other edit was affected. Drainage now has its own stage.
+- **Flat blue map from the scripted route.** Scripted bakes queued the whole erosion at once, about 18 s of GPU work. Three flat runs lined up with 34 `Fence expiration time out` lines in the kernel log, from those three Chromium processes and in those three minutes; clean runs logged none. The cause is inferred from that match, since the failure can't be forced on demand. Scripts now wait on the same paced route as the app. An empty readback is now a visible error and `npm run shots` stops instead of writing a flat map.
+- **Map file overwritten after loading another world.** New, Open and Examples now unlink the map file first.
+- `npm run check:bake` covers the first two in a real browser; it fails with the half-bake put back. No CI exists, so run it by hand after touching the bake.
+
 ## What looks off (honest, as of the last shots)
 - Region oblique: forest/meadow patches read as high-contrast camouflage from above; greens are too saturated.
 - Valley-low: valley floors look like a uniform lawn; the river is a soft blurry line rather than a channel.

@@ -1,5 +1,9 @@
 const MAX_UNITS = 64;
 
+export function isBlankReadback(before: Float32Array, after: Float32Array): boolean {
+  return before.some((v) => v !== 0) && after.every((v) => v === 0);
+}
+
 /**
  * Keeps at most one batch of GPU work in flight. Without this, the time a batch takes to *issue* says
  * nothing about the time it takes to *run*, and the driver queue grows until the page freezes.

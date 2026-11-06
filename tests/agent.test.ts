@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { evaluate } from '../src/core/ops';
 import { defaultWorld } from '../src/core/world';
 import { buildContext } from '../src/agent/context';
@@ -6,6 +6,9 @@ import { renderMapImage } from '../src/agent/mapImage';
 import { fieldProbe } from '../src/agent/probe';
 import { ToolExecutor } from '../src/agent/tools';
 import type { RidgeOp } from '../src/core/types';
+import { MapLink } from '../src/app/mapLink';
+import { Store } from '../src/app/store';
+import { isBlankReadback } from '../src/gpu/pacing';
 
 const base = () => {
   const w = defaultWorld('test');
@@ -85,5 +88,38 @@ describe('map overlays', () => {
     ex.run('add_op', { op: { type: 'basin', label: 'L', region: { hex: '0303', radius: 1 } } });
     const r = renderMapImage(w, fieldProbe(w, evaluate(w, { res: 96 })), 160, w.ops.map((op) => ({ op })));
     expect(r.rgba.some((v, i) => i % 4 === 0 && v === 225)).toBe(true);
+  });
+});
+
+describe('map file link', () => {
+  const linked = () => {
+    vi.stubGlobal('window', { setTimeout: () => 0 });
+    const store = new Store(base());
+    const link = new MapLink(store);
+    link.adopt('my-marches', '{}');
+    return { store, link };
+  };
+
+  it('lets go of the file when another world is loaded, so it cannot be overwritten', () => {
+    const { store, link } = linked();
+    store.replace(defaultWorld('another world'), 'load another');
+    expect(link.name).toBeNull();
+  });
+
+  it('stays linked through ordinary edits', () => {
+    const { store, link } = linked();
+    store.commit('rename', (w) => { w.meta.name = 'renamed'; });
+    expect(link.name).toBe('my-marches');
+  });
+});
+
+describe('GPU readback check', () => {
+  it('flags a readback that came back empty', () => {
+    expect(isBlankReadback(new Float32Array([0, 120, 900]), new Float32Array(6))).toBe(true);
+  });
+
+  it('accepts real heights and a map that really is flat at zero', () => {
+    expect(isBlankReadback(new Float32Array([0, 120]), new Float32Array([0, 80, 0, 0]))).toBe(false);
+    expect(isBlankReadback(new Float32Array(4), new Float32Array(4))).toBe(false);
   });
 });

@@ -54,7 +54,7 @@ export function mountOpsPanel(el: HTMLElement, app: App, store: Store) {
   function renderList() {
     const ops = store.world.ops;
     if (!ops.length) {
-      list.replaceChildren(h('li', { class: 'empty', text: 'No ops yet. Add one above, or describe the terrain in the prompt panel.' }));
+      list.replaceChildren(h('li', { class: 'empty', text: 'No ops yet. Add one above, or ask Claude Code to shape this map (see Map file).' }));
       return;
     }
     list.replaceChildren(...ops.map((o) => {

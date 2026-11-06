@@ -19,6 +19,7 @@ This is **Terrain Prompter**, a browser terrain generator for a Shadowdark westm
 - `npm test`: Vitest
 - `npm run shots`: headless screenshots of the camera presets into `shots/` (real GPU; `--software` for SwiftShader)
 - `npm run perf`: bake timeline, frame gaps and GPU ms per camera preset
+- `npm run check:bake`: real-browser check that edits and scripted bakes run erosion to the end
 - `npm run terrain -- <command>`: look at and edit map files from the terminal (replaces the planned `npm run prompt`; see `TERRAIN_AGENT.md`)
 
 ## Editing terrain
