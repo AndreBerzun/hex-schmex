@@ -14,8 +14,8 @@ export function defaultWorld(name = 'Untitled marches'): World {
   return {
     version: 1,
     seed: 1337,
-    grid: { cols: 20, rows: 16, hexMiles: 6, orientation: 'flat' },
-    terrain: { seaLevelM: 0, maxElevationM: 4500, designRes: 1024, erodedRes: 2048 },
+    grid: { cols: 10, rows: 10, hexMiles: 6, orientation: 'flat' },
+    terrain: { seaLevelM: 0, maxElevationM: 4500, designRes: 640, erodedRes: 1280 },
     base: { type: 'mixed', elevation: 260, amplitude: 260, wavelengthKm: 48, octaves: 7, warpKm: 18 },
     ops: [],
     erosion: { enabled: true, preset: 'medium', ...EROSION_PRESETS.medium, talusDeg: 34 },

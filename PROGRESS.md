@@ -84,6 +84,8 @@ Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, wi
 
 ## What looks off (honest, as of the last shots)
 - Region oblique: forest/meadow patches read as high-contrast camouflage from above; greens are too saturated.
+- Alpine Valley after the 10 × 10 redraw: Mirror Lake is broken into several pools around 0307, with stray pools further north, and a few salt flats remain around 0804–0904.
+- Badlands: the Red Gorge floor reads as a white salt-flat band and the mesas as thin rings. Coastal Marches: the saltmarsh has a hard edge. All three were already in the 20 × 16 shots.
 - Valley-low: valley floors look like a uniform lawn; the river is a soft blurry line rather than a channel.
 - Badlands: flat-looking and washed out; the banding doesn't read.
 - Close-ups stay soft near the ground: 95 m/px carries the shapes, and the shader detail only adds a little.
@@ -91,6 +93,7 @@ Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, wi
 - Perf: op evaluate is ~1.3–1.9 s for the examples vs the 300 ms target.
 
 ## Deviations from the brief
+- **Default map is 10 × 10 hexes instead of 20 × 16 (GM's call, 2026-11-06).** About 96 × 111 km at 6-mile hexes. Whether 6 miles is the right hex size is still open. The default resolution dropped to 640 design and 1280 eroded, so detail per kilometre stays at about 87 m/px and the erosion area drops to 36%. The drainage stage now scales with the design resolution for the same reason. The three examples were redrawn for the smaller map; map files keep the grid they were saved with.
 - Erosion is two-stage: a CPU stream-power pass (priority-flood routing) for the large drainage network, then the GPU pipe model for gullies/fans. The pipe model alone did not form drainage at ~95 m/px.
 - Basin ops mark a lake-intent mask; accidental pits are filled, so lakes appear where the GM asked for them rather than everywhere. Closed lakes in dry areas become playas.
 - Past the map edge the terrain is mirrored and fades into haze instead of ending in a skirt.

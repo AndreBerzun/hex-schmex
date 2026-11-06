@@ -37,8 +37,6 @@ export interface AppSettings {
   iterations?: number;
   /** ms of GPU work per frame for progressive erosion */
   erosionBudgetMs: number;
-  /** resolution of the CPU stream-power stage */
-  fluvialRes: number;
 }
 
 export interface HexStats {
@@ -84,7 +82,7 @@ export class App {
   stage: Stage = 'idle';
   stageInfo = '';
   timings: Record<string, number> = {};
-  settings: AppSettings = { exag: 1.8, timeOfDay: 15.5, hexGrid: true, labels: true, debug: 0, mapMode: false, erosion: true, erosionBudgetMs: 12, fluvialRes: 512 };
+  settings: AppSettings = { exag: 1.8, timeOfDay: 15.5, hexGrid: true, labels: true, debug: 0, mapMode: false, erosion: true, erosionBudgetMs: 12 };
   hover: { col: number; row: number } | null = null;
   onStage: (s: Stage, info: string) => void = () => {};
   onHover: (h: HexStats | null) => void = () => {};
@@ -302,7 +300,7 @@ export class App {
       this.setStage('draining', 'carving drainage network…');
       let fl: { height: Float32Array; ms: number };
       try {
-        fl = await this.workers.fluvial(hf.height.slice(), hf.nx, hf.ny, hf.kmPerPx, this.world.terrain.seaLevelM, fluvialOptionsFor(this.world.erosion), this.settings.fluvialRes, hf.lake);
+        fl = await this.workers.fluvial(hf.height.slice(), hf.nx, hf.ny, hf.kmPerPx, this.world.terrain.seaLevelM, fluvialOptionsFor(this.world.erosion), Math.round(this.world.terrain.designRes / 2), hf.lake);
       } catch (e) {
         console.error(e);
         this.setStage('error', String(e));
