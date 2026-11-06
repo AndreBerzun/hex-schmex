@@ -15,6 +15,7 @@ interface Pending {
   reject: (error: Error) => void;
 }
 
+const CLOSE_GRACE_MS = 3000;
 const GPU_FLAGS = ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist'];
 const SOFTWARE_FLAGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 
@@ -51,6 +52,10 @@ export class BrowserPage {
   private readonly pending = new Map<number, Pending>();
 
   private constructor(private readonly proc: ChildProcess, private readonly socket: WebSocket) {
+    socket.onclose = () => {
+      for (const p of this.pending.values()) p.reject(new Error('The browser connection closed'));
+      this.pending.clear();
+    };
     socket.onmessage = ({ data }) => {
       const msg = JSON.parse(String(data)) as { id?: number; result?: Record<string, unknown>; error?: { message: string }; method?: string; params?: Record<string, unknown> };
       if (msg.method === 'Runtime.exceptionThrown') console.log('page exception:', JSON.stringify(msg.params).slice(0, 400));
@@ -117,7 +122,8 @@ export class BrowserPage {
   }
 
   async close() {
-    await this.send('Browser.close').catch(() => undefined);
+    const grace = new Promise((resolve) => setTimeout(resolve, CLOSE_GRACE_MS).unref());
+    await Promise.race([this.send('Browser.close').catch(() => undefined), grace]);
     this.socket.close();
     this.proc.kill();
   }
