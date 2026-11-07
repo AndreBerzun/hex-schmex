@@ -40,6 +40,7 @@ export function loadWorld(raw: unknown): World {
     erosion: { ...d.erosion, ...(r.erosion ?? {}) },
     climate: { ...d.climate, ...(r.climate ?? {}) },
     features: Array.isArray(r.features) ? r.features : [],
+    environment: r.environment,
     meta: { ...d.meta, ...(r.meta ?? {}) },
   };
   const re = r.erosion as Partial<ErosionSettings> | undefined;

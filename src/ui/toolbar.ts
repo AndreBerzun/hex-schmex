@@ -80,8 +80,25 @@ export function mountToolbar(el: HTMLElement, app: App, store: Store, examples: 
   // ---- goto + export
   const hexIn = h('input', { type: 'text', placeholder: '0507', size: 5, title: 'Hex id', onkeydown: (ev: Event) => { if ((ev as KeyboardEvent).key === 'Enter') go(); } });
   const go = () => { if (parseHexId(hexIn.value)) app.goToHex(hexIn.value); };
+  const savedView = h('select', { title: 'Inspect the world from a saved view; orbit and pan freely afterwards', onchange: () => {
+    const v = store.world.meta.views?.[savedView.value];
+    if (v) { app.setSettings({ mapMode: false }); app.setView(v); }
+    savedView.value = '';
+  } });
+  const tideLabel = h('span');
+  const tide = h('input', { type: 'range', min: 0, max: 1, step: 0.01, value: app.settings.tide,
+    title: 'Preview the rising Dark Sea (independent of the sun clock)', oninput: () => {
+      app.setSettings({ tide: Number(tide.value) });
+      syncTide();
+    } });
+  function syncTide() {
+    const t = store.world.environment?.tide;
+    tideLabel.textContent = t ? `${Math.round(t.lowM + (t.highM - t.lowM) * app.settings.tide)} m` : '';
+  }
+  const tideControl = h('label', { class: 'inline' }, 'sea', tide, tideLabel);
+  view.append(tideControl);
   const nav = h('div', { class: 'group' },
-    hexIn, btn('Go', 'Fly to hex', go),
+    savedView, hexIn, btn('Go', 'Fly to hex', go),
     btn('Overview', 'Back to the region overview', () => { app.setSettings({ mapMode: false }); app.resetCamera(); }),
   );
   const exp = h('div', { class: 'group' },
@@ -98,8 +115,17 @@ export function mountToolbar(el: HTMLElement, app: App, store: Store, examples: 
     undo.title = store.canUndo ? `Undo ${store.undoLabel}` : 'Undo';
     redo.title = store.canRedo ? `Redo ${store.redoLabel}` : 'Redo';
     preset.value = store.world.erosion.preset;
+    savedView.replaceChildren(h('option', { value: '', text: 'Visit…' }), ...Object.keys(store.world.meta.views ?? {}).map((k) => h('option', { value: k, text: k.replaceAll('-', ' ') })));
+    savedView.hidden = !store.world.meta.views;
+    tideControl.hidden = !store.world.environment?.tide;
+    tide.value = String(app.settings.tide);
+    syncTide();
+    exag.value = String(app.settings.exag);
+    exagLbl.textContent = `×${app.settings.exag.toFixed(1)}`;
+    tod.value = String(app.settings.timeOfDay);
+    todLbl.textContent = fmtTime(app.settings.timeOfDay);
   }
-  store.subscribe(sync);
+  store.subscribe(() => queueMicrotask(sync));
   sync();
 
   window.addEventListener('keydown', (ev) => {

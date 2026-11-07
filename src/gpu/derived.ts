@@ -16,6 +16,7 @@ float H(vec2 uv) { return texture(uHeight, uv).r * uHeightScale * uExag; }
 const SHADOW_FS = HEIGHT_COMMON + /* glsl */ `
 uniform vec3 uSun; // world dir toward sun: x east, y up, z south
 void main() {
+  if(uSun.y<=0.0){outColor=vec4(1.0);return;}
   vec2 uv = vUv;
   float h0 = H(uv) + 2.0;
   vec2 dir = normalize(uSun.xz + 1e-6);

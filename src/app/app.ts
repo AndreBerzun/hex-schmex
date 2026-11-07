@@ -16,6 +16,11 @@ import { HexLabels } from '../render/labels';
 import { Sky, Skirt } from '../render/sky';
 import { bakeNoiseLut } from '../render/noiseLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
+import { Landmarks } from '../render/landmarks';
+import { tideAt, tideLevel } from '../core/environment';
+import { GroundTravel } from './groundTravel';
+import { advanceClock, clockTide } from '../core/travel';
+import { FreeFlight } from './freeFlight';
 import { WorkerClient } from './workerClient';
 
 export type Stage = 'idle' | 'evaluating' | 'draining' | 'eroding' | 'hydrology' | 'ready' | 'error';
@@ -25,6 +30,7 @@ import type { ViewSpec } from '../core/types';
 
 export interface AppSettings {
   exag: number;
+  tide: number;
   timeOfDay: number;
   hexGrid: boolean;
   labels: boolean;
@@ -62,12 +68,20 @@ export class App {
   readonly camera: THREE.PerspectiveCamera;
   readonly ortho: THREE.OrthographicCamera;
   readonly controls: OrbitControls;
+  readonly freeFlight: FreeFlight;
+  readonly ground: GroundTravel;
+  autoTide = false;
+  contextLost = false;
+  private lastShadowRefresh = 0;
+  private fullLightingDue = 0;
   readonly gc: GPUCompute;
   readonly derived: DerivedMaps;
   readonly terrain: Terrain;
   readonly sky: Sky;
   readonly skirt: Skirt;
   readonly labels: HexLabels;
+  readonly landmarks: Landmarks;
+  private pendingView?: string;
   readonly uniforms: Record<string, THREE.IUniform>;
   readonly workers = new WorkerClient();
 
@@ -82,7 +96,7 @@ export class App {
   stage: Stage = 'idle';
   stageInfo = '';
   timings: Record<string, number> = {};
-  settings: AppSettings = { exag: 1.8, timeOfDay: 15.5, hexGrid: true, labels: true, debug: 0, mapMode: false, erosion: true, erosionBudgetMs: 12 };
+  settings: AppSettings = { tide: 0, exag: 1.8, timeOfDay: 15.5, hexGrid: true, labels: true, debug: 0, mapMode: false, erosion: true, erosionBudgetMs: 12 };
   hover: { col: number; row: number } | null = null;
   onStage: (s: Stage, info: string) => void = () => {};
   onHover: (h: HexStats | null) => void = () => {};
@@ -123,6 +137,16 @@ export class App {
     this.controls.screenSpacePanning = false;
     this.controls.zoomSpeed = 1.2;
 
+    this.freeFlight = new FreeFlight(this.camera, canvas, () => this.invalidate());
+    this.ground = new GroundTravel(this, canvas);
+    canvas.addEventListener('webglcontextlost', ev => {
+      ev.preventDefault(); this.contextLost=true;
+      this.ground.stop('Graphics context lost.');this.freeFlight.release();
+      this.setStage('error','Graphics context lost. Reload the scene to recover.');
+      const button=document.createElement('button');button.textContent='Reload scene';button.className='btn recovery';
+      button.onclick=()=>location.reload();canvas.parentElement?.append(button);
+    });
+
     this.gc = new GPUCompute(this.renderer);
     this.derived = new DerivedMaps(this.gc);
     this.erosionPacer = new GpuPacer(gl);
@@ -138,6 +162,11 @@ export class App {
     white.needsUpdate = true;
 
     this.uniforms = {
+      uDaylight: { value: 1 },
+      uSpire: { value: new THREE.Vector4() },
+      uSpireRadius: { value: 0 },
+      uTide: { value: new THREE.Vector4(0, 0, 0, -100000) },
+      uAshen: { value: 0 },
       uHeight: { value: placeholder(0) },
       uHeightScale: { value: 1 },
       uWaterTex: { value: this.waterTex },
@@ -179,6 +208,8 @@ export class App {
     this.sky = new Sky(this.uniforms);
     this.skirt = new Skirt(this.uniforms);
     this.labels = new HexLabels();
+    this.landmarks = new Landmarks(this.uniforms);
+    this.scene.add(this.landmarks.group);
     this.scene.add(this.sky.mesh, this.terrain.mesh, this.labels.mesh);
     this.applySettings();
     this.installPointer(canvas);
@@ -192,21 +223,28 @@ export class App {
     u.uExag.value = s.exag;
     this.terrain.exag = s.exag;
     this.labels.setExag(s.exag);
+    this.landmarks.setExag(s.exag);
+    const tide = this.world?.environment?.tide;
+    (u.uTide.value as THREE.Vector4).set(tide?.center[0] ?? 0, tide?.center[1] ?? 0, tide?.radiusKm ?? 0, tideLevel(this.world?.environment, s.tide));
     u.uHexOn.value = s.hexGrid ? 1 : 0;
     this.labels.mesh.visible = s.labels && s.hexGrid;
     u.uDebug.value = s.debug;
     // sun from time of day: rises E, highest in the S at noon, sets W
     const t = s.timeOfDay;
     const az = ((90 + ((t - 6) / 12) * 180) * Math.PI) / 180;
-    const elev = Math.max(0.03, Math.sin(((t - 6) / 12) * Math.PI)) * (55 * Math.PI / 180);
+    const elev = Math.sin(((t - 6) / 12) * Math.PI) * (55 * Math.PI / 180);
     const sunBefore = this.sunDir.clone();
     this.sunDir.set(Math.cos(elev) * Math.sin(az), Math.sin(elev), -Math.cos(elev) * Math.cos(az)).normalize();
-    if (!sunBefore.equals(this.sunDir)) this.needShadow = true;
+    if (!sunBefore.equals(this.sunDir)) { this.needShadow = true; this.fullLightingDue=performance.now()+700; }
     (u.uSunDir.value as THREE.Vector3).copy(this.sunDir);
-    const low = 1 - Math.min(1, elev / 0.6);
-    (u.uSunColor.value as THREE.Color).setRGB(1.0, 0.93 - 0.25 * low, 0.82 - 0.45 * low);
+    const daylight = THREE.MathUtils.smoothstep(elev, -0.10, 0.08);
+    u.uDaylight.value=daylight;
+    const low = 1 - Math.max(0, Math.min(1, elev / 0.6));
+    (u.uSunColor.value as THREE.Color).setRGB(1.0, 0.93 - 0.25 * low, 0.82 - 0.45 * low).multiplyScalar(daylight);
     (u.uSkyZenith.value as THREE.Color).setRGB(0.16, 0.32, 0.62).multiplyScalar(0.9 + 0.2 * (1 - low));
     (u.uSkyHorizon.value as THREE.Color).setRGB(0.62 + 0.15 * low, 0.72 + 0.03 * low, 0.86 - 0.12 * low);
+    (u.uSkyZenith.value as THREE.Color).lerp(new THREE.Color(0.001,0.002,0.009),1-daylight);
+    (u.uSkyHorizon.value as THREE.Color).lerp(new THREE.Color(0.006,0.009,0.022),1-daylight);
     this.invalidate();
   }
 
@@ -220,7 +258,12 @@ export class App {
     Object.assign(this.settings, p);
     this.applySettings();
     if (p.exag !== undefined && p.exag !== prevExag) this.needShadow = true;
-    if (p.mapMode !== undefined) this.updateOrtho();
+    if (p.mapMode) this.ground.leave();
+    if (p.mapMode !== undefined) {
+      this.freeFlight.release();
+      if (p.mapMode) this.freeFlight.setEnabled(false);
+      this.updateOrtho();
+    }
   }
 
   // ------------------------------------------------------------------ world + bake
@@ -238,6 +281,10 @@ export class App {
     u.uSnowline.value = w.climate.snowlineM;
     u.uTreeline.value = w.climate.treelineM;
     u.uTemp.value = w.climate.temperature;
+    this.controls.maxPolarAngle = w.features.length ? Math.PI * 0.98 : Math.PI * 0.495;
+    u.uAshen.value = w.environment?.palette === 'ashen' ? 1 : 0;
+    u.uHazeDensity.value = w.environment?.hazeDensity ?? 0.018;
+    this.applySettings();
     u.uHexSize.value = this.grid.size;
     u.uSurroundKm.value = Math.max(this.worldW, this.worldH) * this.terrain.surround;
     u.uHexFlat.value = this.grid.orientation === 'flat' ? 1 : 0;
@@ -250,7 +297,12 @@ export class App {
   async setWorld(world: World, opts: { keepCamera?: boolean } = {}) {
     const first = !this.world;
     const gridChanged = !first && JSON.stringify(this.world.grid) !== JSON.stringify(world.grid);
+    if (!opts.keepCamera) this.ground.reset();
     this.world = world;
+    if (!opts.keepCamera) {
+      this.pendingView = world.meta.preview?.initialView;
+      this.settings.tide = 0;
+    }
     this.syncWorldUniforms();
     if (first || gridChanged || !opts.keepCamera) this.resetCamera();
     await this.bake();
@@ -273,6 +325,8 @@ export class App {
     const gen = ++this.bakeGen;
     this.timings = {};
     this.erosionCpu = null;
+    this.landmarks.group.visible = false;
+    (this.uniforms.uSpire.value as THREE.Vector4).set(0, 0, 0, 0);
     this.setStage('evaluating', 'evaluating op stack…');
     let hf: Heightfield & { ms: number };
     try {
@@ -456,10 +510,35 @@ export class App {
     this.uniforms.uHasHydro.value = 1;
     // river threshold: streams draining > ~120 km² at default; scale is in log10 km²
     this.uniforms.uRiverMinLog.value = 2.1;
+    this.refreshLandmarks();
     this.setStage('ready', '');
+    if (this.pendingView) {
+      const v = this.world.meta.views?.[this.pendingView];
+      this.pendingView = undefined;
+      if (v) this.setView(v);
+    }
     if (this.lightingStale) this.refreshLighting('full');
     this.lightingStale = false;
     this.invalidate();
+  }
+
+  /** Refresh positions and the shadow caster after a metadata-only landmark edit. */
+  updatePresentation(world: World) {
+    this.world = world;
+    this.syncWorldUniforms();
+    if (this.stage === 'ready') this.refreshLandmarks();
+    this.invalidate();
+  }
+
+  private refreshLandmarks() {
+    (this.uniforms.uSpire.value as THREE.Vector4).set(0, 0, 0, 0);
+    this.landmarks.rebuild(this.world, (x, z) => this.heightAt(x, z));
+    this.landmarks.group.visible = true;
+    const spire = this.world.features.find((f) => f.kind === 'crimson-spire' && f.pos);
+    if (spire?.pos) {
+      (this.uniforms.uSpire.value as THREE.Vector4).set(spire.pos[0], spire.pos[1], this.heightAt(...spire.pos) / 1000, (spire.heightM ?? 1800) / 1000);
+      this.uniforms.uSpireRadius.value = spire.radiusKm ?? 0.22;
+    }
   }
 
   // ------------------------------------------------------------------ sampling / picking
@@ -478,7 +557,7 @@ export class App {
   }
 
   surfaceAt(x: number, z: number): number {
-    const h = this.heightAt(x, z);
+    const h = Math.max(this.heightAt(x, z), tideAt(this.world?.environment, this.settings.tide, x, z));
     const hy = this.hydro;
     if (!hy) return h;
     x = mirror(x, this.worldW);
@@ -583,6 +662,7 @@ export class App {
 
   private installPointer(canvas: HTMLCanvasElement) {
     canvas.addEventListener('pointermove', (ev) => {
+      if(!this.settings.hexGrid || this.freeFlight.locked || this.ground.enabled)return;
       const r = canvas.getBoundingClientRect();
       const nx = ((ev.clientX - r.left) / r.width) * 2 - 1, ny = -((ev.clientY - r.top) / r.height) * 2 + 1;
       this.pendingPick = [nx, ny];
@@ -607,6 +687,7 @@ export class App {
   // ------------------------------------------------------------------ cameras
 
   resetCamera() {
+    this.freeFlight.release();
     const W = this.worldW, H = this.worldH;
     const t = new THREE.Vector3(W / 2, 0.4, H / 2 - H * 0.04);
     this.controls.target.copy(t);
@@ -634,6 +715,8 @@ export class App {
 
   /** Point a camera according to a view spec (hex ids, compass words, km). */
   setView(v: ViewSpec) {
+    this.freeFlight.release();
+    this.ground.leave();
     const res = new Resolver(this.world);
     const from = res.point(v.from as never), to = res.point(v.to as never);
     const s = 0.001 * this.settings.exag;
@@ -674,6 +757,7 @@ export class App {
   resize() {
     const el = this.renderer.domElement;
     const w = el.clientWidth, h = el.clientHeight;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(1800000 / Math.max(1,w*h))));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
@@ -698,7 +782,8 @@ export class App {
 
   /** One frame: paced erosion and lighting work, then a redraw if something changed. */
   frame() {
-    const dt = this.clock.getDelta();
+    const dt = Math.min(this.clock.getDelta(),0.05);
+    if(this.contextLost)return;
     this.fpsAcc.t += dt; this.fpsAcc.n++;
     if (this.fpsAcc.t > 0.5) { this.fpsAcc.fps = this.fpsAcc.n / this.fpsAcc.t; this.fpsAcc.t = 0; this.fpsAcc.n = 0; }
     this.frameGpuMs = this.timer.poll() ?? this.frameGpuMs;
@@ -707,7 +792,9 @@ export class App {
     if (!gpuBusy) {
       if (this.stage === 'eroding' && this.erosion) this.stepErosion(this.settings.erosionBudgetMs);
       this.stepLighting();
-      if (this.needShadow) this.refreshLighting('full');
+      const now=performance.now();
+      if (this.needShadow && now-this.lastShadowRefresh>350) { this.refreshLighting('draft'); this.lastShadowRefresh=now; }
+      if (this.fullLightingDue && now>this.fullLightingDue && !this.needShadow && this.stage==='ready') {this.fullLightingDue=0;this.refreshLighting('full');}
     }
     if (this.flight) {
       const f = this.flight;
@@ -719,8 +806,22 @@ export class App {
       this.invalidate();
       if (k >= 1) this.flight = null;
     }
-    this.controls.enabled = !this.settings.mapMode;
-    if (!this.settings.mapMode) this.controls.update();
+    if (this.ground.enabled && !this.settings.mapMode) {
+      const seconds=this.ground.update(dt);
+      if(seconds>0){
+        this.settings.timeOfDay=advanceClock(this.settings.timeOfDay,seconds);
+        if(this.autoTide)this.settings.tide=clockTide(this.settings.timeOfDay);
+        this.applySettings();this.ground.placeCamera();
+      }
+    }
+    this.controls.enabled = !this.settings.mapMode && !this.freeFlight.enabled && !this.ground.enabled;
+    if (!this.settings.mapMode) {
+      if (this.freeFlight.enabled || this.ground.enabled) {
+        if(this.freeFlight.enabled)this.freeFlight.update(dt);
+        this.camera.getWorldDirection(this.flyDirection);
+        this.controls.target.copy(this.camera.position).addScaledVector(this.flyDirection, 1);
+      } else this.controls.update();
+    }
     this.keepAboveGround();
     if (this.pendingPick) {
       const p = this.pick(this.pendingPick[0], this.pendingPick[1]);
@@ -765,11 +866,14 @@ export class App {
     this.showLighting(this.derived.current);
   }
 
+  private flyDirection = new THREE.Vector3();
+
   private keepAboveGround() {
     if (this.settings.mapMode) return;
+    if(this.ground.enabled) {this.ground.placeCamera();this.camera.near=0.0002;this.camera.updateProjectionMatrix();return;}
     const c = this.camera.position;
     const g = this.surfaceAt(c.x, c.z) * 0.001 * this.settings.exag;
-    const minY = g + 0.04;
+    const minY = g + (this.freeFlight.enabled ? 0.002 * this.settings.exag : 0.04);
     if (c.y < minY) c.y = minY;
     // dynamic near plane: precision where it matters
     const agl = Math.max(0.01, c.y - g);
@@ -781,6 +885,7 @@ export class App {
   }
 
   render() {
+    if(this.contextLost)return;
     const cam = this.settings.mapMode ? this.ortho : this.camera;
     cam.updateMatrixWorld();
     if (this.settings.mapMode) this.terrain.material.uniforms.uLeafRange.value = 1e9;

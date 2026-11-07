@@ -32,7 +32,7 @@ export const OP_DESCS: OpDesc[] = [
     params: [
       { key: 'points', kind: 'points', help: 'crest line, 2+ points' },
       num('height', 2200, 0, 6000, 50, 'metres added at the crest'),
-      num('width', 18, 1, 80, 0.5, 'half-width of the range base, km'),
+      num('width', 18, 0.1, 80, 0.1, 'half-width of the range base, km'),
       num('sharpness', 0.6, 0, 1, 0.05, '0 rounded .. 1 knife-edge'),
       num('roughness', 0.6, 0, 1, 0.05, '0 smooth .. 1 broken crest with spurs'),
       num('asymmetry', 0, -1, 1, 0.05, '>0 right side (of line direction) steeper'),

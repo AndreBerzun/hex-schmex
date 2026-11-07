@@ -24,6 +24,7 @@ export function mountHud(app: App) {
   };
 
   const setStatus = (stage: string, info: string) => {
+    status.classList.toggle('is-ready', stage === 'ready');
     const er = app.erosion;
     if (stage === 'ready') {
       label.textContent = 'ready';
@@ -46,8 +47,9 @@ export function mountHud(app: App) {
     acc = 0;
     const t = app.timings;
     const cam = app.camera.position;
-    const agl = (cam.y / (0.001 * app.settings.exag) - app.surfaceAt(cam.x, cam.z)) / 1000;
-    stats.textContent = `${app.frameGpuMs.toFixed(1)} ms gpu · ${app.terrain.nodeCount} patches · alt ${agl.toFixed(1)} km` +
+    const agl = (cam.y / (0.001 * app.settings.exag) - (app.ground.enabled?app.terrain.surfaceHeightAt(cam.x,cam.z,(x,z)=>app.surfaceAt(x,z)):app.surfaceAt(cam.x, cam.z))) / 1000;
+    const altitude=cam.y/(0.001*app.settings.exag);
+    stats.textContent = `alt ${altitude.toFixed(1)} m · ${Math.round(agl*1000)} m above surface · ${app.frameGpuMs.toFixed(1)} ms gpu · ${app.terrain.nodeCount} patches` +
       (t.evaluate ? ` · ops ${t.evaluate.toFixed(0)} ms` : '') +
       (t.fluvial ? ` · drainage ${(t.fluvial / 1000).toFixed(1)} s` : '') +
       (t.erosion ? ` · erosion ${(t.erosion / 1000).toFixed(1)} s` : '') +

@@ -29,7 +29,7 @@ export class Sky {
             float cl = smoothstep(0.15, 0.65, (texture2D(uNoise, cp / 32.0).r - 0.5) * 3.0 * 1.05 + 0.1);
             cl *= smoothstep(0.0, 0.12, dir.y) * (1.0 - smoothstep(0.35, 0.8, dir.y));
             float lit = 0.75 + 0.25 * max(dot(dir, uSunDir), 0.0);
-            c = mix(c, mix(uSkyHorizon, vec3(1.0), 0.7) * lit * 1.05, cl * 0.75);
+            c = mix(c, mix(uSkyHorizon, vec3(1.0), 0.7) * lit * 1.05, cl * 0.75 * uDaylight);
           }
           gl_FragColor = vec4(toDisplay(c), 1.0);
         }`,

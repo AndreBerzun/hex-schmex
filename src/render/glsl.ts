@@ -1,6 +1,7 @@
 // Shared GLSL chunks for the renderer.
 
 export const ATMOS = /* glsl */ `
+uniform float uDaylight;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform vec3 uSkyZenith;
@@ -15,6 +16,11 @@ vec3 skyColor(vec3 dir) {
   float sd = max(dot(dir, uSunDir), 0.0);
   c += uSunColor * (pow(sd, 5.0) * 0.12 + pow(sd, 48.0) * 0.3);
   if (dir.y < 0.0) c = mix(uSkyHorizon, uSkyHorizon * vec3(0.9, 0.93, 0.97), clamp(-dir.y * 4.0, 0.0, 1.0));
+  if(uDaylight<0.9 && dir.y>0.0) {
+    vec2 starCell=floor(dir.xz/(dir.y+0.15)*450.0);
+    float star=step(0.998,fract(sin(dot(starCell,vec2(127.1,311.7)))*43758.5453));
+    c+=vec3(0.12,0.14,0.2)*star*(1.0-uDaylight);
+  }
   return c;
 }
 
@@ -45,3 +51,27 @@ vec3 toDisplay(vec3 c) { return pow(acesTonemap(c), vec3(1.0 / 2.2)); }
 vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
 `;
 
+
+// Shared by terrain and landmarks. The taper approximates the Spire silhouette analytically,
+// so its kilometre-long shadow does not need a huge shadow-map texture.
+export const LANDMARK_SHADOW = /* glsl */ `
+uniform vec4 uSpire; // x,z,base altitude,height (km, before exaggeration)
+uniform float uSpireRadius;
+float landmarkShadow(vec3 p) {
+  if (uSpire.w <= 0.0 || uSunDir.y <= 0.0) return 1.0;
+  vec2 delta = uSpire.xy - p.xz;
+  float t = dot(delta, uSunDir.xz) / max(dot(uSunDir.xz, uSunDir.xz), 0.0001);
+  float y = (p.y + t * uSunDir.y) / uExag - uSpire.z;
+  if (t <= 0.0 || y < 0.0 || y > uSpire.w) return 1.0;
+  float radius = uSpireRadius * (1.0 - y / uSpire.w);
+  float d = length(p.xz + t * uSunDir.xz - uSpire.xy);
+  return mix(0.16, 1.0, smoothstep(radius * 0.7, radius + 0.012, d));
+}
+`;
+
+export const TIDE = /* glsl */ `
+uniform vec4 uTide; // basin centre x,z, radius km, water elevation m
+float tideAt(vec2 xz) {
+  return distance(xz, uTide.xy) < uTide.z ? uTide.w : -100000.0;
+}
+`;

@@ -1,0 +1,1092 @@
+{
+  "version": 1,
+  "seed": 7919,
+  "grid": {
+    "cols": 10,
+    "rows": 10,
+    "hexMiles": 4,
+    "orientation": "flat"
+  },
+  "terrain": {
+    "seaLevelM": -260,
+    "maxElevationM": 9000,
+    "designRes": 1024,
+    "erodedRes": 1536
+  },
+  "base": {
+    "type": "ridged",
+    "elevation": 160,
+    "amplitude": 75,
+    "wavelengthKm": 3.5,
+    "octaves": 5,
+    "warpKm": 1.2
+  },
+  "ops": [
+    {
+      "id": "lowlands-670u1",
+      "type": "lowlands",
+      "enabled": true,
+      "label": "Crater Floor",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          31,
+          35
+        ],
+        "radius": 15
+      },
+      "targetElevation": -180,
+      "flatness": 1,
+      "falloffKm": 2.3,
+      "expr": {
+        "region": {
+          "center": [
+            31,
+            35
+          ],
+          "radiusKm": 15
+        }
+      }
+    },
+    {
+      "id": "hills-670v2",
+      "type": "hills",
+      "enabled": true,
+      "label": "Broken Crater Bed",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          31,
+          35
+        ],
+        "radius": 14.5
+      },
+      "amplitude": 95,
+      "wavelengthKm": 1.25,
+      "style": "rugged",
+      "falloffKm": 0.8,
+      "expr": {
+        "region": {
+          "center": [
+            31,
+            35
+          ],
+          "radiusKm": 14.5
+        }
+      }
+    },
+    {
+      "id": "ridge-670v3",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Northern Crater Rim",
+      "source": "prompt",
+      "points": [
+        [
+          16,
+          29
+        ],
+        [
+          18,
+          23
+        ],
+        [
+          25,
+          19
+        ],
+        [
+          33,
+          18.7
+        ],
+        [
+          41,
+          22
+        ],
+        [
+          45,
+          28
+        ]
+      ],
+      "height": 330,
+      "width": 1.2,
+      "sharpness": 0.65,
+      "roughness": 0.7,
+      "asymmetry": 0.1
+    },
+    {
+      "id": "ridge-670v4",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Southern Crater Rim",
+      "source": "prompt",
+      "points": [
+        [
+          17,
+          41
+        ],
+        [
+          22,
+          47
+        ],
+        [
+          30,
+          50
+        ],
+        [
+          38,
+          48
+        ],
+        [
+          44,
+          42
+        ]
+      ],
+      "height": 360,
+      "width": 1.5,
+      "sharpness": 0.6,
+      "roughness": 0.6,
+      "asymmetry": -0.2
+    },
+    {
+      "id": "hills-670v5",
+      "type": "hills",
+      "enabled": true,
+      "label": "Hollow Foothills",
+      "source": "prompt",
+      "region": {
+        "kind": "rect",
+        "min": [
+          4,
+          9
+        ],
+        "max": [
+          61,
+          20
+        ]
+      },
+      "amplitude": 620,
+      "wavelengthKm": 4,
+      "style": "rugged",
+      "falloffKm": 3,
+      "expr": {
+        "region": {
+          "rect": [
+            [
+              4,
+              9
+            ],
+            [
+              61,
+              20
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "ridge-670v6",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Hollow Mountains",
+      "source": "prompt",
+      "points": [
+        [
+          4,
+          10
+        ],
+        [
+          13,
+          6
+        ],
+        [
+          22,
+          9
+        ],
+        [
+          30,
+          5.5
+        ],
+        [
+          39,
+          8
+        ],
+        [
+          48,
+          5
+        ],
+        [
+          59,
+          10
+        ]
+      ],
+      "height": 6000,
+      "width": 5,
+      "sharpness": 0.88,
+      "roughness": 0.85,
+      "asymmetry": 0.25
+    },
+    {
+      "id": "ridge-670v7",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Hollow Front Range",
+      "source": "prompt",
+      "points": [
+        [
+          9,
+          15
+        ],
+        [
+          18,
+          12
+        ],
+        [
+          27,
+          15
+        ],
+        [
+          35,
+          11
+        ],
+        [
+          45,
+          15
+        ],
+        [
+          55,
+          13
+        ]
+      ],
+      "height": 2500,
+      "width": 2.8,
+      "sharpness": 0.8,
+      "roughness": 0.75,
+      "asymmetry": 0
+    },
+    {
+      "id": "peak-670w8",
+      "type": "peak",
+      "enabled": true,
+      "label": "Split Crown",
+      "source": "prompt",
+      "center": [
+        30,
+        6.2
+      ],
+      "height": 1800,
+      "radius": 2.8,
+      "shape": "massif"
+    },
+    {
+      "id": "ridge-670w9",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Coral Rib 1",
+      "source": "prompt",
+      "points": [
+        [
+          21,
+          27
+        ],
+        [
+          20,
+          30
+        ],
+        [
+          21.6,
+          32
+        ],
+        [
+          20.7,
+          38
+        ],
+        [
+          22,
+          42
+        ]
+      ],
+      "height": 70,
+      "width": 0.25,
+      "sharpness": 0.85,
+      "roughness": 0.8,
+      "asymmetry": 0.3
+    },
+    {
+      "id": "ridge-670wa",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Coral Rib 2",
+      "source": "prompt",
+      "points": [
+        [
+          23.5,
+          28
+        ],
+        [
+          22.5,
+          30
+        ],
+        [
+          24.1,
+          32
+        ],
+        [
+          23.2,
+          38
+        ],
+        [
+          24.5,
+          42
+        ]
+      ],
+      "height": 95,
+      "width": 0.25,
+      "sharpness": 0.85,
+      "roughness": 0.8,
+      "asymmetry": 0.3
+    },
+    {
+      "id": "ridge-670wb",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Coral Rib 3",
+      "source": "prompt",
+      "points": [
+        [
+          26,
+          27
+        ],
+        [
+          25,
+          30
+        ],
+        [
+          26.6,
+          32
+        ],
+        [
+          25.7,
+          38
+        ],
+        [
+          27,
+          42
+        ]
+      ],
+      "height": 120,
+      "width": 0.25,
+      "sharpness": 0.85,
+      "roughness": 0.8,
+      "asymmetry": 0.3
+    },
+    {
+      "id": "ridge-670wc",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Coral Rib 4",
+      "source": "prompt",
+      "points": [
+        [
+          28.5,
+          28
+        ],
+        [
+          27.5,
+          30
+        ],
+        [
+          29.1,
+          32
+        ],
+        [
+          28.2,
+          38
+        ],
+        [
+          29.5,
+          42
+        ]
+      ],
+      "height": 70,
+      "width": 0.25,
+      "sharpness": 0.85,
+      "roughness": 0.8,
+      "asymmetry": 0.3
+    },
+    {
+      "id": "ridge-670wd",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Coral Rib 5",
+      "source": "prompt",
+      "points": [
+        [
+          31,
+          27
+        ],
+        [
+          30,
+          30
+        ],
+        [
+          31.6,
+          32
+        ],
+        [
+          30.7,
+          38
+        ],
+        [
+          32,
+          42
+        ]
+      ],
+      "height": 95,
+      "width": 0.25,
+      "sharpness": 0.85,
+      "roughness": 0.8,
+      "asymmetry": 0.3
+    },
+    {
+      "id": "ridge-670we",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Coral Rib 6",
+      "source": "prompt",
+      "points": [
+        [
+          33.5,
+          28
+        ],
+        [
+          32.5,
+          30
+        ],
+        [
+          34.1,
+          32
+        ],
+        [
+          33.2,
+          38
+        ],
+        [
+          34.5,
+          42
+        ]
+      ],
+      "height": 120,
+      "width": 0.25,
+      "sharpness": 0.85,
+      "roughness": 0.8,
+      "asymmetry": 0.3
+    },
+    {
+      "id": "ridge-670wf",
+      "type": "ridge",
+      "enabled": true,
+      "label": "Coral Rib 7",
+      "source": "prompt",
+      "points": [
+        [
+          36,
+          27
+        ],
+        [
+          35,
+          30
+        ],
+        [
+          36.6,
+          32
+        ],
+        [
+          35.7,
+          38
+        ],
+        [
+          37,
+          42
+        ]
+      ],
+      "height": 70,
+      "width": 0.25,
+      "sharpness": 0.85,
+      "roughness": 0.8,
+      "asymmetry": 0.3
+    },
+    {
+      "id": "plateau-670wg",
+      "type": "plateau",
+      "enabled": true,
+      "label": "City Headland",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          47,
+          35
+        ],
+        "radius": 1.45
+      },
+      "height": 380,
+      "edgeSteepness": 0.35,
+      "terraces": 0,
+      "expr": {
+        "region": {
+          "center": [
+            47,
+            35
+          ],
+          "radiusKm": 1.45
+        }
+      }
+    },
+    {
+      "id": "plateau-670wh",
+      "type": "plateau",
+      "enabled": true,
+      "label": "Castle Acropolis",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          47,
+          35
+        ],
+        "radius": 0.34
+      },
+      "height": 490,
+      "edgeSteepness": 0.55,
+      "terraces": 0,
+      "expr": {
+        "region": {
+          "center": [
+            47,
+            35
+          ],
+          "radiusKm": 0.34
+        }
+      }
+    },
+    {
+      "id": "plateau-670wi",
+      "type": "plateau",
+      "enabled": true,
+      "label": "Spire Islet",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          40,
+          36.5
+        ],
+        "radius": 0.48
+      },
+      "height": 130,
+      "edgeSteepness": 0.65,
+      "terraces": 0,
+      "expr": {
+        "region": {
+          "center": [
+            40,
+            36.5
+          ],
+          "radiusKm": 0.48
+        }
+      }
+    },
+    {
+      "id": "plateau-670wj",
+      "type": "plateau",
+      "enabled": true,
+      "label": "Tree Refuge",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          15.5,
+          35
+        ],
+        "radius": 0.85
+      },
+      "height": 220,
+      "edgeSteepness": 0.5,
+      "terraces": 0,
+      "expr": {
+        "region": {
+          "center": [
+            15.5,
+            35
+          ],
+          "radiusKm": 0.85
+        }
+      }
+    },
+    {
+      "id": "valley-670wk",
+      "type": "valley",
+      "enabled": true,
+      "label": "Western Approach",
+      "source": "prompt",
+      "points": [
+        [
+          12,
+          35
+        ],
+        [
+          14.5,
+          35
+        ],
+        [
+          17,
+          35
+        ]
+      ],
+      "depth": 80,
+      "width": 0.5,
+      "profile": "V"
+    },
+    {
+      "id": "lowlands-7joy1",
+      "type": "lowlands",
+      "enabled": true,
+      "label": "City building platform",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          47,
+          35
+        ],
+        "radius": 1.25
+      },
+      "targetElevation": 380,
+      "flatness": 1,
+      "falloffKm": 0.18,
+      "expr": {
+        "region": {
+          "center": [
+            47,
+            35
+          ],
+          "radiusKm": 1.25
+        }
+      }
+    },
+    {
+      "id": "lowlands-7joy2",
+      "type": "lowlands",
+      "enabled": true,
+      "label": "Castle summit platform",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          47,
+          35
+        ],
+        "radius": 0.31
+      },
+      "targetElevation": 490,
+      "flatness": 1,
+      "falloffKm": 0.14,
+      "expr": {
+        "region": {
+          "center": [
+            47,
+            35
+          ],
+          "radiusKm": 0.31
+        }
+      }
+    },
+    {
+      "id": "lowlands-7joy3",
+      "type": "lowlands",
+      "enabled": true,
+      "label": "Spire footing",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          40,
+          36.5
+        ],
+        "radius": 0.38
+      },
+      "targetElevation": 130,
+      "flatness": 1,
+      "falloffKm": 0.15,
+      "expr": {
+        "region": {
+          "center": [
+            40,
+            36.5
+          ],
+          "radiusKm": 0.38
+        }
+      }
+    },
+    {
+      "id": "lowlands-7joz4",
+      "type": "lowlands",
+      "enabled": true,
+      "label": "Tree root terrace",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          15.5,
+          35
+        ],
+        "radius": 0.6
+      },
+      "targetElevation": 220,
+      "flatness": 1,
+      "falloffKm": 0.2,
+      "expr": {
+        "region": {
+          "center": [
+            15.5,
+            35
+          ],
+          "radiusKm": 0.6
+        }
+      }
+    }
+  ],
+  "erosion": {
+    "enabled": false,
+    "preset": "light",
+    "iterations": 160,
+    "strength": 0.35,
+    "rain": 0.4,
+    "thermal": 0.25,
+    "talusDeg": 38
+  },
+  "climate": {
+    "windFromDeg": 280,
+    "baseMoisture": 0.15,
+    "snowlineM": 6000,
+    "treelineM": 10000,
+    "temperature": 0.3
+  },
+  "features": [
+    {
+      "id": "dark-city",
+      "kind": "walled-city",
+      "pos": [
+        47,
+        35
+      ],
+      "name": "Dark City / Bright Castle",
+      "radiusKm": 1.15,
+      "heightM": 55
+    },
+    {
+      "id": "crimson-spire",
+      "kind": "crimson-spire",
+      "pos": [
+        40,
+        36.5
+      ],
+      "name": "Crimson Spire",
+      "heightM": 1800,
+      "radiusKm": 0.26
+    },
+    {
+      "id": "cursed-tree",
+      "kind": "cursed-tree",
+      "pos": [
+        15.5,
+        35
+      ],
+      "name": "The cursed red tree",
+      "heightM": 420,
+      "radiusKm": 0.46
+    },
+    {
+      "id": "patrol-1",
+      "kind": "walking-statue",
+      "pos": [
+        58.746,
+        39.275
+      ],
+      "name": "Stone patrol 1",
+      "heightM": 90,
+      "rotationDeg": 110,
+      "notes": "Static walking pose in this spatial prototype; the patrol route is not drawn."
+    },
+    {
+      "id": "patrol-2",
+      "kind": "walking-statue",
+      "pos": [
+        50.546,
+        48.233
+      ],
+      "name": "Stone patrol 2",
+      "heightM": 90,
+      "rotationDeg": 165,
+      "notes": "Static walking pose in this spatial prototype; the patrol route is not drawn."
+    },
+    {
+      "id": "patrol-3",
+      "kind": "walking-statue",
+      "pos": [
+        36.464,
+        45.536
+      ],
+      "name": "Stone patrol 3",
+      "heightM": 90,
+      "rotationDeg": 225,
+      "notes": "Static walking pose in this spatial prototype; the patrol route is not drawn."
+    },
+    {
+      "id": "patrol-4",
+      "kind": "walking-statue",
+      "pos": [
+        34.69,
+        32.829
+      ],
+      "name": "Stone patrol 4",
+      "heightM": 90,
+      "rotationDeg": 280,
+      "notes": "Static walking pose in this spatial prototype; the patrol route is not drawn."
+    },
+    {
+      "id": "patrol-5",
+      "kind": "walking-statue",
+      "pos": [
+        40.15,
+        23.135
+      ],
+      "name": "Stone patrol 5",
+      "heightM": 90,
+      "rotationDeg": 330,
+      "notes": "Static walking pose in this spatial prototype; the patrol route is not drawn."
+    },
+    {
+      "id": "patrol-6",
+      "kind": "walking-statue",
+      "pos": [
+        54.45,
+        22.096
+      ],
+      "name": "Stone patrol 6",
+      "heightM": 90,
+      "rotationDeg": 390,
+      "notes": "Static walking pose in this spatial prototype; the patrol route is not drawn."
+    }
+  ],
+  "environment": {
+    "palette": "ashen",
+    "hazeDensity": 0.038,
+    "tide": {
+      "center": [
+        31,
+        35
+      ],
+      "radiusKm": 16.7,
+      "lowM": -260,
+      "highM": 80
+    }
+  },
+  "meta": {
+    "name": "Forgotten Shore \u2014 Dark City",
+    "createdAt": "2026-11-07T00:00:00Z",
+    "updatedAt": "2026-11-07T00:33:58.646Z",
+    "views": {
+      "region-oblique": {
+        "from": [
+          65,
+          65
+        ],
+        "fromAbsM": 27000,
+        "to": [
+          31,
+          33
+        ]
+      },
+      "range-mid": {
+        "from": [
+          52,
+          43
+        ],
+        "fromAbsM": 4500,
+        "to": [
+          43.5,
+          35.5
+        ],
+        "toAglM": 130
+      },
+      "valley-low": {
+        "from": [
+          46.05,
+          34.45
+        ],
+        "fromAglM": 65,
+        "to": [
+          40,
+          36.5
+        ],
+        "toAglM": 800
+      },
+      "hex-closeup": {
+        "from": [
+          48.8,
+          36.4
+        ],
+        "fromAbsM": 1100,
+        "to": [
+          47,
+          35
+        ],
+        "toAglM": 85
+      },
+      "city-to-spire": {
+        "from": [
+          46.05,
+          34.45
+        ],
+        "fromAglM": 65,
+        "to": [
+          40,
+          36.5
+        ],
+        "toAglM": 800
+      },
+      "bright-castle": {
+        "from": [
+          47.45,
+          35.4
+        ],
+        "fromAglM": 160,
+        "to": [
+          47,
+          35
+        ],
+        "toAglM": 100
+      },
+      "across-the-crater": {
+        "from": [
+          45.87,
+          35.12
+        ],
+        "fromAglM": 65,
+        "to": [
+          15.5,
+          35
+        ],
+        "toAglM": 200
+      },
+      "red-tree": {
+        "from": [
+          16.5,
+          36.2
+        ],
+        "fromAglM": 160,
+        "to": [
+          15.5,
+          35
+        ],
+        "toAglM": 210
+      },
+      "hollow-mountains": {
+        "from": [
+          46.6,
+          34.1
+        ],
+        "fromAglM": 110,
+        "to": [
+          34,
+          8
+        ],
+        "toAglM": 1700
+      },
+      "stone-patrol": {
+        "from": [
+          58.12,
+          40
+        ],
+        "fromAglM": 60,
+        "to": [
+          58.746,
+          39.275
+        ],
+        "toAglM": 50
+      },
+      "crimson-spire": {
+        "from": [
+          42,
+          38.5
+        ],
+        "fromAglM": 160,
+        "to": [
+          40,
+          36.5
+        ],
+        "toAglM": 700
+      }
+    },
+    "preview": {
+      "exag": 1,
+      "timeOfDay": 16.5,
+      "hexGrid": false,
+      "initialView": "range-mid"
+    },
+    "notes": "Campaign spatial prototype, not canonical geography. City 2.3 km across; walls 55 m, city hill 380 m, central acropolis 490 m. Spire 1.8 km high, 7.16 km WSW: its tapered shadow reaches the city near 17:12 at true scale. Crater ~30 km across, floor -180 m, night flood +80 m. Tree ~31.5 km west of city, height 420 m. Hollow Mountains 4\u20137 km relief to north. Six 90 m statues scattered 12.5\u201314.9 km from city. Day crossing over broken ground ~16+ hours at assumed 2 km/h, before detours. Sea slider is a manual flood preview, independent of sun. No multiplayer or campaign clock yet. Erosion disabled deliberately for rapid spatial iteration and preservation of city platforms; may be enabled experimentally.",
+    "edits": [
+      {
+        "at": "2026-11-07T00:32:45.890Z",
+        "label": "Lay out the Dark City expedition and landmark dimensions",
+        "ops": []
+      },
+      {
+        "at": "2026-11-07T00:32:55.570Z",
+        "label": "Shape the crater, city hill, coral ribs and Hollow Mountains",
+        "ops": [
+          "lowlands-670u1",
+          "hills-670v2",
+          "ridge-670v3",
+          "ridge-670v4",
+          "hills-670v5",
+          "ridge-670v6",
+          "ridge-670v7",
+          "peak-670w8",
+          "ridge-670w9",
+          "ridge-670wa",
+          "ridge-670wb",
+          "ridge-670wc",
+          "ridge-670wd",
+          "ridge-670we",
+          "ridge-670wf",
+          "plateau-670wg",
+          "plateau-670wh",
+          "plateau-670wi",
+          "plateau-670wj",
+          "valley-670wk"
+        ]
+      },
+      {
+        "at": "2026-11-07T00:33:58.646Z",
+        "label": "Refine narrow coral ridges and level the inhabited hilltop terraces",
+        "ops": [
+          "ridge-670w9",
+          "ridge-670wa",
+          "ridge-670wb",
+          "ridge-670wc",
+          "ridge-670wd",
+          "ridge-670we",
+          "ridge-670wf",
+          "lowlands-7joy1",
+          "lowlands-7joy2",
+          "lowlands-7joy3",
+          "lowlands-7joz4"
+        ]
+      }
+    ]
+  }
+}

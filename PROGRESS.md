@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current milestone: **M6 Brushes** (next). M1–M5 done; M4 look still has known gaps (below).
+Current focus: **Forgotten Shore spatial prototype**, at the GM’s request (2026-11-07). Choose scale and expedition geography before resuming the old editor roadmap. M1–M5 remain done; M6 brushes are deferred; M4 visual gaps remain.
 
 | # | State | Notes |
 |---|---|---|
@@ -102,3 +102,47 @@ Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, wi
 
 ## Open questions / risks
 - The pipe model alone tends to look smooth at ~80–160 m/px; if gullies don't read, add a stream-power/droplet pass.
+
+
+## Forgotten Shore spatial experiment (2026-11-07)
+
+The GM clarified the intended product: independently controlled player views, continuous destinations selected by clicking the landscape, and a GM who moves the shared party. Hexes are an internal abstraction. Future travel should advance time, sky and sun. We are testing geography first; this change does not implement multiplayer, party movement or travel rules.
+
+Added `worlds/forgotten-shore.json` and an editable `maps/forgotten-shore.json`. The city is 2.3 km wide on a +380 m hill with 55 m outer walls, inner districts and a central Bright Castle on a +490 m acropolis. The 1.8 km Crimson Spire stands 7.16 km WSW; a 30 km crater separates the city from a giant red tree. The northern Hollow Mountains provide the distant skyline. Six stone walkers are scattered 12.5–14.9 km from the city. These are adjustable campaign dimensions, not claims about novel canon. See `FORGOTTEN_SHORE.md`.
+
+- Added deterministic, instanced landmark models (four draw batches; 2,559 parts), using the same sun and atmosphere as the terrain. Unknown feature kinds remain metadata. Placement and dimensions survive JSON export/import and the single-file build.
+- Added an analytic tapered Spire shadow, which visibly reaches the city near 17:15 with vertical exaggeration 1. Other structures do not yet cast shadows.
+- Added a manual flood preview from −260 m to +80 m, confined to the crater and shared by the visible surface and CPU picking. This is independent of the existing illustrative sun slider, not a day/night simulation.
+- Added saved-view navigation, true-scale scene defaults and hidden hexes. Fixed the low-view orbit limit for landmark scenes so looking upward does not silently raise the camera. Saved views are bookmarks; navigation is not restricted to them.
+- Narrow ridge half-widths now accept 0.1 km instead of a 1 km floor. Terrain authored through the CLI. Erosion is deliberately disabled for this world to preserve the city terraces and allow fast scale iteration.
+- Fixed explicit `?world=` links being overridden by a previously linked map. Landmark edits/undo refresh geometry and the shadow caster; switching worlds clears the scene additions.
+
+Validation: 37 unit tests pass; TypeScript and both production builds pass. Browser `check:shore` verifies actual low-camera height, dry city under flood, flood/picking consistency, landmark edit/undo, scene cleanup and shader compilation. The existing bake regression check is also run after this integration. Screenshots include all saved views plus flood and Spire-shadow comparisons.
+
+Visual assessment: the city, Spire, crater and distant tree now establish readable relative scales. The high-water comparison makes the city’s safe headland clear, and the tree is a faint silhouette from the wall. The geometry is still a blockout: the circular city is overly regular, the castle lacks architectural detail, the tree canopy is faceted, and the ground remains soft at close range. The Hollow Mountains are excessively serrated compared with the reference images. This prototype prioritizes scale and sightlines; it is not the photorealistic M4 target.
+
+Final performance check at 1280×720 on Intel UHD: 7.6–16.2 ms GPU across the saved views, about 2.3 s to prepare the un-eroded scene, and zero idle redraws. The automated orbit measured 33 drawn frames/s; GPU timing alone should not be described as a guaranteed 60 fps. Both browser check suites passed.
+
+
+## Exploration interface, free flight and architecture (2026-11-07)
+
+At the GM’s request, the default interface now shows the world across the full window with Fly, Orbit, Map, Visit, flight speed, sun and sea controls. Op stacks, erosion, authoring controls, hex readouts and GPU diagnostics are hidden. The CLI and live map link remain available to the agent; `?editor` restores the internal editor interface.
+
+Added mouse-look free flight: click the scene for pointer capture; WASD moves relative to the view; Space ascends, Shift descends, Ctrl boosts speed 10×, and Esc releases the mouse. Base speed is selectable from 5–250 m/s. Opposing inputs cancel, combined movement is normalized, long frame deltas are capped, and input clears on pointer unlock, window blur and tab hiding. Flight maintains 2 m above the terrain/water. Buildings are visual geometry without camera collisions. Map mode releases capture and disables flight; Fly returns to flight mode.
+
+Added facade windows, recessed doors, projecting cornices, roof seams and chimneys to city buildings; buttresses, portals, larger window bays, slit windows and cornices to the castle; and tiered galleries, lancets and satellite pinnacles to the Spire. Facade detail uses a filtered local-space shader pattern and repeated geometry remains instanced. Dimensions are preserved: ordinary city blocks are roughly 20–46 m tall; the castle’s highest roof is 284 m above its +490 m acropolis; the stone walkers are 96.75 m to the helmet and 104.4 m to the spear tip, despite their nominal 90 m parameter.
+
+Browser flight checks pass using a trusted click and real pointer lock, real keyboard and mouse input, all movement axes, 10× boost, release behavior and map transitions. Existing 37 unit tests and shore browser checks pass. Screenshots now cover the clean exploration interface and detailed landmarks. Visual limits: the window patterns are still regular, most detail is exterior surface treatment, and the castle remains monumental fantasy architecture.
+
+After the architecture pass, Intel UHD view timings at 1280×720 were 8.6–15.4 ms GPU, with four instanced batches and 4,893 parts. The scene still draws zero frames while idle. Both production builds pass.
+
+
+## Ground-view player prototype and restored viewer tools (2026-11-07)
+
+Restored Hexes, Labels, debug view selection and altitude/GPU statistics to the exploration interface. The GM wants viewing tools, while the agent continues to author terrain. Player mode adds drag-to-look and click-to-march over continuous terrain at 1.7 m eye height. Default campaign pace is 4 km/h with selectable 60×–1800× visual acceleration (default 600×); actual distance determines elapsed simulation time. Stop/Esc pauses, and +1 h waits. The sky and sun now cover all 24 hours with twilight and stars; optional Night tide floods at dusk and recedes at dawn. Manual sea control disables the clock link.
+
+Movement checks slope and water in 5 m substeps and stops at deep water or a ~40° slope. It does not yet pathfind around buildings or provide collision with structures, rafts, shared party state, or a multiplayer server. Ground eye height is sampled from the near-camera terrain triangles to prevent bilinear height sampling from putting the viewpoint inside the mesh. The terrain is still coarse at street level and does not provide walkable architectural interiors.
+
+Investigated the reported Chrome crash near water. No matching GPU reset or OOM appeared in the inspected kernel log, and Ctrl+W did not close the pointer-locked test tab. The original cause remains unconfirmed. Added a ~1.8M render-pixel budget, throttled sun-shadow recomputation during time changes, skipped unnecessary hover picking, and added a visible context-loss state and Reload scene control. A real-GPU browser stress check survived 100 flood changes at low altitude; a forced WebGL context loss showed the expected recovery control.
+
+Validation: 40 unit tests pass, including clock rollover, day/night tide timing and triangle-surface sampling. Browser checks verify 50 m takes 45 s of world time at 4 km/h, eye height is 1.7 m, actual clicks select routes, water stops travel, day/night renders differ, and high-DPI rendering respects the pixel budget. Existing flight, shore and erosion browser checks pass. Saved screenshots cover player day and night. The daytime ground view still exposes coarse terrain; night is deliberately dark, without player torches yet.

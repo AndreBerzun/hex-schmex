@@ -1,9 +1,9 @@
 // Terrain material: CDLOD vertex shader + rule-based surface materials, lighting, water, haze, hex overlay.
 
-import { ATMOS } from './glsl';
+import { ATMOS, LANDMARK_SHADOW, TIDE } from './glsl';
 import { NOISE_LUT } from './noiseLut';
 
-export const TERRAIN_VS = /* glsl */ `
+export const TERRAIN_VS = TIDE + /* glsl */ `
 attribute vec4 aNode; // x0, z0 (km), size (km), level
 uniform sampler2D uHeight;
 uniform float uHeightScale;
@@ -22,7 +22,7 @@ vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
 
 float surf(vec2 uv) {
   float h = texture2D(uHeight, uv).r * uHeightScale;
-  float w = texture2D(uWaterTex, uv).r;
+  float w = max(texture2D(uWaterTex, uv).r, tideAt(uv * uWorldKm));
   return w - h > 0.25 ? w : h;
 }
 
@@ -49,7 +49,7 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 
-export const TERRAIN_FS = ATMOS + NOISE_LUT + /* glsl */ `
+export const TERRAIN_FS = ATMOS + LANDMARK_SHADOW + TIDE + NOISE_LUT + /* glsl */ `
 uniform sampler2D uHeight;
 uniform float uHeightScale;
 uniform sampler2D uSurf;      // rg slope, b curvature (>0 concave), a mean slope magnitude
@@ -63,6 +63,7 @@ uniform float uMaxElev;
 uniform float uSnowline;
 uniform float uTreeline;
 uniform float uTemp;
+uniform float uAshen;
 uniform float uHasHydro;
 uniform int uDebug;
 uniform float uRiverMinLog;   // log10 km² where streams start to show
@@ -164,6 +165,7 @@ void main() {
   float riverOp = max(data.a, 0.0);
   float playa = smoothstep(-0.3, -0.8, data.a);
   float wl = uHasHydro > 0.5 ? texture2D(uWaterTex, uv).r : -1e5;
+  wl = max(wl, tideAt(xz));
   float depth = wl - h;
 
   // ---- noise fields (km space)
@@ -268,8 +270,17 @@ void main() {
   // gully darkening
   col *= 1.0 - clamp(lap * 2.5, 0.0, 0.25) * (1.0 - snow * 0.7);
 
+  // An optional mineral/coral palette for the Forgotten Shore prototype.
+  if (uAshen > 0.5) {
+    vec3 dust = mix(vec3(0.28, 0.26, 0.29), vec3(0.43, 0.38, 0.38), nMid * 0.5 + 0.5);
+    vec3 coral = mix(vec3(0.20, 0.12, 0.14), vec3(0.35, 0.20, 0.20), nBig * 0.5 + 0.5);
+    col = srgb(mix(dust, coral, smoothstep(0.09, 0.4, g)));
+    col = mix(col, srgb(vec3(0.48, 0.49, 0.54)), smoothstep(2400.0, 6000.0, h));
+    col = mix(col, srgb(vec3(0.78, 0.80, 0.84)), snow * 0.65);
+  }
+
   // ---- lighting
-  float shadow = texture2D(uShadowTex, uv).r;
+  float shadow = texture2D(uShadowTex, uv).r * landmarkShadow(vWorld);
   float ao = texture2D(uAOTex, uv).r;
   float ndl = max(dot(n, uSunDir), 0.0);
   shadow = mix(shadow, 1.0, outside * 0.7);
@@ -285,7 +296,8 @@ void main() {
   if (isWater || river > 0.01) {
     float d = isWater ? depth : 4.0;
     vec3 shallow = isWater ? srgb(vec3(0.2, 0.52, 0.52)) : srgb(vec3(0.24, 0.38, 0.4));
-    vec3 deep = srgb(vec3(0.03, 0.13, 0.27));
+    vec3 deep = srgb(mix(vec3(0.03, 0.13, 0.27), vec3(0.015, 0.022, 0.04), uAshen));
+    shallow = mix(shallow, srgb(vec3(0.07, 0.08, 0.10)), uAshen);
     vec3 wcol = mix(shallow, deep, 1.0 - exp(-d / 25.0));
     vec2 ripple = noiseGradAt(xz, 0.08) * 0.008;
     vec3 wn = normalize(vec3(ripple.x, 1.0, ripple.y));
@@ -325,7 +337,7 @@ void main() {
   }
   // map border
   float fwo = max(fwidth(vOut), 1e-5);
-  c = mix(c, srgb(vec3(0.12, 0.1, 0.08)), (1.0 - smoothstep(fwo * 0.8, fwo * 2.2, abs(vOut))) * 0.65);
+  if (uHexOn > 0.5) c = mix(c, srgb(vec3(0.12, 0.1, 0.08)), (1.0 - smoothstep(fwo * 0.8, fwo * 2.2, abs(vOut))) * 0.65);
 
   // ---- hex overlay (after haze so it stays legible; fades gently with distance)
   if (uHexOn > 0.5) {

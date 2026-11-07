@@ -11,6 +11,9 @@
     "typecheck": "tsc --noEmit",
     "shots": "tsx scripts/shots.ts",
     "perf": "tsx scripts/perf.ts",
+    "check:player": "tsx scripts/player-check.ts",
+    "check:flight": "tsx scripts/flight-check.ts",
+    "check:shore": "tsx scripts/shore-check.ts",
     "check:bake": "tsx scripts/bake-check.ts",
     "terrain": "tsx scripts/terrain.ts"
   },

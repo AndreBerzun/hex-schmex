@@ -155,6 +155,17 @@ export class Terrain {
     this.rangeK = Math.max(MIN_RANGE_K, pxAtUnitDistance / (GRID_N * this.pxPerQuad));
   }
 
+  /** Height of the actual near-camera leaf triangles, rather than a bilinear texture sample. */
+  surfaceHeightAt(x: number, z: number, sample: (x:number,z:number)=>number): number {
+    const cell=this.leafKm/GRID_N;
+    const gx=(x-this.ox)/cell,gz=(z-this.oz)/cell;
+    const i=Math.floor(gx),j=Math.floor(gz),tx=gx-i,tz=gz-j;
+    const x0=this.ox+i*cell,z0=this.oz+j*cell;
+    const a=sample(x0,z0),b=sample(x0+cell,z0),c=sample(x0,z0+cell),d=sample(x0+cell,z0+cell);
+    if((i+j)&1) return tx+tz<=1 ? a+(b-a)*tx+(c-a)*tz : d+(c-d)*(1-tx)+(b-d)*(1-tz);
+    return tx>=tz ? a+(b-a)*tx+(d-b)*tz : a+(d-c)*tx+(c-a)*tz;
+  }
+
   update(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera, showSurround = true, viewportWidthPx = 1500) {
     if (!this.bounds) return;
     this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);

@@ -2,6 +2,7 @@ import { App } from './app/app';
 import { Store } from './app/store';
 import { defaultWorld, loadWorld } from './core/world';
 import type { World } from './core/types';
+import { mountExplorer } from './ui/explorer';
 import { mountToolbar } from './ui/toolbar';
 import { mountHud } from './ui/hud';
 import { mountOpsPanel } from './ui/opsPanel';
@@ -12,6 +13,8 @@ import { defaultViews, viewNames } from './app/views';
 
 const params = new URLSearchParams(location.search);
 const shot = params.has('shot');
+const editor = params.has('editor');
+if (!editor) document.body.classList.add('explorer');
 if (shot) document.body.classList.add('shot');
 
 function initialWorld(): World {
@@ -38,7 +41,7 @@ try {
   throw e;
 }
 // Live link to a map file on disk (dev server only): ?file=<name>, else the last linked file.
-const linkName = params.get('file') ?? (shot ? null : (() => { try { return localStorage.getItem('tp:link'); } catch { return null; } })());
+const linkName = params.get('file') ?? (shot || params.has('world') ? null : (() => { try { return localStorage.getItem('tp:link'); } catch { return null; } })());
 let linked: { name: string; text: string; world: World } | null = null;
 if (MapLink.available && linkName) {
   try {
@@ -65,12 +68,16 @@ if (!shot) {
     } catch { /* ignore */ }
   }, 2000);
 }
+const { initialView: _initialView, ...previewSettings } = store.world.meta.preview ?? {};
+Object.assign(app.settings, previewSettings);
+if (params.has('tide')) app.settings.tide = Number(params.get('tide'));
 if (params.has('eres')) app.settings.erodedRes = Number(params.get('eres'));
 if (params.has('iters')) app.settings.iterations = Number(params.get('iters'));
 if (params.has('noerosion')) app.settings.erosion = false;
 if (params.has('exag')) app.settings.exag = Number(params.get('exag'));
 if (params.has('tod')) app.settings.timeOfDay = Number(params.get('tod'));
 if (params.has('debug')) app.settings.debug = Number(params.get('debug'));
+if (!editor) { app.settings.hexGrid = false; app.settings.labels = false; }
 if (params.has('nohex')) app.settings.hexGrid = false;
 app.applySettings();
 
@@ -79,17 +86,24 @@ ro.observe(canvas);
 app.resize();
 
 if (!shot) {
-  mountToolbar(document.getElementById('toolbar')!, app, store, EXAMPLES);
   mountHud(app);
-  mountOpsPanel(document.getElementById('ops-panel')!, app, store);
-  mountLinkPanel(document.getElementById('prompt-panel')!, store, link);
+  if (editor) {
+    mountToolbar(document.getElementById('toolbar')!, app, store, EXAMPLES);
+    mountOpsPanel(document.getElementById('ops-panel')!, app, store);
+    mountLinkPanel(document.getElementById('prompt-panel')!, store, link);
+  } else mountExplorer(document.getElementById('toolbar')!, app, store);
 }
 if (link && linked) link.adopt(linked.name, linked.text);
 
 let saveTimer = 0;
 store.subscribe((c) => {
+  if (c.kind === 'load') {
+    const { initialView: _view, ...settings } = store.world.meta.preview ?? {};
+    app.setSettings({ tide: 0, ...settings });
+  }
   if (c.kind === 'terrain' || c.kind === 'load') void app.setWorld(store.world, { keepCamera: c.kind !== 'load' });
   else if (c.kind === 'climate') void app.updateClimate(store.world);
+  else if (c.kind === 'meta') app.updatePresentation(store.world);
   if (!shot) {
     clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
@@ -99,6 +113,7 @@ store.subscribe((c) => {
 });
 
 const ready = app.setWorld(store.world);
+if (params.has('tide')) app.setSettings({ tide: Number(params.get('tide')) });
 app.start();
 
 // Scripting / screenshot hooks
@@ -109,7 +124,7 @@ window.__tp = {
   app,
   store,
   ready,
-  viewNames,
+  get viewNames() { return [...new Set([...viewNames, ...Object.keys(store.world.meta.views ?? {})])]; },
   async finish() { await ready; await app.finishNow(); },
   setView(name: string) {
     const views = { ...defaultViews(app), ...(store.world.meta.views ?? {}) };

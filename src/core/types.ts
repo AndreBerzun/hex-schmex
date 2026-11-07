@@ -239,6 +239,17 @@ export interface Feature {
   pos?: Vec2;
   name?: string;
   notes?: string;
+  /** Landmark dimensions; horizontal units km, vertical units metres. */
+  radiusKm?: number;
+  heightM?: number;
+  rotationDeg?: number;
+}
+
+export interface WorldEnvironment {
+  palette?: 'ashen';
+  hazeDensity?: number;
+  /** Supernatural tide, restricted to a circular basin; does not rebake erosion. */
+  tide?: { center: Vec2; radiusKm: number; lowM: number; highM: number };
 }
 
 /** A saved camera view. Points accept hex ids / compass words / km like op params. */
@@ -261,14 +272,16 @@ export interface World {
   ops: Op[];
   erosion: ErosionSettings;
   climate: ClimateSettings;
-  /** Reserved for later phases (structures). Hex ids are stable keys. */
+  /** Optional landmarks, placed in continuous world km. Unknown kinds remain metadata. */
   features: Feature[];
+  environment?: WorldEnvironment;
   meta: {
     name: string;
     notes?: string;
     createdAt: string;
     updatedAt: string;
     views?: Record<string, ViewSpec>;
+    preview?: { exag?: number; timeOfDay?: number; hexGrid?: boolean; initialView?: string };
     /** recent edits made through the terrain CLI (newest last), so the next session knows what happened */
     edits?: { at: string; label: string; ops: string[] }[];
   };

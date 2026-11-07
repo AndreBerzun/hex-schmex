@@ -39,6 +39,7 @@ body.collapsed-left.collapsed-right #app { grid-template-columns: 0 1fr 0; }
 .btn.primary { background: #4a3d1c; border-color: var(--accent); }
 .btn.danger { color: var(--danger); }
 .btn.icon { padding: 3px 6px; min-width: 26px; }
+label.inline[hidden] { display: none; }
 label.inline { display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
 input[type=range] { width: 90px; accent-color: var(--accent); }
 select, input[type=number], input[type=text] { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 4px; }
@@ -100,3 +101,20 @@ input[type=number] { width: 72px; }
 .prompt-entry .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .chip { font-family: var(--mono); font-size: 11px; background: #2d2a1e; border: 1px solid #5d5232; border-radius: 10px; padding: 0 6px; }
 .prompt-entry .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; color: var(--muted); font-size: 11px; }
+
+/* Exploration is the default; authoring remains available via ?editor. */
+body.explorer #app { grid-template-columns: 1fr; }
+body.explorer #toolbar { grid-column: 1; padding: 9px 14px; }
+body.explorer #ops-panel, body.explorer #prompt-panel { display: none; }
+body.explorer #viewport { grid-column: 1; }
+body.explorer #status { min-width: 0; }
+body.explorer #status.is-ready { display: none; }
+.flight-help { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border: 1px solid #ffffff20; border-radius: 7px; background: #15171ac9; color: #dedbd4; pointer-events: none; white-space: nowrap; font-size: 12px; }
+.flight-help[hidden] { display: none; }
+@media (max-width: 700px) { .flight-help { white-space: normal; width: 90%; text-align: center; } }
+
+.group[hidden] { display: none; }
+body.explorer .flight-help { bottom: 48px; }
+.journey { color: var(--muted); font-variant-numeric: tabular-nums; }
+.recovery { position:absolute; top:60px; right:20px; z-index:10; }
+body.explorer #status { pointer-events:auto; }
