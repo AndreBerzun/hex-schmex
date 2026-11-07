@@ -99,6 +99,7 @@ class BoundsPyramid {
 export class Terrain {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.ShaderMaterial;
+  private readonly overviewMaterial: THREE.ShaderMaterial;
   private geom: THREE.InstancedBufferGeometry;
   private worldW = 1;
   private worldH = 1;
@@ -125,12 +126,26 @@ export class Terrain {
   constructor(uniforms: Record<string, THREE.IUniform>) {
     this.geom = makePatchGeometry(GRID_N);
     this.material = new THREE.ShaderMaterial({
+      defines: { SURFACE_DETAIL: 1 },
       vertexShader: TERRAIN_VS,
       fragmentShader: TERRAIN_FS,
-      uniforms: { ...uniforms, uGridN: { value: GRID_N }, uLeafRange: { value: 10 } },
+      uniforms: { ...uniforms, uGridN: { value: GRID_N }, uLeafRange: { value: 10 }, uSurfaceFade: { value: 1 } },
     });
-    this.mesh = new THREE.Mesh(this.geom, this.material);
+    // Compile fine detail out of the overview path: skipped texture fetches alone
+    // still leave register/instruction overhead on integrated Intel graphics.
+    this.overviewMaterial = new THREE.ShaderMaterial({
+      vertexShader: TERRAIN_VS,
+      fragmentShader: TERRAIN_FS,
+      uniforms: this.material.uniforms,
+    });
+    this.mesh = new THREE.Mesh(this.geom, this.overviewMaterial);
     this.mesh.frustumCulled = false;
+  }
+
+  setSurfaceDetail(aglM: number, mapMode: boolean) {
+    const fade = mapMode ? 0 : 1 - THREE.MathUtils.smoothstep(aglM, 1000, 3000);
+    this.material.uniforms.uSurfaceFade.value = fade;
+    this.mesh.material = fade > 0 ? this.material : this.overviewMaterial;
   }
 
   /** Configure world size and the heightmap the LOD bounds come from. */

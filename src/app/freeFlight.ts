@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const FLIGHT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight']);
+const FLIGHT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyC', 'Space', 'ShiftLeft', 'ShiftRight']);
 
 /** Pointer-locked inspection camera; positions and speeds are in scene kilometres. */
 export class FreeFlight {
@@ -18,7 +18,11 @@ export class FreeFlight {
     canvas.addEventListener('click', () => {
       if (this.enabled && !this.locked) void this.canvas.requestPointerLock()?.catch(() => this.onChange());
     });
-    document.addEventListener('pointerlockchange', () => { this.keys.clear(); this.onChange(); });
+    document.addEventListener('pointerlockchange', () => {
+      // A delayed acquisition notification must not erase the first keydown.
+      if (!this.locked) this.keys.clear();
+      this.onChange();
+    });
     document.addEventListener('mousemove', (ev) => {
       if (!this.enabled || !this.locked) return;
       this.euler.setFromQuaternion(camera.quaternion, 'YXZ');
@@ -28,7 +32,11 @@ export class FreeFlight {
       invalidate();
     });
     window.addEventListener('keydown', (ev) => {
-      if (!this.enabled || !this.locked || !FLIGHT_KEYS.has(ev.code)) return;
+      if (!this.enabled || !this.locked) return;
+      // Ctrl/Command/Alt belong to browser and desktop shortcuts. In particular,
+      // Ctrl+W and Ctrl+Shift+W can close a tab/window even under pointer lock.
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) { this.keys.clear(); return; }
+      if (!FLIGHT_KEYS.has(ev.code)) return;
       ev.preventDefault();
       this.keys.add(ev.code);
     });
@@ -55,9 +63,9 @@ export class FreeFlight {
     if (this.keys.has('KeyD')) this.move.add(this.right);
     if (this.keys.has('KeyA')) this.move.sub(this.right);
     if (this.keys.has('Space')) this.move.y += 1;
-    if (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) this.move.y -= 1;
+    if (this.keys.has('KeyC')) this.move.y -= 1;
     if (this.move.lengthSq() === 0) return false;
-    const boost = this.keys.has('ControlLeft') || this.keys.has('ControlRight') ? 10 : 1;
+    const boost = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 10 : 1;
     this.camera.position.addScaledVector(this.move.normalize(), this.speed * boost * Math.min(dt, 0.05));
     this.invalidate();
     return true;

@@ -2,6 +2,7 @@
 
 import { ATMOS, LANDMARK_SHADOW, TIDE } from './glsl';
 import { NOISE_LUT } from './noiseLut';
+import { CANOPY_TILE_KM } from './canopyLut';
 
 export const TERRAIN_VS = TIDE + /* glsl */ `
 attribute vec4 aNode; // x0, z0 (km), size (km), level
@@ -65,6 +66,7 @@ uniform float uTreeline;
 uniform float uTemp;
 uniform float uAshen;
 uniform float uHasHydro;
+uniform sampler2D uCanopy;
 uniform int uDebug;
 uniform float uRiverMinLog;   // log10 km² where streams start to show
 // hex overlay
@@ -132,6 +134,19 @@ vec3 matColor(float id) {
   return vec3(0.1, 0.3, 0.8);
 }
 
+// One filtered lookup supplies both colour breakup and height derivatives.
+// Fade each physical scale before it becomes subpixel, including at grazing angles.
+#ifdef SURFACE_DETAIL
+uniform float uSurfaceFade;
+vec3 groundDetail(vec2 xz, float wavelength) {
+  float visible = uDetailOn * uSurfaceFade * (1.0 - smoothstep(wavelength * 0.12, wavelength * 0.65, gFw));
+  if (visible <= 0.0) return vec3(0.0);
+  vec4 texel = lutFetch(xz, wavelength);
+  vec2 gradient = ((texel.gb - 0.5) * 12.0) * LUT_ROT;
+  return vec3((texel.r - 0.5) * 3.0, gradient) * visible;
+}
+#endif
+
 void main() {
   vec2 uv = vUv;
   vec3 camToFrag = vWorld - cameraPosition;
@@ -174,13 +189,13 @@ void main() {
   float nFine = noiseAt(xz, 0.12);    // texture
 
   // ---- materials (sRGB-authored, converted to linear)
-  vec3 cGrass = srgb(vec3(0.37, 0.45, 0.21));
-  vec3 cMeadow = srgb(vec3(0.47, 0.5, 0.27));
-  vec3 cDry = srgb(vec3(0.62, 0.56, 0.34));
+  vec3 cGrass = srgb(vec3(0.36, 0.40, 0.25));
+  vec3 cMeadow = srgb(vec3(0.45, 0.46, 0.30));
+  vec3 cDry = srgb(vec3(0.59, 0.53, 0.36));
   vec3 cSand = srgb(vec3(0.78, 0.7, 0.5));
   vec3 cBad = srgb(vec3(0.66, 0.36, 0.2));
-  vec3 cForest = srgb(vec3(0.14, 0.25, 0.1));
-  vec3 cConifer = srgb(vec3(0.1, 0.19, 0.11));
+  vec3 cForest = srgb(vec3(0.22, 0.28, 0.18));
+  vec3 cConifer = srgb(vec3(0.17, 0.23, 0.19));
   vec3 cAlpine = srgb(vec3(0.47, 0.46, 0.3));
   vec3 cRock = srgb(vec3(0.46, 0.44, 0.41));
   vec3 cRockDark = srgb(vec3(0.3, 0.29, 0.28));
@@ -192,7 +207,7 @@ void main() {
   float elev = h - uSea;
   float drySide = clamp(1.0 - moist * 1.6 + uTemp * 0.3, 0.0, 1.0);
   vec3 col = mix(mix(cGrass, cMeadow, smoothstep(-0.3, 0.4, nMid)), cDry, smoothstep(0.35, 0.75, drySide + nBig * 0.15));
-  // close-up ground texture: tussocks, bare soil, flowers of colour variation
+  // Soil between clumps; the fine layers below survive the ashen palette too.
   float gt = noiseAt(xz, 0.02);
   col *= 0.88 + 0.24 * (gt * 0.5 + 0.5);
   col = mix(col, srgb(vec3(0.42, 0.36, 0.25)), smoothstep(0.55, 0.85, noiseAt(xz + 0.75, 0.25)) * 0.35);
@@ -214,26 +229,15 @@ void main() {
 
   // forest canopy: below the treeline, moist enough, not too steep, clumped
   float tl = uTreeline + nBig * 180.0;
-  float forest = smoothstep(0.5, 0.6, moist + nBig * 0.28 + nMid * 0.12)
+  float forest = smoothstep(0.44, 0.68, moist + nBig * 0.18 + nMid * 0.09)
                * (1.0 - smoothstep(tl - 150.0, tl + 60.0, elev))
                * (1.0 - smoothstep(0.55, 0.85, g))
                * (1.0 - marsh * 0.8) * (1.0 - desert);
-  forest = smoothstep(0.35, 0.65, forest);
+  forest = smoothstep(0.1, 0.9, forest);
   vec3 fcol = mix(cForest, cConifer, smoothstep(tl - 900.0, tl - 200.0, elev));
-  float crowns = noiseAt(xz, 0.035);
-  // individual crowns with dark gaps between them, only where they resolve on screen
-  float crownVis = 1.0 - smoothstep(0.006, 0.02, fw);
-  float gaps = crownVis > 0.0 ? smoothstep(0.25, 0.7, cellAt(xz, 0.012)) : 1.0;
-  fcol *= 0.85 + 0.25 * (nFine * 0.5 + 0.5) + 0.2 * crowns;
-  fcol *= mix(1.0, 0.55 + 0.6 * gaps, crownVis);
+  fcol *= 0.92 + 0.16 * nFine + 0.08 * nMid;
   col = mix(col, fcol, forest);
   if (forest > 0.5) id = 1.0;
-  // canopy bumps: perturb the normal where forested (reads as volume at grazing light)
-  if (forest > 0.01) {
-    float cs = 0.06;
-    vec2 cg = noiseGradAt(xz, cs) / cs * 0.012 * forest;
-    n = normalize(n + vec3(-cg.x, 0.0, -cg.y));
-  }
 
   // rock on steep slopes, more on convex ridges, banded strata hint
   float rockAmt = smoothstep(0.55, 0.95, g + nMid * 0.12 - lap * 0.6 + nFine * 0.05 + alpine * 0.25);
@@ -279,9 +283,37 @@ void main() {
     col = mix(col, srgb(vec3(0.78, 0.80, 0.84)), snow * 0.65);
   }
 
+  // Surface relief affects lighting, not geography, classification or picking.
+  vec2 surfaceGrad = grad + dgrad;
+  float canopyAO = 1.0;
+  #ifdef SURFACE_DETAIL
+  float canopyWeight = forest * (1.0 - rockAmt) * (1.0 - snow) * (1.0 - uAshen);
+  if (fw < 0.0039 && uDetailOn > 0.0) {
+    vec3 tufts = groundDetail(xz, 0.006);    // six-metre tussocks / mineral rubble
+    vec3 soil = groundDetail(xz + 1.7, 0.0009); // decimetre soil / gravel
+    vec3 grain = groundDetail(xz + 3.1, 0.00012); // fine grit
+    float groundTone = tufts.x * 0.24 + soil.x * 0.18 + grain.x * 0.12;
+    vec2 microGrad = tufts.yz * 0.045 + soil.yz * 0.035 + grain.yz * 0.035;
+    surfaceGrad += microGrad * (1.0 - snow * 0.8) * (1.0 - canopyWeight * 0.85);
+    col *= 1.0 + groundTone * (1.0 - canopyWeight * 0.85) * (1.0 - snow * 0.7);
+    float bare = smoothstep(0.05, 0.32, tufts.x + soil.x * 0.4) * 0.35;
+    bare *= (1.0 - canopyWeight) * (1.0 - rockAmt) * (1.0 - snow) * (1.0 - marsh) * (1.0 - uAshen);
+    col = mix(col, srgb(vec3(0.38, 0.33, 0.25)), bare);
+  }
+  if (canopyWeight > 0.01 && fw < 0.02 && uDetailOn > 0.0) {
+    float crownVis = uDetailOn * uSurfaceFade * (1.0 - smoothstep(0.004, 0.02, fw));
+    vec4 crown = texture2DLodEXT(uCanopy, LUT_ROT * xz / ${CANOPY_TILE_KM.toFixed(3)}, log2(max(fw * ${(512 / CANOPY_TILE_KM).toFixed(3)}, 1.0)));
+    vec2 crownGrad = ((crown.rg - 0.5) * 8.0) * LUT_ROT;
+    surfaceGrad += crownGrad * crownVis * canopyWeight * 0.35;
+    col *= mix(1.0, 0.88 + 0.24 * crown.a, crownVis * canopyWeight);
+    canopyAO = mix(1.0, mix(0.7, 1.0, smoothstep(0.08, 0.6, crown.b)), canopyWeight * crownVis);
+  }
+  #endif
+  n = normalize(vec3(-surfaceGrad.x * uExag, 1.0, -surfaceGrad.y * uExag));
+
   // ---- lighting
   float shadow = texture2D(uShadowTex, uv).r * landmarkShadow(vWorld);
-  float ao = texture2D(uAOTex, uv).r;
+  float ao = texture2D(uAOTex, uv).r * canopyAO;
   float ndl = max(dot(n, uSunDir), 0.0);
   shadow = mix(shadow, 1.0, outside * 0.7);
   vec3 skyAmb = mix(srgb(vec3(0.3, 0.29, 0.24)), uSkyZenith * 1.15, n.y * 0.5 + 0.5);

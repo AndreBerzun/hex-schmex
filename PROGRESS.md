@@ -83,10 +83,10 @@ Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, wi
 - `npm run check:bake` covers the first two in a real browser; it fails with the half-bake put back. No CI exists, so run it by hand after touching the bake.
 
 ## What looks off (honest, as of the last shots)
-- Region oblique: forest/meadow patches read as high-contrast camouflage from above; greens are too saturated.
+- Region oblique: forest/meadow transitions were softened and greens muted in the material experiment below. Broad vegetation patches remain visible.
 - Alpine Valley after the 10 × 10 redraw: Mirror Lake is broken into several pools around 0307, with stray pools further north, and a few salt flats remain around 0804–0904.
 - Badlands: the Red Gorge floor reads as a white salt-flat band and the mesas as thin rings. Coastal Marches: the saltmarsh has a hard edge. All three were already in the 20 × 16 shots.
-- Valley-low: valley floors look like a uniform lawn; the river is a soft blurry line rather than a channel.
+- Valley-low: new small-scale colour and normal detail breaks up the uniform lawn near the camera; distant flats still lack physical vegetation. The river is a soft blurry line rather than a channel.
 - Badlands: flat-looking and washed out; the banding doesn't read.
 - Close-ups stay soft near the ground: 95 m/px carries the shapes, and the shader detail only adds a little.
 - Coastal-marches hex-closeup: tributaries read as beaded blobs instead of a continuous channel (pre-existing, same on master).
@@ -146,3 +146,87 @@ Movement checks slope and water in 5 m substeps and stops at deep water or a ~40
 Investigated the reported Chrome crash near water. No matching GPU reset or OOM appeared in the inspected kernel log, and Ctrl+W did not close the pointer-locked test tab. The original cause remains unconfirmed. Added a ~1.8M render-pixel budget, throttled sun-shadow recomputation during time changes, skipped unnecessary hover picking, and added a visible context-loss state and Reload scene control. A real-GPU browser stress check survived 100 flood changes at low altitude; a forced WebGL context loss showed the expected recovery control.
 
 Validation: 40 unit tests pass, including clock rollover, day/night tide timing and triangle-surface sampling. Browser checks verify 50 m takes 45 s of world time at 4 km/h, eye height is 1.7 m, actual clicks select routes, water stops travel, day/night renders differ, and high-DPI rendering respects the pixel budget. Existing flight, shore and erosion browser checks pass. Saved screenshots cover player day and night. The daytime ground view still exposes coarse terrain; night is deliberately dark, without player torches yet.
+
+## Lowlands and forest materials experiment (2026-11-07)
+
+The GM selected surface rendering as the next focus, with campaign and GM features
+deferred. Reviewed all four reference images and captured a fresh baseline before
+editing the terrain shader. [MATERIALS.md](MATERIALS.md) contains the selected
+before/after screenshots, raw timing links and remaining limitations.
+
+- Added filtered colour and normal variation at 6 m, 0.9 m and 0.12 m wavelengths
+  using the existing noise lookup. This survives the Forgotten Shore's mineral
+  palette override, which previously erased ground colour detail.
+- Added a locally baked, periodic 512² canopy texture: varied oval crowns, rounded
+  joins, fine foliage normals and shadowed gaps. Cellular work happens once during
+  startup, not in every rendered pixel. Additional texture storage is about
+  1.33 MiB including mipmaps; there are no external assets or image-service calls.
+- Muted vegetation colours and broadened forest transitions. Fine detail fades
+  between 1–3 km AGL and before it becomes subpixel; a separate overview shader
+  compiles the extra detail instructions out. Terrain heights, saved geography,
+  movement and picking are unchanged.
+- Added `npm run check:materials -- <label>`: 15 fixed views across three worlds,
+  including actual eye-level foregrounds, with shader/WebGL checks, repeated-render
+  determinism and warmed GPU timings. Selected comparison artifacts live in
+  `shots/materials/`; repeat runs go to ignored `shots/_tmp/` directories.
+- Browser scripts support `TP_BROWSER_OFFLINE=1` to disable background networking
+  and external DNS and route non-loopback requests through an unused local proxy.
+  All browser checks in this experiment used that setting and local Vite pages.
+
+Visual assessment against references 02–04: the plains and Forgotten Shore now
+show surface detail in formerly uniform foregrounds, and the overview's forest
+edges are softer. The canopy has more light/shade structure but can still read as
+repeating cushions; it has no tree silhouettes, trunks or physical undergrowth.
+Flat ground remains geometrically smooth, marsh boundaries remain broad, and
+river channels still look soft. This improves materials but remains far from the
+reference images' vegetation volume and close-up richness.
+
+Performance is a tradeoff. The fixed 1280×720, exaggeration-1 comparison measured
+Alpine ground at 6.2 → 7.5 ms GPU, Alpine forest 6.8 → 8.7 ms, Coastal forest
+10.0 → 12.4 ms and Forgotten Shore ground 7.6 → 11.2 ms. The separate standard
+`perf` run at normal world settings measured Alpine Valley at 11.0–16.1 ms,
+Coastal Marches at 9.5–16.6 ms and Forgotten Shore at 5.4–20.0 ms across their saved
+views. Idle remains zero redraws. Automated orbit drew roughly 41, 39 and 30
+frames/s respectively, so these GPU figures are not a guaranteed 60 fps.
+
+Validation: all 40 unit tests pass, standard and single-file production builds
+pass, the fixed material checks pass, and all standard world screenshots were
+regenerated on the Intel GPU. The existing player browser suite also passes,
+including real clicks, distance/time, water stops, day/night, 100 shoreline flood
+changes, high-DPI pixel limits and visible graphics-context recovery. No campaign
+notes or map JSON files were edited.
+
+## Flight shortcut correction (2026-11-07)
+
+The GM clarified that the browser window closes while pressing Ctrl with movement
+keys on localhost. Ctrl was the old 10× boost modifier and Shift descended,
+overlapping Ctrl+W (close tab) and Ctrl+Shift+W (close window). This is a concrete
+shortcut conflict consistent with the reported symptom; recent local logs showed
+no new GPU reset/OOM report or new pending Chromium crash dump.
+
+Changed boost to **Shift** and descent to **C**, retaining WASD and Space ascent.
+Updated the in-app help, README and scene guide. Ctrl/Command/Alt combinations
+clear held flight input and remain reserved for browser/desktop actions; the app
+does not claim it can suppress reserved close-window shortcuts.
+
+The old flight test omitted actual modifier flags and advanced just one boosted
+step without sustained rendering. It now sends real Shift flags, verifies forward
+and vertical boost with both Shift keys, checks reserved modifiers clear movement,
+and renders sustained Shift+W+Space at the maximum selectable speed over changing
+water. Component distances are measured atomically, separate from the sustained
+live rendering check. Repeats exposed an intermittent missed first key after
+pointer capture; key state now clears on capture loss, so a delayed acquisition
+notification cannot erase a new keydown. Repeated live checks covered about 5 km
+in 103–118 rendered frames with finite camera coordinates, no WebGL error and no
+context loss. The existing 40
+unit tests and both production builds also pass.
+
+Confirmed the running localhost:5173 server serves the updated material and
+flight code. On the Forgotten Shore, the material change is fine ground detail
+visible near the surface in daylight; forest work is visible in Alpine Valley
+and Coastal Marches. The visual improvement remains modest, as documented in
+MATERIALS.md.
+
+Handoff: [NEXT_STEPS.md](NEXT_STEPS.md) records the next rendering candidates,
+deferred GM features, current verification and the user's local-only network
+constraint for the next conversation.

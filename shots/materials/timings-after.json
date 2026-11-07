@@ -1,0 +1,98 @@
+{
+  "alpine-valley": {
+    "region-oblique": {
+      "gpuMs": 16.534583,
+      "triangles": 49153,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "region-topdown": {
+      "gpuMs": 13.287833,
+      "triangles": 73729,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "valley-low": {
+      "gpuMs": 12.243917,
+      "triangles": 145409,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "lowland": {
+      "gpuMs": 10.127666,
+      "triangles": 151553,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "forest": {
+      "gpuMs": 8.717333,
+      "triangles": 129025,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "ground": {
+      "gpuMs": 7.505416,
+      "triangles": 129025,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    }
+  },
+  "coastal-marches": {
+    "region-oblique": {
+      "gpuMs": 15.1735,
+      "triangles": 49153,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "region-topdown": {
+      "gpuMs": 16.5595,
+      "triangles": 73729,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "valley-low": {
+      "gpuMs": 11.303583,
+      "triangles": 135169,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "forest": {
+      "gpuMs": 12.445,
+      "triangles": 143361,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "marsh": {
+      "gpuMs": 11.156083,
+      "triangles": 155649,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    }
+  },
+  "forgotten-shore": {
+    "region-oblique": {
+      "gpuMs": 15.145583,
+      "triangles": 135149,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "region-topdown": {
+      "gpuMs": 11.408917,
+      "triangles": 112621,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "valley-low": {
+      "gpuMs": 10.418,
+      "triangles": 204781,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    },
+    "ground": {
+      "gpuMs": 11.235833,
+      "triangles": 200685,
+      "programs": 0,
+      "renderer": "ANGLE (Intel, Vulkan 1.4.318 (Intel(R) UHD Graphics (CML GT2) (0x00009B41)), Intel open-source Mesa driver)"
+    }
+  }
+}

@@ -66,7 +66,7 @@ export function mountExplorer(el: HTMLElement, app: App, store: Store) {
     const minutes=Math.floor(app.ground.elapsedSeconds/60);
     journey.textContent=`${app.ground.distanceKm.toFixed(2)} km · ${Math.floor(minutes/60)}h ${minutes%60}m · ${app.ground.message||'4 km/h march'}`;
     help.hidden=app.settings.mapMode||(!app.freeFlight.enabled&&!app.ground.enabled);
-    help.textContent=app.ground.enabled?'Drag to look · Click ground to travel at 4 km/h · Esc or Stop to pause':app.freeFlight.locked?'WASD fly · Space ↑ · Shift ↓ · Ctrl faster · Esc release mouse':'Click the landscape to fly · Mouse look · WASD · Space ↑ · Shift ↓ · Ctrl faster';
+    help.textContent=app.ground.enabled?'Drag to look · Click ground to travel at 4 km/h · Esc or Stop to pause':app.freeFlight.locked?'WASD fly · Space ↑ · C ↓ · Shift faster · Esc release mouse':'Click the landscape to fly · Mouse look · WASD · Space ↑ · C ↓ · Shift faster';
   }
   function rebuild(){visit.replaceChildren(h('option',{value:'',text:'Visit…'}),...Object.keys(store.world.meta.views??{}).map(k=>h('option',{value:k,text:k.replaceAll('-',' ')})));sync();}
   app.freeFlight.onChange=sync;store.subscribe(()=>queueMicrotask(rebuild));

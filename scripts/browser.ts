@@ -18,6 +18,14 @@ interface Pending {
 const CLOSE_GRACE_MS = 3000;
 const GPU_FLAGS = ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist'];
 const SOFTWARE_FLAGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+// Local visual checks can explicitly disable external browser traffic as well as
+// page requests. Keep localhost available for Vite and the debugging connection.
+const OFFLINE_FLAGS = [
+  '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-pings', '--disable-quic',
+  '--proxy-server=http://127.0.0.1:9', '--proxy-bypass-list=localhost;127.0.0.1;[::1]',
+  '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE [::1]',
+  '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+];
 
 function findBrowser(): string {
   const candidates = [process.env.CHROME_BIN, '/snap/bin/chromium', 'chromium', 'chromium-browser', 'google-chrome'];
@@ -73,6 +81,7 @@ export class BrowserPage {
     const proc = spawn(browser, [
       '--headless=new', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check',
       `--user-data-dir=${profileDirFor(browser)}`, `--window-size=${o.width},${o.height}`,
+      ...(process.env.TP_BROWSER_OFFLINE === '1' ? OFFLINE_FLAGS : []),
       ...(o.software ? SOFTWARE_FLAGS : GPU_FLAGS), 'about:blank',
     ], { stdio: ['ignore', 'ignore', 'pipe'] });
     const host = await waitForEndpoint(proc);

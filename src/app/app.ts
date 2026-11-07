@@ -15,6 +15,7 @@ import { GpuPacer, GpuTimer, isBlankReadback } from '../gpu/pacing';
 import { HexLabels } from '../render/labels';
 import { Sky, Skirt } from '../render/sky';
 import { bakeNoiseLut } from '../render/noiseLut';
+import { bakeCanopyLut } from '../render/canopyLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
 import { tideAt, tideLevel } from '../core/environment';
@@ -188,6 +189,7 @@ export class App {
       uRiverMinLog: { value: 2.1 },
       uDetailOn: { value: 1 },
       uNoise: { value: bakeNoiseLut(this.gc) },
+      uCanopy: { value: bakeCanopyLut(this.gc) },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
       uSunColor: { value: new THREE.Color(1, 0.95, 0.85) },
       uSkyZenith: { value: new THREE.Color() },
@@ -888,6 +890,7 @@ export class App {
     if(this.contextLost)return;
     const cam = this.settings.mapMode ? this.ortho : this.camera;
     cam.updateMatrixWorld();
+    this.terrain.setSurfaceDetail(cam.position.y / (0.001 * this.settings.exag) - this.surfaceAt(cam.position.x, cam.position.z), this.settings.mapMode);
     if (this.settings.mapMode) this.terrain.material.uniforms.uLeafRange.value = 1e9;
     else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * this.terrain.rangeK;
     this.terrain.update(cam, !this.settings.mapMode, this.renderer.domElement.width);
