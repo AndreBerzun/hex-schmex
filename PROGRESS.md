@@ -320,3 +320,5 @@ idle frames.
 
 Validation: 53 unit tests, both builds, `check:shore`, `check:bake`, `check:materials`,
 `check:player`, `check:flight` pass.
+
+Before/after pairs from identical cameras (master vs this branch): `shots/before-after/`.
