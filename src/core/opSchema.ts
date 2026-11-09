@@ -31,7 +31,7 @@ export const OP_DESCS: OpDesc[] = [
     type: 'ridge', summary: 'Mountain range / spine along a polyline. Ridged noise, peaks and saddles along the crest.',
     params: [
       { key: 'points', kind: 'points', help: 'crest line, 2+ points' },
-      num('height', 2200, 0, 6000, 50, 'metres added at the crest'),
+      num('height', 2200, 0, 16000, 50, 'metres added at the crest'),
       num('width', 18, 0.1, 80, 0.1, 'half-width of the range base, km'),
       num('sharpness', 0.6, 0, 1, 0.05, '0 rounded .. 1 knife-edge'),
       num('roughness', 0.6, 0, 1, 0.05, '0 smooth .. 1 broken crest with spurs'),
@@ -42,16 +42,32 @@ export const OP_DESCS: OpDesc[] = [
     type: 'peak', summary: 'Single mountain or volcano.',
     params: [
       { key: 'center', kind: 'point', help: 'summit position' },
-      num('height', 2000, 0, 6000, 50, 'metres added at the summit'),
+      num('height', 2000, 0, 16000, 50, 'metres added at the summit'),
       num('radius', 10, 0.5, 60, 0.5, 'base radius, km'),
       { key: 'shape', kind: 'enum', options: ['cone', 'dome', 'massif', 'volcano'], default: 'massif', help: 'volcano adds a crater' },
+    ],
+  },
+  {
+    type: 'crater', summary: 'Impact crater: raised rim, terraced inner wall, flat floor, optional central peak and a breach in the rim.',
+    params: [
+      { key: 'center', kind: 'point', help: 'crater centre' },
+      num('radius', 20, 1, 80, 0.5, 'radius of the rim crest, km'),
+      num('rimElevation', 1500, -500, 12000, 25, 'absolute elevation of the rim crest, m'),
+      num('floorElevation', -400, -6000, 8000, 25, 'absolute elevation of the floor, m'),
+      num('wallKm', 6, 0.5, 40, 0.5, 'width of the inner wall from crest to floor, km'),
+      num('apronKm', 12, 0.5, 60, 0.5, 'width of the outer flank, km'),
+      num('terraces', 3, 0, 8, 1, 'slump terraces on the inner wall'),
+      num('centralPeakElevation', 300, -6000, 12000, 25, 'absolute summit elevation of the central peak, m (omit for none)', true),
+      num('breachBearingDeg', 270, 0, 360, 5, 'compass bearing from the centre to a gap in the rim (omit for none)', true),
+      num('breachWidthKm', 4, 0.5, 40, 0.5, 'width of the gap, km', true),
+      num('breachElevation', 20, -3000, 8000, 5, 'absolute elevation of the gap floor, m', true),
     ],
   },
   {
     type: 'plateau', summary: 'Mesa / tableland with an escarpment edge; optional terraces.',
     params: [
       { key: 'region', kind: 'region', help: 'top of the plateau' },
-      num('height', 1200, -500, 5000, 25, 'absolute elevation of the top, m'),
+      num('height', 1200, -500, 12000, 25, 'absolute elevation of the top, m'),
       num('edgeSteepness', 0.7, 0, 1, 0.05, '0 ramp .. 1 cliff'),
       num('terraces', 0, 0, 8, 1, 'terrace steps on the edge'),
     ],
@@ -68,7 +84,7 @@ export const OP_DESCS: OpDesc[] = [
     type: 'valley', summary: 'Valley along a polyline. Floor always descends from source to mouth. U = glacial.',
     params: [
       { key: 'points', kind: 'points', help: 'valley axis from head to mouth' },
-      num('depth', 400, 0, 3000, 10, 'metres below the line terrain'),
+      num('depth', 400, 0, 8000, 10, 'metres below the line terrain'),
       num('width', 6, 0.5, 40, 0.5, 'half-width at the rim, km'),
       { key: 'profile', kind: 'enum', options: ['V', 'U'], default: 'V', help: 'U = glacial trough' },
     ],
@@ -86,7 +102,7 @@ export const OP_DESCS: OpDesc[] = [
     type: 'canyon', summary: 'Steep-walled cut with stepped walls.',
     params: [
       { key: 'points', kind: 'points', help: 'canyon course' },
-      num('depth', 600, 10, 3000, 10, 'metres'),
+      num('depth', 600, 10, 8000, 10, 'metres'),
       num('width', 4, 0.3, 30, 0.1, 'full width at the rim, km'),
       num('wallSteepness', 0.8, 0, 1, 0.05, '0..1'),
     ],
@@ -103,12 +119,12 @@ export const OP_DESCS: OpDesc[] = [
     ],
   },
   {
-    type: 'hills', summary: 'Noise field over an area: rolling hills, rugged hills or dunes.',
+    type: 'hills', summary: 'Relief field over an area: rolling hills, rugged hills, dunes, steep rock towers or sinkholes.',
     params: [
       { key: 'region', kind: 'region', help: 'area' },
       num('amplitude', 250, 0, 2000, 10, 'metres'),
       num('wavelengthKm', 6, 0.5, 60, 0.5, 'size of a hill, km'),
-      { key: 'style', kind: 'enum', options: ['rolling', 'rugged', 'dunes'], default: 'rolling', help: '' },
+      { key: 'style', kind: 'enum', options: ['rolling', 'rugged', 'dunes', 'towers', 'sinkholes'], default: 'rolling', help: 'towers: steep-sided stacks in clusters, amplitude = tallest tower, wavelengthKm = spacing; sinkholes: the same as pits' },
       num('falloffKm', 6, 0, 40, 0.5, 'edge falloff, km', true),
     ],
   },
