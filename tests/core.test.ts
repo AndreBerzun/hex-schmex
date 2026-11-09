@@ -135,6 +135,97 @@ describe('op evaluation', () => {
       expect(at(fine([{ type: 'lowlands', region: { center: id, radiusKm: 0.5 }, targetElevation: 100, flatness: 1, falloffKm: 0.15 }]), x, y)).toBeCloseTo(100, -1);
     }
   });
+  describe('crater', () => {
+    const cx = g.widthKm / 2, cy = g.heightKm / 2;
+    const crater = (extra: Record<string, unknown> = {}) => flat([{
+      type: 'crater', id: 'c1', center: [cx, cy], radius: 22, rimElevation: 1800, floorElevation: -600,
+      wallKm: 7, apronKm: 10, terraces: 3, ...extra,
+    }]);
+    const ring = (hf: ReturnType<typeof evaluate>, r: number, skip?: (bearing: number) => boolean) => {
+      const v: number[] = [];
+      for (let i = 0; i < 72; i++) {
+        const b = i * 5;
+        if (skip?.(b)) continue;
+        const a = (b * Math.PI) / 180;
+        v.push(at(hf, cx + Math.sin(a) * r, cy - Math.cos(a) * r));
+      }
+      return v;
+    };
+    const maxOutward = (hf: ReturnType<typeof evaluate>, bearing: number, to = 28) => {
+      const a = (bearing * Math.PI) / 180;
+      let m = -Infinity;
+      for (let r = 14; r <= to; r += 0.25) m = Math.max(m, at(hf, cx + Math.sin(a) * r, cy - Math.cos(a) * r));
+      return m;
+    };
+
+    it('stands a closed rim far above a flat floor, with no central peak unless asked', () => {
+      const hf = crater();
+      for (let b = 0; b < 360; b += 10) expect(maxOutward(hf, b)).toBeGreaterThan(1100);
+      for (const v of ring(hf, 6)) expect(v).toBeLessThan(-450);
+      expect(at(hf, cx, cy)).toBeLessThan(-450);
+      expect(Math.max(...ring(hf, 40))).toBeLessThan(700);
+    });
+    it('drops steeply on the inside and gently on the outside', () => {
+      const hf = crater({ terraces: 0 });
+      const inner = maxOutward(hf, 90) - at(hf, cx + 22 - 7, cy);
+      const outer = maxOutward(hf, 90) - at(hf, cx + 22 + 7, cy);
+      expect(inner).toBeGreaterThan(outer * 1.5);
+    });
+    it('raises a central peak only when one is given', () => {
+      expect(at(crater({ centralPeakElevation: 800 }), cx, cy)).toBeGreaterThan(200);
+    });
+    it('cuts the breach down to its sill toward the given bearing', () => {
+      const hf = crater({ breachBearingDeg: 240, breachWidthKm: 8, breachElevation: 15 });
+      expect(maxOutward(hf, 240)).toBeLessThan(30);
+      expect(maxOutward(hf, 60)).toBeGreaterThan(1100);
+    });
+    it('marks the interior as an intended lake', () => {
+      const hf = crater();
+      const k = Math.floor(cy / hf.kmPerPx) * hf.nx + Math.floor(cx / hf.kmPerPx);
+      expect(hf.lake[k]).toBeGreaterThan(0.9);
+    });
+  });
+
+  describe('towers and sinkholes', () => {
+    const region = { rect: ['0203', '0906'] };
+    const flat = (ops: Record<string, unknown>[]) => evaluate(smallWorld(ops, { ...base, terrain: { ...defaultWorld('t').terrain, designRes: 768 } }));
+    const sample = (hf: ReturnType<typeof evaluate>, hf0: ReturnType<typeof evaluate>) => {
+      const [x0, y0] = hexCenter(g, 3, 4), [x1, y1] = hexCenter(g, 8, 5);
+      const d: number[] = [];
+      for (let y = y0; y <= y1; y += 0.4) for (let x = x0; x <= x1; x += 0.4) d.push(at(hf, x, y) - at(hf0, x, y));
+      return d;
+    };
+    const share = (d: number[], f: (v: number) => boolean) => d.filter(f).length / d.length;
+
+    it('towers stand steep stacks on ground that stays open between them', () => {
+      const hf0 = flat([]);
+      const d = sample(flat([{ type: 'hills', id: 't1', region, amplitude: 300, wavelengthKm: 3, style: 'towers', falloffKm: 0 }]), hf0);
+      expect(share(d, (v) => Math.abs(v) < 2)).toBeGreaterThan(0.5);
+      expect(share(d, (v) => v > 120)).toBeGreaterThan(0.02);
+      expect(Math.max(...d)).toBeLessThan(300 * 1.1);
+      expect(Math.min(...d)).toBeGreaterThan(-1);
+    });
+    it('towers have walls, not dome flanks', () => {
+      const hf = flat([{ type: 'hills', id: 't1', region, amplitude: 300, wavelengthKm: 3, style: 'towers', falloffKm: 0 }]);
+      const [x0, y0] = hexCenter(g, 3, 4), [x1, y1] = hexCenter(g, 8, 5);
+      let walls = 0;
+      for (let y = y0; y <= y1; y += 0.4) for (let x = x0; x <= x1; x += 0.4) if (Math.abs(at(hf, x + 0.3, y) - at(hf, x, y)) > 150) walls++;
+      expect(walls).toBeGreaterThan(10);
+    });
+    it('sinkholes only lower the ground, and leave most of it alone', () => {
+      const hf0 = flat([]);
+      const d = sample(flat([{ type: 'hills', id: 's1', region, amplitude: 150, wavelengthKm: 3, style: 'sinkholes', falloffKm: 0 }]), hf0);
+      expect(share(d, (v) => Math.abs(v) < 2)).toBeGreaterThan(0.5);
+      expect(share(d, (v) => v < -50)).toBeGreaterThan(0.01);
+      expect(Math.max(...d)).toBeLessThan(1);
+    });
+    it('are deterministic', () => {
+      const ops = [{ type: 'hills', id: 't1', region, amplitude: 300, wavelengthKm: 3, style: 'towers' }, { type: 'crater', id: 'c1', center: '0504', radius: 12, rimElevation: 900, floorElevation: -200, wallKm: 4, apronKm: 6, terraces: 2 }];
+      const a = flat(ops), b = flat(JSON.parse(JSON.stringify(ops)));
+      expect(Buffer.from(a.height.buffer).equals(Buffer.from(b.height.buffer))).toBe(true);
+    });
+  });
+
   it('coast pushes its side below sea level', () => {
     const hf = flat([{ type: 'coast', side: 'W', extentKm: 30, targetElevation: -200, falloffKm: 5, roughness: 0 }]);
     expect(at(hf, 3, g.heightKm / 2)).toBeLessThan(0);

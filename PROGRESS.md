@@ -259,3 +259,64 @@ the next step (`NEXT_STEPS.md`).
 Validation: 44 unit tests, both builds, `check:shore`, `check:player`, `check:flight`,
 `check:bake`, `check:materials` pass. GPU 4–18 ms across 20 Shore views at 1280×720,
 regional orbit 30 drawn frames/s, zero idle frames.
+
+## A more dramatic Shore (2026-11-09)
+
+Built from the handover plan in the same session that wrote it, with two changes from the
+GM: no island in the crater (its floor is where the Dark Sea rises at night), and the
+Hollow Mountains continue beyond the map instead of fitting on it.
+
+- **Hollow Mountains.** One wall whose crest line runs along the north edge and 30 km past
+  both corners, so it does not taper on the map; the Hollow Crown straddles the edge.
+  Op-stack summits 10–14 km (baked peak 13.75 km, `terrain.maxElevationM` 15000), the
+  south face spans rows 01–02, four U-shaped glacial troughs end in small lakes at its
+  foot. The Hollow Spur is ~5 km, the Hollow River valley a 380 m gorge. The plan's
+  9000 m / sharpness 0.75 gave only 4–7 km crests (the ridge's crest roughness and peaky
+  profile eat most of the height); the wall now uses height 13000, sharpness 0.45,
+  roughness 0.5, half-width 30 km. Outside the map the mirrored surround carries the
+  range on into the haze; that is the teaser for the region beyond.
+- **Crater op** (`crater`): absolute rim and floor, terraced inner wall, outer flank,
+  optional central peak and breach. The breach now carves a spillway that keeps falling
+  through the outer flank instead of rising back to the surrounding ground. The Dark Sea
+  crater is 44 km (rim radius 22 km, not the plan's 25 km) and sits ~9 km inside the
+  east and south edges: at 3.5 km the mirrored surround drew a full second crater beside
+  it. A faint twin remains in the haze. Rim 1.8–2.2 km, floor −1.2 km, a basin op makes
+  the Deep (−2.6 km) at the centre. Breach at 235° toward the tidal flats, sill 15 m.
+- **Rain shadow.** The 2 km rim dried the coral lowlands and turned the tableland pools
+  into salt pans (moisture drops behind anything higher upwind, and the wind is from the
+  south). Moisture ops on the coral (+0.5), the tablelands and the crater's lee restore
+  the lore. The high valley between the Spur and the wall is ash-dusted for the same
+  reason; kept.
+- **Towers and sinkholes** (`hills` styles): flat-topped stacks or flat-floored pits with
+  walls ~1.5 design samples wide and a low debris skirt, evaluated over the 3×3 nearest
+  cell points so no stack is cut at a cell boundary. Placed in the mires (towers 300 m,
+  pools 120 m), on the tidal flats (stacks 220 m), in the coral (massifs 260 m, sinkholes
+  150 m) and as ash buttes (380 m). They read as steep mesas and buttes, not pinnacles:
+  at 85 m samples a 300 m tower is 3–4 samples wide.
+- **Steeper erosion talus** on the Shore map (34° → 40°), so stacks, crests and the crater
+  wall keep more of their edge.
+- **Rock banding.** The rock colour bands and the erosion hardness benches followed
+  absolute height, so on 10 km faces they drew evenly spaced contour lines. Both now
+  dip ~2° and are warped by regional noise; the colour bands mix three periods at lower
+  contrast. The example worlds look unchanged to the eye.
+- **Views.** `crater-overlook` stands on the north-west rim (40 m up, so it sees over the
+  lip after erosion), `castle-to-crater` aims at the rim, the mountain views look higher;
+  new `crater-aerial` and `mire-towers`.
+
+Sightlines from the castle are now a test: Spire visible, Soul Tree crown just above the
+Ash Ridges, crater water hidden. Two colossi are hidden by terrain (north and ash); the
+southern-road and Spur colossi show 70–80 m of their 200 m (before: three of four showed
+100–170 m).
+
+What looks off: the castle-to-mountains view reads like a high range 60 km away, which it
+is; it does not loom. Mountain faces are smooth. Towers are mesas. The crater rim from
+the castle is a low pale wall in the haze.
+
+Performance: bake 30–36 s across runs (was ~24 s): op evaluation 3.4 → 5.5–7 s (five more area ops and
+the crater; each polygon op tests every pixel against its polygon), drainage 2.6 → 4.5 s
+(more relief and closed basins for the priority flood; 4.5–6 s). GPU 7–27 ms across 22 Shore views
+at 1280×720 (worst `hex-closeup`, crater views 19–22 ms), orbit 30 drawn frames/s, zero
+idle frames.
+
+Validation: 53 unit tests, both builds, `check:shore`, `check:bake`, `check:materials`,
+`check:player`, `check:flight` pass.

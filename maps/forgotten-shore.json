@@ -9,7 +9,7 @@
   },
   "terrain": {
     "seaLevelM": 0,
-    "maxElevationM": 4500,
+    "maxElevationM": 15000,
     "designRes": 1024,
     "erodedRes": 1536
   },
@@ -30,39 +30,63 @@
       "source": "prompt",
       "points": [
         [
-          8.83,
-          26.83
+          -40,
+          2
         ],
         [
-          24.83,
-          18.83
+          -12,
+          3
         ],
         [
-          44.83,
-          21.83
+          8,
+          -1
         ],
         [
-          62.83,
-          14.83
+          22,
+          4
         ],
         [
-          82.83,
-          19.83
+          36,
+          0
         ],
         [
-          100.83,
-          12.83
+          50,
+          5
         ],
         [
-          121.83,
-          19.83
+          63,
+          -2
+        ],
+        [
+          76,
+          3
+        ],
+        [
+          90,
+          1
+        ],
+        [
+          104,
+          4
+        ],
+        [
+          118,
+          -1
+        ],
+        [
+          132,
+          3
+        ],
+        [
+          170,
+          1
         ]
       ],
-      "height": 3000,
-      "width": 14,
-      "sharpness": 0.7,
-      "roughness": 0.75,
-      "asymmetry": 0.3
+      "height": 13000,
+      "width": 30,
+      "sharpness": 0.45,
+      "roughness": 0.5,
+      "asymmetry": 0
     },
     {
       "id": "peak-wt8w2",
@@ -71,11 +95,11 @@
       "label": "Hollow Crown",
       "source": "prompt",
       "center": [
-        94.83,
-        15.83
+        93,
+        -1
       ],
-      "height": 1500,
-      "radius": 9,
+      "height": 5000,
+      "radius": 15,
       "shape": "massif"
     },
     {
@@ -102,8 +126,8 @@
           31.83
         ]
       ],
-      "height": 1300,
-      "width": 6,
+      "height": 3200,
+      "width": 9,
       "sharpness": 0.6,
       "roughness": 0.8,
       "asymmetry": 0.2
@@ -116,27 +140,202 @@
       "source": "prompt",
       "points": [
         [
-          88.83,
-          19.83
+          90,
+          6
         ],
         [
-          87.83,
-          33.83
+          87.59574647082769,
+          33.796224
         ],
         [
-          80.83,
-          44.83
+          81.1645625462593,
+          44.4178944
         ],
         [
-          75.83,
-          50.83
+          75.37092414625931,
+          51.177139200000006
         ]
       ],
-      "height": 1900,
-      "width": 7,
-      "sharpness": 0.6,
-      "roughness": 0.7,
-      "asymmetry": 0
+      "height": 5500,
+      "width": 10,
+      "sharpness": 0.5,
+      "roughness": 0.6,
+      "asymmetry": 0,
+      "expr": {
+        "points": [
+          [
+            90,
+            6
+          ],
+          {
+            "hex": "1003",
+            "dx": 0.2,
+            "dy": 0
+          },
+          {
+            "hex": "0905",
+            "dx": 0.4,
+            "dy": -0.4
+          },
+          {
+            "hex": "0905",
+            "dx": -0.2,
+            "dy": 0.3
+          }
+        ]
+      }
+    },
+    {
+      "id": "valley-ned91",
+      "type": "valley",
+      "enabled": true,
+      "label": "Western glacial trough",
+      "source": "prompt",
+      "points": [
+        [
+          27.12775659884902,
+          6.759244800000001
+        ],
+        [
+          27.12775659884902,
+          19.312128
+        ],
+        [
+          27.12775659884902,
+          24.14016
+        ]
+      ],
+      "depth": 1600,
+      "width": 5,
+      "profile": "U",
+      "expr": {
+        "points": [
+          {
+            "hex": "0301",
+            "dx": 0,
+            "dy": -0.3
+          },
+          "0302",
+          {
+            "hex": "0302",
+            "dx": 0,
+            "dy": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "valley-ned92",
+      "type": "valley",
+      "enabled": true,
+      "label": "Hollow trough",
+      "source": "prompt",
+      "points": [
+        [
+          52.21494677255417,
+          8.690457600000002
+        ],
+        [
+          52.21494677255417,
+          14.484096000000001
+        ],
+        [
+          52.21494677255417,
+          24.14016
+        ]
+      ],
+      "depth": 1600,
+      "width": 5,
+      "profile": "U",
+      "expr": {
+        "points": [
+          {
+            "hex": "0601",
+            "dx": 0,
+            "dy": -0.6
+          },
+          "0601",
+          "0602"
+        ]
+      }
+    },
+    {
+      "id": "valley-ned93",
+      "type": "valley",
+      "enabled": true,
+      "label": "Spur trough",
+      "source": "prompt",
+      "points": [
+        [
+          76.33653054625931,
+          6.759244800000001
+        ],
+        [
+          77.30213694625931,
+          19.312128
+        ],
+        [
+          76.33653054625931,
+          24.14016
+        ]
+      ],
+      "depth": 1600,
+      "width": 5,
+      "profile": "U",
+      "expr": {
+        "points": [
+          {
+            "hex": "0901",
+            "dx": -0.1,
+            "dy": -0.3
+          },
+          "0902",
+          {
+            "hex": "0902",
+            "dx": -0.1,
+            "dy": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "valley-ned94",
+      "type": "valley",
+      "enabled": true,
+      "label": "Eastern glacial trough",
+      "source": "prompt",
+      "points": [
+        [
+          110.75172384453285,
+          6.759244800000001
+        ],
+        [
+          110.75172384453285,
+          19.312128
+        ],
+        [
+          109.78611744453285,
+          24.14016
+        ]
+      ],
+      "depth": 1600,
+      "width": 5,
+      "profile": "U",
+      "expr": {
+        "points": [
+          {
+            "hex": "1301",
+            "dx": 0,
+            "dy": -0.3
+          },
+          "1302",
+          {
+            "hex": "1302",
+            "dx": -0.1,
+            "dy": 0.5
+          }
+        ]
+      }
     },
     {
       "id": "hills-wt8w5",
@@ -249,7 +448,7 @@
           ]
         ]
       },
-      "amplitude": 450,
+      "amplitude": 600,
       "wavelengthKm": 9,
       "style": "rolling",
       "falloffKm": 10,
@@ -689,7 +888,7 @@
           ]
         ]
       },
-      "height": 720,
+      "height": 950,
       "edgeSteepness": 0.75,
       "terraces": 3,
       "expr": {
@@ -1008,6 +1207,38 @@
           ]
         }
       }
+    },
+    {
+      "id": "canyon-0g681",
+      "type": "canyon",
+      "enabled": true,
+      "label": "Tableland canyon",
+      "source": "prompt",
+      "points": [
+        [
+          124,
+          45
+        ],
+        [
+          116,
+          49
+        ],
+        [
+          108,
+          53
+        ],
+        [
+          101,
+          55
+        ],
+        [
+          96.5,
+          57.5
+        ]
+      ],
+      "depth": 700,
+      "width": 3,
+      "wallSteepness": 0.85
     },
     {
       "id": "lowlands-wt8x9",
@@ -1349,8 +1580,8 @@
           ]
         ]
       },
-      "amplitude": 90,
-      "wavelengthKm": 2.8,
+      "amplitude": 170,
+      "wavelengthKm": 3.6,
       "style": "dunes",
       "falloffKm": 6,
       "expr": {
@@ -1487,9 +1718,9 @@
           ]
         ]
       },
-      "amplitude": 200,
-      "wavelengthKm": 5,
-      "style": "rugged",
+      "amplitude": 380,
+      "wavelengthKm": 4.5,
+      "style": "towers",
       "falloffKm": 8,
       "expr": {
         "region": {
@@ -1830,7 +2061,7 @@
           ]
         ]
       },
-      "amplitude": 90,
+      "amplitude": 140,
       "wavelengthKm": 3.5,
       "style": "rugged",
       "falloffKm": 6,
@@ -1920,6 +2151,198 @@
           ]
         }
       }
+    },
+    {
+      "id": "hills-0g692",
+      "type": "hills",
+      "enabled": true,
+      "label": "Coral massifs",
+      "source": "prompt",
+      "region": {
+        "kind": "polygon",
+        "points": [
+          [
+            46.83,
+            71.83
+          ],
+          [
+            53.61,
+            69.26
+          ],
+          [
+            60.49,
+            67.47
+          ],
+          [
+            67.74,
+            68.21
+          ],
+          [
+            74.83,
+            67.83
+          ],
+          [
+            82.21,
+            63.35
+          ],
+          [
+            90.83,
+            62.83
+          ],
+          [
+            92.75,
+            69.12
+          ],
+          [
+            90.08,
+            74.9
+          ],
+          [
+            88.83,
+            80.83
+          ],
+          [
+            83.3,
+            85.61
+          ],
+          [
+            80.59,
+            91.95
+          ],
+          [
+            78.83,
+            98.83
+          ],
+          [
+            71.28,
+            98.25
+          ],
+          [
+            64.39,
+            102.48
+          ],
+          [
+            56.83,
+            101.83
+          ],
+          [
+            50.98,
+            96.17
+          ],
+          [
+            44.83,
+            90.83
+          ],
+          [
+            44.16,
+            84.36
+          ],
+          [
+            44.21,
+            77.96
+          ]
+        ]
+      },
+      "amplitude": 260,
+      "wavelengthKm": 4,
+      "style": "towers",
+      "falloffKm": 4
+    },
+    {
+      "id": "hills-0g693",
+      "type": "hills",
+      "enabled": true,
+      "label": "Coral sinkholes",
+      "source": "prompt",
+      "region": {
+        "kind": "polygon",
+        "points": [
+          [
+            46.83,
+            71.83
+          ],
+          [
+            53.61,
+            69.26
+          ],
+          [
+            60.49,
+            67.47
+          ],
+          [
+            67.74,
+            68.21
+          ],
+          [
+            74.83,
+            67.83
+          ],
+          [
+            82.21,
+            63.35
+          ],
+          [
+            90.83,
+            62.83
+          ],
+          [
+            92.75,
+            69.12
+          ],
+          [
+            90.08,
+            74.9
+          ],
+          [
+            88.83,
+            80.83
+          ],
+          [
+            83.3,
+            85.61
+          ],
+          [
+            80.59,
+            91.95
+          ],
+          [
+            78.83,
+            98.83
+          ],
+          [
+            71.28,
+            98.25
+          ],
+          [
+            64.39,
+            102.48
+          ],
+          [
+            56.83,
+            101.83
+          ],
+          [
+            50.98,
+            96.17
+          ],
+          [
+            44.83,
+            90.83
+          ],
+          [
+            44.16,
+            84.36
+          ],
+          [
+            44.21,
+            77.96
+          ]
+        ]
+      },
+      "amplitude": 150,
+      "wavelengthKm": 5,
+      "style": "sinkholes",
+      "falloffKm": 4
     },
     {
       "id": "lowlands-wt8xg",
@@ -2098,119 +2521,164 @@
       }
     },
     {
-      "id": "ridge-wt8xi",
-      "type": "ridge",
+      "id": "hills-0g6a4",
+      "type": "hills",
       "enabled": true,
-      "label": "Crater rim",
+      "label": "Mire tower karst",
       "source": "prompt",
-      "points": [
-        [
-          84.18,
-          109.33
-        ],
-        [
-          81.06,
-          100.19
-        ],
-        [
-          81.63,
-          90.55
-        ],
-        [
-          85.82,
-          81.85
-        ],
-        [
-          92.99,
-          75.38
-        ],
-        [
-          102.08,
-          72.11
-        ],
-        [
-          111.72,
-          72.53
-        ],
-        [
-          120.49,
-          76.58
-        ],
-        [
-          132.66,
-          83.65
-        ],
-        [
-          132.66,
-          92.68
-        ],
-        [
-          132.66,
-          102.34
-        ],
-        [
-          132.66,
-          111.17
+      "region": {
+        "kind": "polygon",
+        "points": [
+          [
+            22.83,
+            104.83
+          ],
+          [
+            29.9,
+            104.69
+          ],
+          [
+            36.96,
+            104.53
+          ],
+          [
+            43.99,
+            104.05
+          ],
+          [
+            50.83,
+            101.83
+          ],
+          [
+            52.32,
+            108.06
+          ],
+          [
+            56.5,
+            112.5
+          ],
+          [
+            60.83,
+            116.83
+          ],
+          [
+            53.56,
+            119.64
+          ],
+          [
+            48.83,
+            133.66
+          ],
+          [
+            41.83,
+            133.66
+          ],
+          [
+            34.83,
+            133.66
+          ],
+          [
+            27.83,
+            123.61
+          ],
+          [
+            20.83,
+            133.66
+          ],
+          [
+            22.24,
+            118.9
+          ],
+          [
+            24.16,
+            112.02
+          ]
         ]
-      ],
-      "height": 650,
-      "width": 6,
-      "sharpness": 0.65,
-      "roughness": 0.7,
-      "asymmetry": 0.4
+      },
+      "amplitude": 300,
+      "wavelengthKm": 2.4,
+      "style": "towers",
+      "falloffKm": 3
     },
     {
-      "id": "basin-wt8xj",
-      "type": "basin",
+      "id": "hills-0g6b5",
+      "type": "hills",
       "enabled": true,
-      "label": "Crater floor",
+      "label": "Black pools",
       "source": "prompt",
       "region": {
-        "kind": "circle",
-        "center": [
-          105.83,
-          96.83
-        ],
-        "radius": 22
-      },
-      "depth": 600,
-      "falloffKm": 8,
-      "expr": {
-        "region": {
-          "center": [
-            105.83,
-            96.83
+        "kind": "polygon",
+        "points": [
+          [
+            22.83,
+            104.83
           ],
-          "radiusKm": 22
-        }
-      }
-    },
-    {
-      "id": "coast-wt8xk",
-      "type": "coast",
-      "enabled": true,
-      "label": "The Dark Sea",
-      "source": "prompt",
-      "region": {
-        "kind": "circle",
-        "center": [
-          105.83,
-          96.83
-        ],
-        "radius": 17
-      },
-      "targetElevation": -420,
-      "falloffKm": 7,
-      "roughness": 0.5,
-      "expr": {
-        "region": {
-          "center": [
-            105.83,
-            96.83
+          [
+            29.9,
+            104.69
           ],
-          "radiusKm": 17
-        }
-      }
+          [
+            36.96,
+            104.53
+          ],
+          [
+            43.99,
+            104.05
+          ],
+          [
+            50.83,
+            101.83
+          ],
+          [
+            52.32,
+            108.06
+          ],
+          [
+            56.5,
+            112.5
+          ],
+          [
+            60.83,
+            116.83
+          ],
+          [
+            53.56,
+            119.64
+          ],
+          [
+            48.83,
+            133.66
+          ],
+          [
+            41.83,
+            133.66
+          ],
+          [
+            34.83,
+            133.66
+          ],
+          [
+            27.83,
+            123.61
+          ],
+          [
+            20.83,
+            133.66
+          ],
+          [
+            22.24,
+            118.9
+          ],
+          [
+            24.16,
+            112.02
+          ]
+        ]
+      },
+      "amplitude": 120,
+      "wavelengthKm": 3,
+      "style": "sinkholes",
+      "falloffKm": 3
     },
     {
       "id": "valley-wt8xl",
@@ -2240,7 +2708,7 @@
           88.83
         ]
       ],
-      "depth": 140,
+      "depth": 380,
       "width": 4,
       "profile": "V"
     },
@@ -2252,25 +2720,50 @@
       "source": "prompt",
       "points": [
         [
-          82.83,
-          37.83
+          82.7677144708277,
+          37.658649600000004
         ],
         [
-          83.83,
-          52.83
+          83.7333208708277,
+          53.108352000000004
         ],
         [
-          84.83,
-          66.83
+          84.6989272708277,
+          66.6268416
         ],
         [
-          88.83,
-          82.83
+          77.30213694625931,
+          67.592448
+        ],
+        [
+          68.93974022169094,
+          82.07654400000001
         ]
       ],
       "depth": 120,
       "width": 3.5,
-      "profile": "V"
+      "profile": "V",
+      "expr": {
+        "points": [
+          {
+            "hex": "1003",
+            "dx": -0.3,
+            "dy": 0.4
+          },
+          {
+            "hex": "1005",
+            "dx": -0.2,
+            "dy": 0
+          },
+          {
+            "hex": "1006",
+            "dx": -0.1,
+            "dy": 0.4
+          },
+          "0907",
+          "0808"
+        ]
+      }
     },
     {
       "id": "lowlands-wt8yn",
@@ -2446,28 +2939,142 @@
       }
     },
     {
-      "id": "valley-wt8yo",
-      "type": "valley",
+      "id": "hills-0g6b6",
+      "type": "hills",
       "enabled": true,
-      "label": "Rim breach",
+      "label": "Sea stacks",
       "source": "prompt",
-      "points": [
-        [
-          76.83,
-          96.83
-        ],
-        [
-          84.83,
-          99.83
-        ],
-        [
-          92.83,
-          99.83
+      "region": {
+        "kind": "polygon",
+        "points": [
+          [
+            58.83,
+            102.83
+          ],
+          [
+            66.43,
+            102.94
+          ],
+          [
+            73.78,
+            101.75
+          ],
+          [
+            80.83,
+            98.83
+          ],
+          [
+            86.82,
+            97.76
+          ],
+          [
+            92.83,
+            96.83
+          ],
+          [
+            95.96,
+            102.45
+          ],
+          [
+            96.83,
+            108.83
+          ],
+          [
+            101.26,
+            116.76
+          ],
+          [
+            100.83,
+            133.66
+          ],
+          [
+            94.54,
+            133.66
+          ],
+          [
+            88.26,
+            133.66
+          ],
+          [
+            81.97,
+            124.53
+          ],
+          [
+            75.69,
+            133.66
+          ],
+          [
+            69.4,
+            124.48
+          ],
+          [
+            63.12,
+            133.66
+          ],
+          [
+            56.83,
+            133.66
+          ],
+          [
+            59,
+            118.29
+          ],
+          [
+            59.31,
+            110.6
+          ]
         ]
+      },
+      "amplitude": 220,
+      "wavelengthKm": 3.5,
+      "style": "towers",
+      "falloffKm": 3
+    },
+    {
+      "id": "crater-tpli1",
+      "type": "crater",
+      "enabled": true,
+      "label": "Dark Sea crater",
+      "source": "prompt",
+      "center": [
+        98,
+        98
       ],
-      "depth": 200,
-      "width": 4,
-      "profile": "U"
+      "radius": 22,
+      "rimElevation": 2400,
+      "floorElevation": -1200,
+      "wallKm": 7,
+      "apronKm": 11,
+      "terraces": 4,
+      "breachBearingDeg": 235,
+      "breachWidthKm": 8,
+      "breachElevation": 15
+    },
+    {
+      "id": "basin-tpli2",
+      "type": "basin",
+      "enabled": true,
+      "label": "The Deep (where the Dark Sea rises at night)",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          98,
+          98
+        ],
+        "radius": 6
+      },
+      "depth": 1400,
+      "falloffKm": 6,
+      "expr": {
+        "region": {
+          "center": [
+            98,
+            98
+          ],
+          "radiusKm": 6
+        }
+      }
     },
     {
       "id": "peak-wt8yp",
@@ -2883,7 +3490,7 @@
           ]
         ]
       },
-      "delta": 0.3,
+      "delta": 0.5,
       "falloffKm": 8,
       "expr": {
         "region": {
@@ -3398,11 +4005,254 @@
           "radiusKm": 0.6
         }
       }
+    },
+    {
+      "id": "moisture-xdpj1",
+      "type": "moisture",
+      "enabled": true,
+      "label": "Tableland meres (rain shadow of the crater rim)",
+      "source": "prompt",
+      "region": {
+        "kind": "polygon",
+        "points": [
+          [
+            94.83,
+            36.83
+          ],
+          [
+            99.02,
+            33.84
+          ],
+          [
+            103.22,
+            30.87
+          ],
+          [
+            108.83,
+            31.83
+          ],
+          [
+            113.41,
+            33.37
+          ],
+          [
+            118.41,
+            29.08
+          ],
+          [
+            122.83,
+            32.83
+          ],
+          [
+            123.04,
+            37.36
+          ],
+          [
+            132.66,
+            41.71
+          ],
+          [
+            132.66,
+            45.94
+          ],
+          [
+            132.66,
+            50.83
+          ],
+          [
+            132.66,
+            55.5
+          ],
+          [
+            132.66,
+            60.16
+          ],
+          [
+            132.66,
+            64.83
+          ],
+          [
+            120.27,
+            66.35
+          ],
+          [
+            116.22,
+            70.19
+          ],
+          [
+            110.83,
+            67.83
+          ],
+          [
+            104.87,
+            67.45
+          ],
+          [
+            102.47,
+            62.31
+          ],
+          [
+            98.83,
+            58.83
+          ],
+          [
+            100.6,
+            53.96
+          ],
+          [
+            94.27,
+            50.57
+          ],
+          [
+            94.25,
+            46.03
+          ],
+          [
+            96.63,
+            41.05
+          ]
+        ]
+      },
+      "delta": 0.2,
+      "falloffKm": 6,
+      "expr": {
+        "region": {
+          "polygon": [
+            [
+              94.83,
+              36.83
+            ],
+            [
+              99.02,
+              33.84
+            ],
+            [
+              103.22,
+              30.87
+            ],
+            [
+              108.83,
+              31.83
+            ],
+            [
+              113.41,
+              33.37
+            ],
+            [
+              118.41,
+              29.08
+            ],
+            [
+              122.83,
+              32.83
+            ],
+            [
+              123.04,
+              37.36
+            ],
+            [
+              132.66,
+              41.71
+            ],
+            [
+              132.66,
+              45.94
+            ],
+            [
+              132.66,
+              50.83
+            ],
+            [
+              132.66,
+              55.5
+            ],
+            [
+              132.66,
+              60.16
+            ],
+            [
+              132.66,
+              64.83
+            ],
+            [
+              120.27,
+              66.35
+            ],
+            [
+              116.22,
+              70.19
+            ],
+            [
+              110.83,
+              67.83
+            ],
+            [
+              104.87,
+              67.45
+            ],
+            [
+              102.47,
+              62.31
+            ],
+            [
+              98.83,
+              58.83
+            ],
+            [
+              100.6,
+              53.96
+            ],
+            [
+              94.27,
+              50.57
+            ],
+            [
+              94.25,
+              46.03
+            ],
+            [
+              96.63,
+              41.05
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "moisture-zap81",
+      "type": "moisture",
+      "enabled": true,
+      "label": "Crater lee (rain shadow north of the rim)",
+      "source": "prompt",
+      "region": {
+        "kind": "circle",
+        "center": [
+          96,
+          72
+        ],
+        "radius": 16
+      },
+      "delta": 0.25,
+      "falloffKm": 8,
+      "expr": {
+        "region": {
+          "center": [
+            96,
+            72
+          ],
+          "radiusKm": 16
+        }
+      }
     }
   ],
   "erosion": {
     "enabled": true,
-    "preset": "medium"
+    "preset": "medium",
+    "iterations": 320,
+    "strength": 1,
+    "rain": 1,
+    "thermal": 0.7,
+    "talusDeg": 40
   },
   "climate": {
     "windFromDeg": 170,
@@ -3490,10 +4340,18 @@
       "rotationDeg": 250
     }
   ],
+  "environment": {
+    "palette": "ashen",
+    "hazeDensity": 0.018,
+    "tide": {
+      "lowM": 0,
+      "highM": 120
+    }
+  },
   "meta": {
     "name": "Forgotten Shore",
     "createdAt": "2026-11-09T20:32:41.416Z",
-    "updatedAt": "2026-11-09T20:32:41.748Z",
+    "updatedAt": "2026-11-09T21:57:10.673Z",
     "edits": [
       {
         "at": "2026-11-09T20:32:41.416Z",
@@ -3541,6 +4399,94 @@
           "lowlands-wt8yz",
           "lowlands-wt8y10"
         ]
+      },
+      {
+        "at": "2026-11-09T21:21:21.794Z",
+        "label": "Hollow Mountains: a 9-12 km wall along the north edge that runs on beyond the map, with glacial troughs",
+        "ops": [
+          "ridge-wt8v1",
+          "peak-wt8w2",
+          "ridge-wt8w3",
+          "ridge-wt8w4",
+          "valley-ned91",
+          "valley-ned92",
+          "valley-ned93",
+          "valley-ned94",
+          "valley-wt8xl",
+          "valley-wt8ym"
+        ]
+      },
+      {
+        "at": "2026-11-09T21:23:15.252Z",
+        "label": "Hollow Mountains: fuller, higher wall; troughs end at the foot of the wall",
+        "ops": [
+          "ridge-wt8v1",
+          "ridge-wt8w4",
+          "valley-ned91",
+          "valley-ned92",
+          "valley-ned93",
+          "valley-ned94"
+        ]
+      },
+      {
+        "at": "2026-11-09T21:24:36.896Z",
+        "label": "Hollow Mountains: raise the wall to dwarf Earth's highest peaks",
+        "ops": [
+          "ridge-wt8v1",
+          "peak-wt8w2"
+        ]
+      },
+      {
+        "at": "2026-11-09T21:26:16.281Z",
+        "label": "Dark Sea crater: one 50 km crater with a 2 km inner wall, breached toward the tidal flats, no island",
+        "ops": [
+          "crater-tpli1",
+          "basin-tpli2"
+        ]
+      },
+      {
+        "at": "2026-11-09T21:29:07.499Z",
+        "label": "Dark Sea crater: pull it off the east edge; keep coral and tablelands wet in the rim's rain shadow",
+        "ops": [
+          "crater-tpli1",
+          "basin-tpli2",
+          "moisture-wt8yu",
+          "moisture-xdpj1"
+        ]
+      },
+      {
+        "at": "2026-11-09T21:30:36.921Z",
+        "label": "keep the black earth north of the crater rim from turning to ash",
+        "ops": [
+          "moisture-zap81"
+        ]
+      },
+      {
+        "at": "2026-11-09T21:31:30.664Z",
+        "label": "Relief in the flat country: tower karst and black pools in the mires, sea stacks, coral massifs, ash buttes, a tableland canyon",
+        "ops": [
+          "hills-wt8w5",
+          "plateau-wt8x7",
+          "canyon-0g681",
+          "hills-wt8xa",
+          "hills-wt8xb",
+          "hills-wt8xf",
+          "hills-0g692",
+          "hills-0g693",
+          "hills-0g6a4",
+          "hills-0g6b5",
+          "hills-0g6b6"
+        ]
+      },
+      {
+        "at": "2026-11-09T21:35:47.654Z",
+        "label": "let towers, crests and the crater wall stand steeper",
+        "ops": []
+      },
+      {
+        "at": "2026-11-09T21:57:10.672Z",
+        "label": "notes for the dramatic Shore",
+        "ops": []
       }
     ],
     "views": {
@@ -3612,7 +4558,7 @@
           84.83,
           26.83
         ],
-        "toAglM": 1800
+        "toAglM": 3800
       },
       "castle-to-west": {
         "from": [
@@ -3633,10 +4579,10 @@
         ],
         "fromAglM": 130,
         "to": [
-          105.83,
-          96.83
+          98,
+          98
         ],
-        "toAglM": 300
+        "toAglM": 3700
       },
       "city-approach": {
         "from": [
@@ -3664,15 +4610,15 @@
       },
       "ash-buttes": {
         "from": [
-          12.83,
-          88.83
+          9,
+          87.5
         ],
         "fromAglM": 1.7,
         "to": [
-          20.83,
-          98.83
+          15,
+          84
         ],
-        "toAglM": 100
+        "toAglM": 250
       },
       "coral-lowlands": {
         "from": [
@@ -3732,7 +4678,7 @@
           44.83,
           24.83
         ],
-        "toAglM": 1200
+        "toAglM": 3200
       },
       "tablelands": {
         "from": [
@@ -3748,15 +4694,15 @@
       },
       "crater-overlook": {
         "from": [
-          88.13,
-          79.13
+          82.6,
+          82.6
         ],
-        "fromAglM": 1.7,
+        "fromAglM": 40,
         "to": [
-          105.83,
-          96.83
+          98,
+          98
         ],
-        "toAglM": -300
+        "toAglM": 2600
       },
       "mountain-valley": {
         "from": [
@@ -3768,23 +4714,39 @@
           56.83,
           18.83
         ],
-        "toAglM": 1800
+        "toAglM": 3800
+      },
+      "crater-aerial": {
+        "from": [
+          54,
+          138
+        ],
+        "fromAbsM": 14000,
+        "to": [
+          98,
+          96
+        ],
+        "toAglM": 2600
+      },
+      "mire-towers": {
+        "from": [
+          40.5,
+          109.5
+        ],
+        "fromAglM": 1.7,
+        "to": [
+          46,
+          107.2
+        ],
+        "toAglM": 150
       }
     },
-    "notes": "Campaign layout, not canonical geography (2026-11-09). Seven biomes after the Shadowdark hex terrain table: Sea of Ash (desert) in the west, dunes and buttes, dry by moisture op; Silt Mires (swamp) in the south-west; black earth downs (grassland) north of the city and on the eastern tablelands; the crimson coral labyrinth (forest) in the lowlands south of the city, coral only below the coral line (treeline 220 m) where wet; tidal flats and channels (river/coast) along the drowned south coast; the Dark Sea in the crater (ocean) to the south-east; the Hollow Mountains (mountain) across the north, up to ~3.8 km, with the Hollow Spur reaching toward the city. Dark City at the map centre on a 330 m hill, Bright Castle hill 420 m. Day sea 0 m; the night tide reaches +120 m and floods the mires, the flats, the low coral and the Spire's footing. From the castle: the Spire to the south-west, the Soul Tree's crown above the Ash Ridges to the west, the mountains; hidden: the crater water behind its rim and all four headless colossi. Wind from the south (moisture).",
+    "notes": "Campaign layout, not canonical geography (2026-11-09). Seven biomes after the Shadowdark hex terrain table: Sea of Ash (desert) in the west, big dunes and dark buttes, dry by moisture op; Silt Mires (swamp) in the south-west, flat with tower karst and black sinkhole pools; black earth downs (grassland) north of the city and on the eastern tablelands (top ~950 m, cut by a canyon draining west); the crimson coral labyrinth (forest) in the lowlands south of the city, coral only below the coral line (treeline 220 m) where wet, with coral massifs and sinkholes; tidal flats and channels (river/coast) along the drowned south coast, with sea stacks; the Dark Sea (ocean) in a 44 km crater to the south-east: rim 1.8-2.2 km, terraced inner wall, floor -1.2 km, the Deep at the centre (-2.6 km) is where the Dark Sea rises at night; no island. The rim is breached at 235 deg toward the tidal flats, sill 15 m, so the night sea pours out over the flats. The Hollow Mountains (mountain) are their own region beyond this map: their crest runs along and past the north edge (summits ~10-14 km, the Hollow Crown straddles the edge), the map holds only their south face with four glacial troughs, and the Hollow Spur (~5 km) reaches toward the city. Dark City at the map centre on a 330 m hill, Bright Castle hill 420 m. Day sea 0 m; the night tide reaches +120 m and floods the mires, the flats, the low coral and the Spire's footing; taller towers and stacks become islands. From the castle: the Spire to the south-west, the Soul Tree's crown above the Ash Ridges (keep them under ~750 m) to the west, the mountain wall; hidden: the crater water behind its rim. Wind from the south (moisture); the crater rim casts a rain shadow, offset by moisture ops on the coral and tablelands.",
     "preview": {
       "exag": 1,
       "timeOfDay": 15.5,
       "hexGrid": false,
       "initialView": "region-oblique"
-    }
-  },
-  "environment": {
-    "palette": "ashen",
-    "hazeDensity": 0.018,
-    "tide": {
-      "lowM": 0,
-      "highM": 120
     }
   }
 }

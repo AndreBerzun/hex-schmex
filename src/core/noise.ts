@@ -135,6 +135,15 @@ export class Cells2 {
     return (h >>> 0) / 4294967296;
   }
 
+  point(i: number, j: number, x: number, y: number, out: CellHit): CellHit {
+    out.px = i + 0.15 + 0.7 * this.hash(i, j, 0);
+    out.py = j + 0.15 + 0.7 * this.hash(i, j, 1);
+    out.d = Math.hypot(x - out.px, y - out.py);
+    out.a = this.hash(i, j, 2);
+    out.b = this.hash(i, j, 3);
+    return out;
+  }
+
   nearest(x: number, y: number, out: CellHit): CellHit {
     const cx = Math.floor(x), cy = Math.floor(y);
     out.d = Infinity;

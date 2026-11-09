@@ -147,7 +147,8 @@ void main() {
   float C = uKc * max(sinT, uMinTilt) * speed * lmax;  // metres
   // rock hardness: horizontal strata (benches) plus patchiness
   float hM = t.x * uCellM;
-  float strata = 0.5 + 0.5 * sin(hM / 85.0 + 3.0 * gnoise(vec2(p) * uCellM / 9000.0 + uSeed));
+  vec2 pKm = vec2(p) * uCellM / 1000.0;
+  float strata = 0.5 + 0.5 * sin((hM + dot(pKm, vec2(21.0, 28.0))) / 85.0 + 3.0 * gnoise(pKm / 9.0 + uSeed));
   float hard = mix(0.55, 1.0, strata) * mix(0.8, 1.2, gnoise(vec2(p) * uCellM / 20000.0 - uSeed) * 0.5 + 0.5);
   float bM = t.x * uCellM, sM = t.z * uCellM, dep = t.w;
   float lowest = min(min(bl, br), min(bd, bu)) * uCellM;

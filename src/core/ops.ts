@@ -507,7 +507,8 @@ function opCrater(ctx: Ctx, op: CraterOp) {
       const q = (r - R) / apron;
       const rays = lerp(1, 0.45 + 0.9 * sr.ridged(x / lamApron, y / lamApron, 4), 0.55 * smoothstep(0, 0.2, q) * (1 - gap));
       const fade = Math.pow(1 - q, 2.4) * rays;
-      return [h + (crest - h) * clamp(fade, 0, 1), 1];
+      const flank = h + (crest - h) * clamp(fade, 0, 1);
+      return [gap > 0 ? lerp(flank, Math.min(flank, breachFloor - 8 * q), gap) : flank, 1];
     }
     hf.lake[k] = Math.max(hf.lake[k], smoothstep(0, wall * 0.5, R - r));
     const t = clamp((R - r) / wall, 0, 1);
@@ -698,26 +699,35 @@ function opStacks(ctx: Ctx, op: HillsOp, sn: Simplex2, box: BBox | null, lam: nu
   const cells = new Cells2((hashString(op.id) ^ ctx.world.seed ^ 0x3c6e) >>> 0);
   const hit: CellHit = { d: 0, px: 0, py: 0, a: 0, b: 0 };
   const pits = op.style === 'sinkholes';
-  const minR = Math.min(0.45, (ctx.hf.kmPerPx * 2.5) / lam);
+  const wallCells = (ctx.hf.kmPerPx * 1.5) / lam;
+  const reach = 1.35;
   forEachPx(ctx, op, box, (x, y) => {
     const m = softRegion(sn, op.region, x, y, fall);
     if (m <= 0) return null;
-    cells.nearest(x / lam, y / lam, hit);
-    const stand = 0.5 + 0.5 * sn.fbm(hit.px / 3.2 + 4.4, hit.py / 3.2 - 8.6, 2);
-    const present = smoothstep(0.42, 0.5, stand * 0.75 + hit.a * 0.4);
-    if (present <= 0) return null;
-    const radius = Math.max(minR, 0.16 + 0.26 * hit.b);
-    const d = hit.d * (1 + 0.28 * sn.fbm(x / (lam * 0.35) + 1.9, y / (lam * 0.35) + 6.3, 2));
-    const u = d / radius;
-    if (u >= 1) return null;
-    const size = 0.4 + 0.6 * ((hit.a * 7.31 + hit.b * 3.17) % 1);
-    if (pits) {
-      const bowl = 1 - smoothstep(0.35, 1, u);
-      return [-op.amplitude * size * present * bowl, m];
+    const cx = x / lam, cy = y / lam;
+    const warp = 1 + 0.5 * sn.fbm(x / (lam * 0.22) + 1.9, y / (lam * 0.22) + 6.3, 3);
+    let best = 0;
+    for (let j = Math.floor(cy) - 1; j <= Math.floor(cy) + 1; j++) for (let i = Math.floor(cx) - 1; i <= Math.floor(cx) + 1; i++) {
+      cells.point(i, j, cx, cy, hit);
+      const radius = Math.max(wallCells * 2, 0.08 + 0.17 * hit.b);
+      const u = (hit.d * warp) / radius;
+      if (u >= reach) continue;
+      const stand = 0.5 + 0.5 * sn.fbm(hit.px / 3.2 + 4.4, hit.py / 3.2 - 8.6, 2);
+      const present = smoothstep(0.42, 0.5, stand * 0.75 + hit.a * 0.4);
+      if (present <= 0) continue;
+      const size = present * (0.4 + 0.6 * ((hit.a * 7.31 + hit.b * 3.17) % 1));
+      const inner = clamp(1 - wallCells / radius, 0.35, 0.8);
+      const wall = 1 - smoothstep(inner, 1, u);
+      if (pits) {
+        best = Math.max(best, size * wall);
+        continue;
+      }
+      const skirt = 0.1 * (1 - smoothstep(0.85, reach, u));
+      const cap = 0.9 + 0.1 * (1 - u * u) + 0.06 * sn.noise(x / (lam * 0.15), y / (lam * 0.15));
+      best = Math.max(best, size * Math.max(wall * cap, skirt));
     }
-    const flank = 1 - smoothstep(0.5, 1, u);
-    const cap = 0.82 + 0.18 * (1 - u * u) + 0.08 * sn.noise(x / (lam * 0.2), y / (lam * 0.2));
-    return [op.amplitude * size * present * flank * cap, m];
+    if (best <= 0) return null;
+    return [(pits ? -1 : 1) * op.amplitude * best, m];
   });
 }
 
