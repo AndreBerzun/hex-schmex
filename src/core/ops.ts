@@ -136,10 +136,21 @@ function evalBase(ctx: Ctx) {
 }
 
 /** Region mask with a noise-warped boundary so rectangles and circles read as natural areas. */
+const halfSizes = new WeakMap<Region, number>();
+function regionHalfSize(region: Region): number {
+  let r = halfSizes.get(region);
+  if (r === undefined) {
+    const b = regionBBox(region, 0);
+    r = b ? Math.min(b.maxX - b.minX, b.maxY - b.minY) / 2 : Infinity;
+    halfSizes.set(region, r);
+  }
+  return r;
+}
+
 function softRegion(sn: Simplex2, region: Region, x: number, y: number, fall: number): number {
   if (region.kind === 'all') return 1;
   let d = regionSdf(region, x, y);
-  const amp = Math.max(1.5, fall * 0.7);
+  const amp = Math.min(Math.max(1.5, fall * 0.7), regionHalfSize(region) * 0.2);
   if (d > fall + amp) return 0;
   d += amp * sn.fbm(x / 14 + 3.7, y / 14 - 1.9, 2);
   if (d <= 0) return 1;
@@ -461,9 +472,10 @@ function opPlateau(ctx: Ctx, op: PlateauOp) {
   const e = lerp(op.edgeKm ?? 10, 0.35, clamp(op.edgeSteepness, 0, 1));
   const box = regionBBox(op.region, e + 6);
   const n = Math.max(0, Math.round(op.terraces));
+  const wobble = Math.min(Math.max(2, e) * 0.9, regionHalfSize(op.region) * 0.2);
   forEachPx(ctx, op, box, (x, y) => {
     let d = regionSdf(op.region, x, y);
-    d += sn.fbm(x / 12, y / 12, 4) * Math.max(2, e) * 0.9;
+    d += sn.fbm(x / 12, y / 12, 4) * wobble;
     let t = clamp(0.5 - d / Math.max(e, 0.1), 0, 1);
     if (t <= 0) return null;
     t = t * t * (3 - 2 * t);
