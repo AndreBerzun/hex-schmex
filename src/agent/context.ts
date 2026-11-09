@@ -3,7 +3,7 @@
 
 import { hexCenter, hexId, makeGrid, pointToHex, type HexGrid } from '../core/hex';
 import { OP_DESC_BY_TYPE } from '../core/opSchema';
-import type { Op, Region, Vec2, World } from '../core/types';
+import type { Op, PaintEdit, Region, SculptEdit, Vec2, World } from '../core/types';
 import { allHexSummaries, type HexSummary, type TerrainProbe } from './probe';
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -35,6 +35,24 @@ function regionToExpr(grid: HexGrid, r: Region): unknown {
       return { hexes: ids };
     }
   }
+}
+
+export function describeEdit(world: World, e: SculptEdit | PaintEdit, grid: HexGrid = makeGrid(world.grid)): Record<string, unknown> {
+  const out: Record<string, unknown> = { id: e.id, label: e.label };
+  if ('tool' in e) out.tool = e.tool; else out.biome = e.biome;
+  if (e.area.kind === 'stroke') {
+    out.points = e.expr?.points ?? simplify(e.area.points, 8).map((q) => pointToExpr(grid, q));
+    out.radiusKm = r1(e.area.radiusKm);
+  } else out.region = e.expr?.region ?? regionToExpr(grid, e.area.region);
+  out.falloffKm = r1(e.falloffKm);
+  if ('tool' in e) {
+    if (e.amountM !== undefined) out.amountM = Math.round(e.amountM);
+    if (e.targetM !== undefined) out.targetM = Math.round(e.targetM);
+    if (e.scaleKm !== undefined) out.scaleKm = r1(e.scaleKm);
+  }
+  if (e.strength !== 1) out.strength = Math.round(e.strength * 100) / 100;
+  if (e.source === 'brush') out.source = 'brush';
+  return out;
 }
 
 /** An op as the model should see it: geometry in hex terms (its original expression when there is one). */
@@ -84,6 +102,14 @@ export function buildContext(world: World, probe: TerrainProbe | null): string {
   L.push(`# Ops (${world.ops.length}, evaluated in order, top to bottom)`);
   if (!world.ops.length) L.push('(none yet: only the base noise terrain)');
   world.ops.forEach((op, i) => L.push(`${i}: ${JSON.stringify(describeOp(world, op, grid))}`));
+  L.push('');
+  L.push(`# Sculpt layer (${world.sculpt.length}, applied in order on the eroded foundation; no re-erosion)`);
+  if (!world.sculpt.length) L.push('(none)');
+  world.sculpt.forEach((e, i) => L.push(`${i}: ${JSON.stringify(describeEdit(world, e, grid))}`));
+  L.push('');
+  L.push(`# Biome paint (${world.paint.length}, applied in order; paint wins over the climate rules)`);
+  if (!world.paint.length) L.push('(none)');
+  world.paint.forEach((e, i) => L.push(`${i}: ${JSON.stringify(describeEdit(world, e, grid))}`));
   if (probe) {
     const stats = allHexSummaries(world, probe);
     L.push('');
@@ -117,16 +143,16 @@ export function elevationTables(grid: HexGrid, stats: HexSummary[], kind: 'erode
       L.push(row);
     }
   };
-  L.push(`# Per-hex terrain (${kind === 'eroded' ? 'current eroded terrain' : 'op stack before erosion'}). Columns = CC, rows = RR.`);
+  L.push(`# Per-hex terrain (${kind === 'eroded' ? 'the browser\'s eroded bake with sculpt and paint on top' : 'op stack before erosion, with sculpt and paint on top (no current bake)'}). Columns = CC, rows = RR.`);
   table('## mean elevation, m (negative = below datum; sea level is the terrain.seaLevelM above)', (s) => String(Math.round(s.meanM / 10) * 10));
   table('## max elevation, m', (s) => String(Math.round(s.maxM / 10) * 10));
 
   const code: Record<string, string> = shore
     ? { 'dark water': '~', 'mineral rock': '^', 'crimson coral': 'c', 'black earth': '.', 'ash-dusted earth': ':', ash: 'd', 'ash ridges': 'b', 'silt mire': 'm', 'tidal channel': 'r', 'tidal flats': 't', 'salt pan': 'p', 'dark pool': 'l', snow: '*' }
-    : { water: '~', snow: '*', rock: '^', forest: 'f', grassland: '.', steppe: ':', desert: 'd', badlands: 'b', marsh: 'm', river: 'r', playa: 'p', alpine: 'a', 'lake basin': 'l' };
+    : { water: '~', snow: '*', rock: '^', forest: 'f', grassland: '.', steppe: ':', desert: 'd', badlands: 'b', marsh: 'm', river: 'r', playa: 'p', alpine: 'a', 'lake basin': 'l', 'tidal flats': 't' };
   const legend = shore
     ? '~ dark water, ^ mineral rock, c crimson coral, . black earth, : ash-dusted earth, d ash, b ash ridges, m silt mire, r tidal channel, t tidal flats, p salt pan, l dark pool'
-    : '~ water, * snow, ^ rock, a alpine, f forest, . grass, : steppe, d desert, b badlands, m marsh, r river, p playa, l lake basin';
+    : '~ water, * snow, ^ rock, a alpine, f forest, . grass, : steppe, d desert, b badlands, m marsh, r river, p playa, l lake basin, t tidal flats';
   table(`## dominant surface (${legend})`, (s) => code[s.surface] ?? '?');
   return L;
 }

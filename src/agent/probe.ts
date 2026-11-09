@@ -3,7 +3,8 @@
 
 import { hexCenter, hexId, inGrid, makeGrid, pointToHex, type HexGrid } from '../core/hex';
 import type { Heightfield } from '../core/ops';
-import { surfaceName } from '../core/surfaces';
+import { paintAt, type Field, type PaintRaster } from '../core/layers';
+import { classifySurface, surfaceName } from '../core/surfaces';
 import type { World } from '../core/types';
 
 export interface SurfaceInfo { mat: string; water: boolean; moisture: number }
@@ -71,25 +72,51 @@ export function allHexSummaries(world: World, probe: TerrainProbe): HexSummary[]
   return out;
 }
 
-/** A probe over a CPU heightfield (no hydrology: water = below sea level, materials from height/slope/moisture bias). */
-export function fieldProbe(world: World, hf: Heightfield): TerrainProbe {
-  const sample = (a: Float32Array, x: number, y: number) => {
-    const fx = Math.min(hf.nx - 1.001, Math.max(0, x / hf.kmPerPx - 0.5));
-    const fy = Math.min(hf.ny - 1.001, Math.max(0, y / hf.kmPerPx - 0.5));
-    const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j, k = j * hf.nx + i;
-    return (a[k] * (1 - tx) + a[k + 1] * tx) * (1 - ty) + (a[k + hf.nx] * (1 - tx) + a[k + hf.nx + 1] * tx) * ty;
+export interface ProbeHydro {
+  nx: number;
+  ny: number;
+  kmPerPx: number;
+  moisture: Float32Array;
+  logArea: Float32Array;
+  waterKind: Uint8Array | Int8Array | Float32Array;
+}
+
+export interface ProbeLayers {
+  height?: Field;
+  paint?: PaintRaster | null;
+  hydro?: ProbeHydro | null;
+  kind?: 'eroded' | 'design';
+}
+
+export function fieldProbe(world: World, hf: Heightfield, layers: ProbeLayers = {}): TerrainProbe {
+  const sample = (a: Float32Array, nx: number, ny: number, kmPerPx: number, x: number, y: number) => {
+    const fx = Math.min(nx - 1.001, Math.max(0, x / kmPerPx - 0.5));
+    const fy = Math.min(ny - 1.001, Math.max(0, y / kmPerPx - 0.5));
+    const i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j, k = j * nx + i;
+    return (a[k] * (1 - tx) + a[k + 1] * tx) * (1 - ty) + (a[k + nx] * (1 - tx) + a[k + nx + 1] * tx) * ty;
   };
+  const d = (a: Float32Array, x: number, y: number) => sample(a, hf.nx, hf.ny, hf.kmPerPx, x, y);
+  const H = layers.height ?? { height: hf.height, nx: hf.nx, ny: hf.ny, kmPerPx: hf.kmPerPx };
+  const paint = layers.paint ?? null;
+  const hy = layers.hydro ?? null;
   return {
-    kind: 'design',
-    kmPerPx: hf.kmPerPx,
-    heightAt: (x, y) => sample(hf.height, x, y),
+    kind: layers.kind ?? 'design',
+    kmPerPx: H.kmPerPx,
+    heightAt: (x, y) => sample(H.height, H.nx, H.ny, H.kmPerPx, x, y),
     surfaceAt: (x, y, h, slope) => {
       const c = world.climate;
-      const moisture = Math.max(0, Math.min(1, c.baseMoisture + sample(hf.moisture, x, y)));
+      const painted = paintAt(paint, x, y);
+      if (hy) {
+        const i = Math.min(hy.nx - 1, Math.max(0, Math.floor(x / hy.kmPerPx))), j = Math.min(hy.ny - 1, Math.max(0, Math.floor(y / hy.kmPerPx)));
+        const k = j * hy.nx + i;
+        return classifySurface(world, { moisture: hy.moisture[k], logArea: hy.logArea[k], water: hy.waterKind[k] === 1 || hy.waterKind[k] === 2, playa: hy.waterKind[k] === 3 }, h, slope, painted);
+      }
+      const moisture = Math.max(0, Math.min(1, c.baseMoisture + d(hf.moisture, x, y)));
       const elev = h - world.terrain.seaLevelM;
       if (elev < 0) return { mat: surfaceName(world, 'water', elev, slope), water: true, moisture: 1 };
-      if (sample(hf.lake, x, y) > 0.5) return { mat: surfaceName(world, 'lake basin', elev, slope), water: false, moisture };
-      if (sample(hf.river, x, y) > 0.5) return { mat: surfaceName(world, 'river', elev, slope), water: false, moisture };
+      if (d(hf.lake, x, y) > 0.5) return { mat: surfaceName(world, 'lake basin', elev, slope), water: false, moisture };
+      if (d(hf.river, x, y) > 0.5) return { mat: surfaceName(world, 'river', elev, slope), water: false, moisture };
+      if (painted) return classifySurface(world, { moisture, logArea: 0, water: false, playa: false }, h, slope, painted);
       const dry = 1 - moisture * 1.6 + c.temperature * 0.3;
       let mat = 'grassland';
       if (elev > c.snowlineM && slope < 1.1) mat = 'snow';

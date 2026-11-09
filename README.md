@@ -26,6 +26,7 @@ npm run check:player                # ground travel, day/night and shoreline str
 npm run check:shore                 # landmark, flood and camera browser checks
 npm run check:materials -- review   # fixed material views + GPU timings in shots/_tmp/materials-review/
 npm run check:bake                  # edits and scripted bakes run erosion to the end
+npm run check:layers                # sculpt, paint and brushes skip erosion; reopening uses the saved bake
 npm run build:single                # one self-contained HTML file in dist-single/
 ```
 

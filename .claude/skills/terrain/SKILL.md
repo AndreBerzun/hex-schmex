@@ -8,7 +8,7 @@ Follow the procedure in `TERRAIN_AGENT.md` at the repository root (read it first
 Short version:
 1. `npm run terrain -- list` to find the map; ask which one only if several fit.
 2. Look: `npm run terrain -- context <map>` and `npm run terrain -- map <map> --ops`, then Read the PNG it writes.
-3. Edit with `add` / `update` / `remove` / `set` / `apply`, always with `--label "what and why"`. Refine existing ops instead of stacking new ones.
+3. Pick the layer. Landforms that should look eroded (ranges, valleys, coasts) are ops: `add` / `update` / `remove` / `set` / `apply`, each re-erodes the map (~30 s). Anything placed exactly ("lift these hexes to 600 m", "this area is coral", "steeper here") is `sculpt` or `paint`: instant, no re-erosion. Always pass `--label "what and why"`. Refine existing ops and edits instead of stacking new ones.
 4. Check with `map <map> --highlight <ids>` and fix misplacements.
 5. Tell the GM in one or two sentences what changed and where (hex ids). The open browser shows each edit live as an undoable step.
 

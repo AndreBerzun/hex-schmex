@@ -55,6 +55,11 @@ uniform sampler2D uHeight;
 uniform float uHeightScale;
 uniform sampler2D uSurf;      // rg slope, b curvature (>0 concave), a mean slope magnitude
 uniform sampler2D uData;      // r moisture, g log10 drainage km², b deposition m, a river-op mask
+uniform sampler2D uPaintA;
+uniform sampler2D uPaintB;
+uniform float uPaintOn;
+uniform vec4 uBrush;
+uniform float uBrushCore;
 uniform sampler2D uWaterTex;  // water surface level, m
 uniform sampler2D uShadowTex;
 uniform sampler2D uAOTex;
@@ -190,6 +195,20 @@ void main() {
   float nMid = noiseAt(xz, 1.3);      // stands, meadows
   float nFine = noiseAt(xz, 0.12);    // texture
 
+  float pCov = 0.0;
+  vec4 pA = vec4(0.0);
+  vec4 pB = vec4(0.0);
+  if (uPaintOn > 0.5) {
+    vec2 puv = uv + noiseGradAt(xz, 1.3) * 0.14 / uWorldKm;
+    pA = texture2D(uPaintA, puv);
+    pB = texture2D(uPaintB, puv);
+    float raw = pB.a;
+    pCov = smoothstep(0.12, 0.88, raw + nMid * 1.2 * raw * (1.0 - raw));
+    float inv = 1.0 / max(raw, 1e-3);
+    pA = clamp(pA * inv, 0.0, 1.0);
+    pB.rgb = clamp(pB.rgb * inv, 0.0, 1.0);
+  }
+
   // ---- materials (sRGB-authored, converted to linear)
   vec3 cGrass = srgb(mix(vec3(0.36, 0.40, 0.25), vec3(0.155, 0.15, 0.15), uAshen));
   vec3 cMeadow = srgb(mix(vec3(0.45, 0.46, 0.30), vec3(0.19, 0.18, 0.18), uAshen));
@@ -221,14 +240,17 @@ void main() {
   col = mix(col, cAlpine * (0.9 + 0.2 * nFine), alpine * (1.0 - drySide * 0.5));
   // desert sands and badlands where very dry
   float desert = smoothstep(0.78, 0.92, drySide + nBig * 0.1) * (1.0 - smoothstep(0.25, 0.5, g));
+  desert = mix(desert, pA.b, pCov);
   col = mix(col, cSand * (0.92 + 0.12 * nMid), desert);
   float bad = smoothstep(0.7, 0.85, drySide) * smoothstep(0.18, 0.4, g);
+  bad = mix(bad, pA.a, pCov);
   vec3 badCol = mix(cBad, cBad * mix(vec3(1.2, 1.05, 0.9), vec3(0.8, 0.79, 0.8), uAshen), 0.5 + 0.5 * sin(h / 18.0 + nMid * 2.0));
   col = mix(col, badCol, bad);
   float id = desert > 0.5 ? 5.0 : bad > 0.5 ? 7.0 : 0.0;
 
   // marsh: flat, wet, low
   float marsh = smoothstep(0.72, 0.85, moist + nMid * 0.08) * (1.0 - smoothstep(0.015, 0.05, g)) * (1.0 - smoothstep(250.0, 500.0, elev));
+  marsh = mix(marsh, pA.g, pCov);
   col = mix(col, mix(cMarsh, cMarshWet, smoothstep(0.2, 0.6, nFine) * 0.5), marsh);
   if (marsh > 0.5) id = 6.0;
 
@@ -239,6 +261,7 @@ void main() {
                * (1.0 - smoothstep(0.55, 0.85, g))
                * (1.0 - marsh * 0.8) * (1.0 - desert);
   forest = smoothstep(0.1, 0.9, forest);
+  forest = mix(forest, pA.r, pCov);
   forest *= mix(1.0, smoothstep(-0.45, 0.05, noiseAt(xz + 2.3, 0.35)), uAshen);
   vec3 fcol = mix(cForest, cConifer, smoothstep(tl - 900.0, tl - 200.0, elev));
   fcol *= 0.92 + 0.16 * nFine + 0.08 * nMid;
@@ -247,6 +270,7 @@ void main() {
 
   // rock on steep slopes, more on convex ridges, banded strata hint
   float rockAmt = smoothstep(0.55, 0.95, g + nMid * 0.12 - lap * 0.6 + nFine * 0.05 + alpine * 0.25);
+  rockAmt = mix(rockAmt, pB.r, pCov);
   vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.5 * sin(h / 40.0 + nMid * 3.0));
   rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
   col = mix(col, rcol, rockAmt);
@@ -254,6 +278,7 @@ void main() {
 
   // scree / talus: deposition on moderate slopes at altitude, and at the foot of cliffs
   float scree = smoothstep(2.0, 12.0, dep) * smoothstep(0.12, 0.35, g) * (1.0 - smoothstep(0.75, 1.0, g)) * smoothstep(tl - 400.0, tl + 200.0, elev);
+  scree *= 1.0 - pCov;
   col = mix(col, cScree * (0.9 + 0.2 * nFine), scree * 0.8);
   if (scree > 0.5) id = 4.0;
 
@@ -261,6 +286,7 @@ void main() {
   float north = clamp(-n.z, -1.0, 1.0); // north is -z
   float sl = uSnowline - north * 260.0 + nBig * 160.0 + nMid * 90.0 - lap * 900.0;
   float snow = smoothstep(sl - 120.0, sl + 160.0, elev) * (1.0 - smoothstep(1.0, 1.6, g + nFine * 0.15));
+  snow = mix(snow, pB.g, pCov);
   col = mix(col, cSnow * (0.94 + 0.06 * nFine), snow);
   if (snow > 0.5) id = 3.0;
 
@@ -269,8 +295,9 @@ void main() {
 
   // beaches near sea level
   float beach = (1.0 - smoothstep(1.5, 6.0, elev + nMid * 3.0)) * (1.0 - smoothstep(0.03, 0.12, g)) * step(-1.0, elev);
-  col = mix(col, cSand, beach * (1.0 - snow) * (1.0 - uAshen));
+  col = mix(col, cSand, beach * (1.0 - snow) * (1.0 - uAshen) * (1.0 - pCov));
   float tidal = uAshen * (1.0 - smoothstep(uTidal * 0.55, uTidal, elev + nMid * 10.0)) * (1.0 - smoothstep(0.04, 0.14, g)) * step(-1.0, elev) * (1.0 - forest * 0.85) * (1.0 - marsh);
+  tidal = mix(tidal, pB.b, pCov);
   col = mix(col, cTidal * (0.9 + 0.2 * nFine) * (0.85 + 0.3 * smoothstep(-0.4, 0.6, nMid)), tidal);
   if (tidal > 0.5) id = 9.0;
 
@@ -384,6 +411,14 @@ void main() {
       if (abs(hx.x - uHexHover.x) < 0.5 && abs(hx.y - uHexHover.y) < 0.5) c = mix(c, srgb(vec3(1.0, 0.95, 0.75)), 0.12 + line * 0.5);
       if (abs(hx.x - uHexSel.x) < 0.5 && abs(hx.y - uHexSel.y) < 0.5) c = mix(c, srgb(vec3(1.0, 0.8, 0.3)), line * 0.9);
     }
+  }
+  if (uBrush.w > 0.5) {
+    float bd = length(xz - uBrush.xy);
+    float ring = 1.0 - smoothstep(fw * 1.0, fw * 2.6, abs(bd - uBrush.z));
+    float inner = (1.0 - smoothstep(fw * 0.8, fw * 2.0, abs(bd - uBrushCore))) * 0.55;
+    vec3 bc = srgb(vec3(1.0, 0.88, 0.55));
+    c = mix(c, bc, (1.0 - smoothstep(uBrushCore, uBrush.z, bd)) * 0.07);
+    c = mix(c, bc, max(ring, inner) * 0.9);
   }
   gl_FragColor = vec4(toDisplay(c), 1.0);
 }`;

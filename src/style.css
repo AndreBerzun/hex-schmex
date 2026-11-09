@@ -118,3 +118,13 @@ body.explorer .flight-help { bottom: 48px; }
 .journey { color: var(--muted); font-variant-numeric: tabular-nums; }
 .recovery { position:absolute; top:60px; right:20px; z-index:10; }
 body.explorer #status { pointer-events:auto; }
+.brush-body { display: flex; flex-direction: column; gap: 5px; border-top: none; }
+.brush-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.brush-row { display: grid; grid-template-columns: 58px minmax(0, 1fr) 54px; gap: 6px; align-items: center; font-size: 12px; }
+.brush-row > span:first-child { color: var(--muted); }
+.brush-row select { grid-column: 2 / 4; min-width: 0; }
+.brush-row input[type=range] { min-width: 0; width: 100%; }
+.brush-val { font-family: var(--mono); font-size: 11px; text-align: right; color: var(--muted); }
+.brush-list-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px 2px; border-top: 1px solid var(--line); }
+.brush-list-head h3 { margin: 0 auto 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.op.brush-edit { grid-template-columns: 16px 1fr auto; cursor: default; }

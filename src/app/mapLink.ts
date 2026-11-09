@@ -2,6 +2,7 @@
 // External writes (the terrain CLI, usually driven by Claude Code) arrive as one undoable commit each;
 // edits made in the UI are written back to the file.
 
+import { decodeFoundation, encodeFoundation, type Foundation } from '../core/layers';
 import { loadWorld, serializeWorld } from '../core/world';
 import type { World } from '../core/types';
 import type { Store } from './store';
@@ -125,6 +126,20 @@ export class MapLink {
   private async put(name: string, text: string) {
     const r = await fetch(`/__maps/${encodeURIComponent(name)}`, { method: 'PUT', body: text, headers: { 'content-type': 'application/json' } });
     if (!r.ok) throw new Error(`write failed (${r.status})`);
+  }
+
+  async loadBake(key: string): Promise<Foundation | null> {
+    if (!this.name) return null;
+    const r = await fetch(`/__bake/${encodeURIComponent(this.name)}?key=${key}`);
+    if (!r.ok) return null;
+    const f = decodeFoundation(new Uint8Array(await r.arrayBuffer()));
+    return f.key === key ? f : null;
+  }
+
+  saveBake(f: Foundation) {
+    if (!this.name) return;
+    const body = encodeFoundation(f);
+    void fetch(`/__bake/${encodeURIComponent(this.name)}`, { method: 'PUT', body: body as unknown as BodyInit, headers: { 'content-type': 'application/octet-stream' } }).catch(() => undefined);
   }
 
   revert(e: ExternalEdit) {
