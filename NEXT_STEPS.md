@@ -2,10 +2,9 @@
 
 ## Where things stand (2026-11-09)
 
-The Forgotten Shore gets a new geography: seven biomes after the Shadowdark hex
-terrain table (rulebook p. 132), the Dark City at the centre, erosion on, biomes
-following from the landforms instead of painted patches. Work happens on branch
-`feat/shore-geography`; `FORGOTTEN_SHORE.md` describes the result once merged.
+The Forgotten Shore has its new geography: seven biomes after the Shadowdark hex terrain
+table (rulebook p. 132), the Dark City at the centre, erosion on, biomes following from
+the landforms. `FORGOTTEN_SHORE.md` describes it.
 
 The previous city-centred trial (painted biome districts, reef walls, scenery v2,
 relief debug view) is parked on the local branch `archive/codex-shore-wip`. It was

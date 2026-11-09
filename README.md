@@ -11,7 +11,7 @@ Browser-based terrain generator for a Shadowdark westmarches hexcrawl: prompt an
 - `NEXT_STEPS.md`: current handoff, candidate rendering improvements and local-only workflow
 - `MATERIALS.md`: material experiment with before/after images and measured costs
 
-Current focus: the Forgotten Shore spatial prototype, before choosing the next editor milestone. Run the app and open `?world=forgotten-shore` (or choose it in Examples). Click the landscape for free flight: WASD, Space up, C down, Shift faster, Esc to release the mouse. Use **Visit…** for landmark views, **Sun** for the Spire shadow, and **Sea** for the flood preview. Choose **Player** for ground-level click-to-march travel with an advancing clock and day/night tide. Hexes, labels, debug views and altitude remain available; editing controls are hidden by default. See `FORGOTTEN_SHORE.md` for dimensions and limitations, and `PROGRESS.md` for status.
+Current focus: the Forgotten Shore. Run the app and open `?world=forgotten-shore` (or choose it in Examples). Click the landscape for free flight: WASD, Space up, C down, Shift faster, Esc to release the mouse. Use **Visit…** for the saved views, **Sun** for the Spire shadow, and **Sea** for the night tide. Choose **Player** for ground-level click-to-march travel with an advancing clock and day/night tide. See `FORGOTTEN_SHORE.md` for the layout and `PROGRESS.md` for status.
 
 ## Quick start
 

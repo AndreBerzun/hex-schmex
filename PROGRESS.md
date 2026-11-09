@@ -230,3 +230,32 @@ MATERIALS.md.
 Handoff: [NEXT_STEPS.md](NEXT_STEPS.md) records the next rendering candidates,
 deferred GM features, current verification and the user's local-only network
 constraint for the next conversation.
+
+## Forgotten Shore geography (2026-11-09)
+
+Replaced the Shore map with a new layout: seven biomes after the Shadowdark hex terrain
+table, the Dark City at the map centre, erosion on. See `FORGOTTEN_SHORE.md`. The previous
+city-centred trial is parked on the local branch `archive/codex-shore-wip`.
+
+- **Biomes follow the landforms.** The ashen palette no longer overrides every material
+  with one dust/coral mix: each existing rule gets a Shore colour (forest → coral, desert →
+  ash, marsh → silt mire, grassland → black earth, rock and scree → mineral grey), plus a
+  tidal-flats rule for gentle ground below the night tide. The hover readout and the
+  terrain CLI name surfaces in Shore terms.
+- **Tide.** A tide without a centre covers the whole region; the circular basin still works.
+- **Small plateaus and flats no longer vanish.** Plateau and lowlands edges carried at
+  least 1.5–1.8 km of random wobble whatever the region size, so sub-kilometre footings
+  (castle hill, Spire islet) could shift or disappear depending on where they sat. The
+  wobble is now capped at a fifth of the region's half-size. Badlands `valley-low` moved
+  slightly (part of a lake became a salt flat); the other examples are unchanged to the eye.
+- **Size.** 14 × 12 hexes of 6 miles, 1536² eroded (~78 m). A full bake takes ~30 s on
+  the Intel UHD; there is no bake cache, so every load pays it.
+
+What looks off: from above and from the castle the regions read clearly; at eye level the
+lowlands are open surfaces with nothing standing on them, coral is a red ground with canopy
+bumps, the ash is pale and soft. Mountains lack erosion detail. Middle-layer objects are
+the next step (`NEXT_STEPS.md`).
+
+Validation: 44 unit tests, both builds, `check:shore`, `check:player`, `check:flight`,
+`check:bake`, `check:materials` pass. GPU 4–18 ms across 20 Shore views at 1280×720,
+regional orbit 30 drawn frames/s, zero idle frames.
