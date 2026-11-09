@@ -7,6 +7,7 @@ import { mountToolbar } from './ui/toolbar';
 import { mountHud } from './ui/hud';
 import { mountOpsPanel } from './ui/opsPanel';
 import { mountLinkPanel } from './ui/linkPanel';
+import { mountBrushPanel } from './ui/brushPanel';
 import { MapLink } from './app/mapLink';
 import { exampleWorld, EXAMPLES } from './worlds';
 import { defaultViews, viewNames } from './app/views';
@@ -54,6 +55,7 @@ if (MapLink.available && linkName) {
 }
 const store = new Store(linked?.world ?? initialWorld());
 const link = MapLink.available ? new MapLink(store) : null;
+app.bakeStore = link;
 // per-viewer view preferences (hex grid off while sculpting, etc.)
 const PREF_KEYS = ['hexGrid', 'labels', 'exag', 'timeOfDay'] as const;
 if (!shot) {
@@ -89,7 +91,12 @@ if (!shot) {
   mountHud(app);
   if (editor) {
     mountToolbar(document.getElementById('toolbar')!, app, store, EXAMPLES);
-    mountOpsPanel(document.getElementById('ops-panel')!, app, store);
+    const left = document.getElementById('ops-panel')!;
+    const brushEl = document.createElement('section');
+    const opsEl = document.createElement('section');
+    left.append(brushEl, opsEl);
+    mountBrushPanel(brushEl, app, store);
+    mountOpsPanel(opsEl, app, store);
     mountLinkPanel(document.getElementById('prompt-panel')!, store, link);
   } else mountExplorer(document.getElementById('toolbar')!, app, store);
 }
@@ -102,6 +109,8 @@ store.subscribe((c) => {
     app.setSettings({ tide: 0, ...settings });
   }
   if (c.kind === 'terrain' || c.kind === 'load') void app.setWorld(store.world, { keepCamera: c.kind !== 'load' });
+  else if (c.kind === 'sculpt') void app.updateSculpt(store.world);
+  else if (c.kind === 'paint') app.updatePaint(store.world);
   else if (c.kind === 'climate') void app.updateClimate(store.world);
   else if (c.kind === 'meta') app.updatePresentation(store.world);
   if (!shot) {

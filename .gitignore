@@ -5,3 +5,4 @@ dist-single
 .DS_Store
 shots/_tmp
 maps/.history/
+maps/.bake/

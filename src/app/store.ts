@@ -3,7 +3,7 @@
 import { cloneWorld } from '../core/world';
 import type { World } from '../core/types';
 
-export type ChangeKind = 'terrain' | 'climate' | 'meta' | 'load';
+export type ChangeKind = 'terrain' | 'sculpt' | 'paint' | 'climate' | 'meta' | 'load';
 
 export interface Change {
   kind: ChangeKind;
@@ -39,6 +39,8 @@ export class Store {
 
   private classify(a: World, b: World): ChangeKind {
     for (const k of TERRAIN_KEYS) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) return 'terrain';
+    if (JSON.stringify(a.sculpt) !== JSON.stringify(b.sculpt)) return 'sculpt';
+    if (JSON.stringify(a.paint) !== JSON.stringify(b.paint)) return 'paint';
     if (JSON.stringify(a.climate) !== JSON.stringify(b.climate)) return 'climate';
     return 'meta';
   }
@@ -102,21 +104,11 @@ export class Store {
     const afterIdx = this.past.findIndex((p) => p.txId === txId);
     const afterJson = afterIdx >= 0 && afterIdx + 1 < this.past.length ? this.past[afterIdx + 1].json : JSON.stringify(this.world);
     const snapAfter = JSON.parse(afterJson) as World;
-    const beforeIds = new Map(snapBefore.ops.map((o) => [o.id, o]));
-    const afterIds = new Map(snapAfter.ops.map((o) => [o.id, o]));
     return this.commit(label, (w) => {
-      // remove ops the tx added
-      w.ops = w.ops.filter((o) => beforeIds.has(o.id) || !afterIds.has(o.id));
-      // restore ops the tx modified
-      w.ops = w.ops.map((o) => {
-        const b = beforeIds.get(o.id), a = afterIds.get(o.id);
-        if (b && a && JSON.stringify(a) !== JSON.stringify(b) && JSON.stringify(o) === JSON.stringify(a)) return JSON.parse(JSON.stringify(b));
-        return o;
-      });
-      // restore ops the tx removed (at their old index)
-      snapBefore.ops.forEach((o, i) => {
-        if (!afterIds.has(o.id) && !w.ops.some((x) => x.id === o.id)) w.ops.splice(Math.min(i, w.ops.length), 0, JSON.parse(JSON.stringify(o)));
-      });
+      for (const key of ['ops', 'sculpt', 'paint'] as const) {
+        const list = revertList((w[key] ?? []) as { id: string }[], (snapBefore[key] ?? []) as { id: string }[], (snapAfter[key] ?? []) as { id: string }[]);
+        (w as unknown as Record<string, unknown>)[key] = list;
+      }
       // world params changed by the tx
       for (const k of ['base', 'climate', 'erosion', 'terrain'] as const) {
         if (JSON.stringify(snapAfter[k]) !== JSON.stringify(snapBefore[k]) && JSON.stringify(w[k]) === JSON.stringify(snapAfter[k])) {
@@ -125,4 +117,19 @@ export class Store {
       }
     });
   }
+}
+
+function revertList<T extends { id: string }>(current: T[], before: T[], after: T[]): T[] {
+  const beforeIds = new Map(before.map((o) => [o.id, o]));
+  const afterIds = new Map(after.map((o) => [o.id, o]));
+  let out = current.filter((o) => beforeIds.has(o.id) || !afterIds.has(o.id));
+  out = out.map((o) => {
+    const b = beforeIds.get(o.id), a = afterIds.get(o.id);
+    if (b && a && JSON.stringify(a) !== JSON.stringify(b) && JSON.stringify(o) === JSON.stringify(a)) return JSON.parse(JSON.stringify(b));
+    return o;
+  });
+  before.forEach((o, i) => {
+    if (!afterIds.has(o.id) && !out.some((x) => x.id === o.id)) out.splice(Math.min(i, out.length), 0, JSON.parse(JSON.stringify(o)));
+  });
+  return out;
 }

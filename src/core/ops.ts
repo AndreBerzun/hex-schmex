@@ -194,7 +194,7 @@ export function sampleBilinear(a: Float32Array, nx: number, ny: number, xpx: num
 }
 
 /** Box blur (x2 passes, ~gaussian) of a sub-rectangle. Returns the blurred rectangle. */
-function blurRect(src: Float32Array, nx: number, ny: number, box: [number, number, number, number], rad: number) {
+export function blurRect(src: Float32Array, nx: number, ny: number, box: [number, number, number, number], rad: number) {
   const [i0, j0, i1, j1] = box;
   const w = i1 - i0 + 1, h = j1 - j0 + 1;
   let a = new Float32Array(w * h);

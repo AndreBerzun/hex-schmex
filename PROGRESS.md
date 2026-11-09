@@ -10,7 +10,7 @@ Current focus: **Forgotten Shore spatial prototype**, at the GM’s request (202
 | M3 Erosion | done (pause/resume control still missing) | CPU stream power + GPU pipe/thermal, hydrology, debug views |
 | M4 Look | first pass done, gaps open | see "What looks off" |
 | M5 Prompter | done (reworked) | Claude Code + terrain CLI + live file link, no API key |
-| M6 Brushes | next | |
+| M6 Brushes | done (reworked, see below) | sculpt and paint layers after erosion; no local-erode, ridge or carve brushes |
 | M7 Polish | not started | |
 
 ## Plan (BRIEF §10)
@@ -259,3 +259,28 @@ the next step (`NEXT_STEPS.md`).
 Validation: 44 unit tests, both builds, `check:shore`, `check:player`, `check:flight`,
 `check:bake`, `check:materials` pass. GPU 4–18 ms across 20 Shore views at 1280×720,
 regional orbit 30 drawn frames/s, zero idle frames.
+
+## Direct edit layers (2026-11-10)
+
+At the GM's request: after the generator, edits should be direct. Shaping by op parameters and a full ~30 s re-erosion per change made dramatic scenes slow and indirect, and biomes could only be steered through moisture and height.
+
+The map now has three layers:
+- **Foundation:** the op stack plus erosion, as before. Once baked it is frozen under a fingerprint of everything that feeds it (seed, grid, terrain, base, ops, erosion). The browser writes it to `maps/.bake/<map>.bin` (ignored by git); reopening a linked map loads it instead of baking (about 2 s instead of 30).
+- **Sculpt** (`world.sculpt`): raise, lower, flatten and smooth on the eroded heights, in order, on the CPU. Then water routing re-runs (under a second); erosion does not.
+- **Paint** (`world.paint`): a raster with one channel per biome plus coverage; the terrain shader overrides each material weight by it, and the hex readouts and CLI use the same override. Paint edges are frayed with noise so they don't read as geometry.
+
+The editor's left panel has Raise, Lower, Flatten, Smooth and Paint brushes with a cursor ring and live preview; each stroke is one undo step stored in the same lists. While a brush is held, left-drag paints and right-drag orbits.
+
+The CLI has `sculpt`, `paint` and `layers`; `update`, `remove` and `show` take edit ids. `context`, `map` and `query` read the browser's bake when it is current, so the terminal finally sees the eroded ground with rivers and lakes. The surface rules now live in one classifier shared by the app and the CLI.
+
+Checks: `npm run check:layers` (a first open erodes and saves the bake; sculpt, a CLI paint write and a real mouse stroke skip erosion; the stroke doesn't orbit; undo; reopening loads the bake and keeps the layers), 11 unit tests in `tests/layers.test.ts`, `check:bake` and `check:shore` still pass. Painting the whole map costs no measurable GPU time on the UHD (within the ±3 ms run-to-run noise).
+
+Deviations from the brief:
+- Brush strokes are not `stroke` ops in the op stack; they apply after erosion, so they are instant and stay where they are put. The trade-off: a sculpted area keeps the eroded texture it had but gets no new erosion detail.
+- No local-erode, ridge, carve or roughen brushes yet. Use ops for landforms that should look weathered.
+
+What looks off:
+- Paint shaped like hexes with a short falloff still reads as a pasted hexagon in strong colour contrast (desert on green). Brush paths or 2–3 km of falloff look natural.
+- A large raise across a valley dams it, and the water pools behind it. That is physically right but easy to do by accident.
+- Once in four runs of `check:layers`, a terminal write right after the browser's own save to the same map file did not reach the page. That is the live file link's watcher, not the layers; not fixed here.
+

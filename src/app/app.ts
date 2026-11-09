@@ -19,7 +19,9 @@ import { bakeCanopyLut } from '../render/canopyLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
 import { tideAt, tideLevel } from '../core/environment';
-import { surfaceName } from '../core/surfaces';
+import { classifySurface } from '../core/surfaces';
+import { applySculpt, applySculptEdit, applyPaintEdit, editPixelBox, foundationKey, packPaint, paintAt, rasterPaint, type Foundation, type PaintRaster } from '../core/layers';
+import type { PaintEdit, SculptEdit } from '../core/types';
 import { GroundTravel } from './groundTravel';
 import { advanceClock, clockTide } from '../core/travel';
 import { FreeFlight } from './freeFlight';
@@ -45,6 +47,11 @@ export interface AppSettings {
   iterations?: number;
   /** ms of GPU work per frame for progressive erosion */
   erosionBudgetMs: number;
+}
+
+export interface BakeStore {
+  loadBake(key: string): Promise<Foundation | null>;
+  saveBake(f: Foundation): void;
 }
 
 export interface HexStats {
@@ -95,6 +102,17 @@ export class App {
   heightSrc: HeightSource | null = null;
   hydro: (HydroOutput & { nx: number; ny: number; kmPerPx: number }) | null = null;
   erosion: Erosion | null = null;
+  foundation: Foundation | null = null;
+  bakeStore: BakeStore | null = null;
+  paint: PaintRaster | null = null;
+  private paintBase: PaintRaster | null = null;
+  private layered: Float32Array | null = null;
+  private layeredTex: THREE.DataTexture | null = null;
+  private paintTex: [THREE.DataTexture, THREE.DataTexture] | null = null;
+  private bakingKey = '';
+  private pendingPreview: { sculpt?: SculptEdit | null; paint?: PaintEdit | null } | null = null;
+  private previewHeight: Float32Array | null = null;
+  private previewBox: [number, number, number, number] | null = null;
   stage: Stage = 'idle';
   stageInfo = '';
   timings: Record<string, number> = {};
@@ -162,6 +180,8 @@ export class App {
     this.waterTex = placeholder(-1e5);
     const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
     white.needsUpdate = true;
+    const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+    blank.needsUpdate = true;
 
     this.uniforms = {
       uDaylight: { value: 1 },
@@ -171,6 +191,11 @@ export class App {
       uAshen: { value: 0 },
       uTidal: { value: 0 },
       uHeight: { value: placeholder(0) },
+      uPaintA: { value: blank },
+      uPaintB: { value: blank },
+      uPaintOn: { value: 0 },
+      uBrush: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uBrushCore: { value: 0 },
       uHeightScale: { value: 1 },
       uWaterTex: { value: this.waterTex },
       uData: { value: placeholder(0.5) },
@@ -353,6 +378,20 @@ export class App {
     this.setHeightSource({ texture: this.designTex, scale: 1, nx: hf.nx, ny: hf.ny, cpu: hf.height, kmPerPx: hf.kmPerPx });
     this.uniforms.uHasHydro.value = 0;
     this.labels.build(this.grid, (x, z) => this.heightAt(x, z));
+    this.refreshPaint();
+
+    const key = this.foundationKeyNow();
+    this.bakingKey = key;
+    if (this.foundation?.key !== key && this.cacheable() && this.bakeStore) {
+      const cached = await this.bakeStore.loadBake(key).catch(() => null);
+      if (gen !== this.bakeGen) return;
+      if (cached) this.foundation = cached;
+    }
+    if (this.foundation?.key === key) {
+      this.timings.cachedFoundation = 1;
+      await this.applyLayers(gen);
+      return;
+    }
 
     if (this.settings.erosion && this.world.erosion.enabled) {
       // stage 1: large-scale drainage network (CPU stream power, in the worker)
@@ -395,8 +434,151 @@ export class App {
       this.uniforms.uCellKm.value = ed.kmPerPx;
       this.setStage('eroding', `eroding 0/${params.iterations}`);
     } else {
-      await this.runHydrology(gen);
+      this.foundation = { key, nx: hf.nx, ny: hf.ny, kmPerPx: hf.kmPerPx, height: hf.height.slice(), deposit: null };
+      await this.applyLayers(gen);
     }
+  }
+
+  async rebake() {
+    this.foundation = null;
+    await this.bake();
+  }
+
+  private cacheable() {
+    return this.settings.erosion && this.world.erosion.enabled && this.settings.erodedRes === undefined && this.settings.iterations === undefined;
+  }
+
+  foundationKeyNow() {
+    if (this.cacheable()) return foundationKey(this.world);
+    return foundationKey(this.world, { erosion: this.settings.erosion && this.world.erosion.enabled, erodedRes: this.settings.erodedRes, iterations: this.settings.iterations });
+  }
+
+  private async applyLayers(gen: number) {
+    const f = this.foundation!;
+    const height = f.height.slice();
+    applySculpt(this.world, { height, nx: f.nx, ny: f.ny, kmPerPx: f.kmPerPx });
+    this.layered = height;
+    this.previewHeight = null;
+    this.previewBox = null;
+    this.erosionCpu = f.deposit ? { height, deposit: f.deposit } : null;
+    this.showHeight(height, true);
+    this.labels.updateHeights((x, z) => this.heightAt(x, z));
+    await this.runHydrology(gen);
+  }
+
+  private showHeight(height: Float32Array, settle: boolean) {
+    const f = this.foundation!;
+    if (!this.layeredTex || this.layeredTex.image.width !== f.nx || this.layeredTex.image.height !== f.ny) {
+      this.layeredTex?.dispose();
+      this.layeredTex = new THREE.DataTexture(height, f.nx, f.ny, THREE.RedFormat, THREE.FloatType);
+      this.layeredTex.minFilter = THREE.LinearFilter;
+      this.layeredTex.magFilter = THREE.LinearFilter;
+    } else (this.layeredTex.image as unknown as { data: Float32Array }).data = height;
+    this.layeredTex.needsUpdate = true;
+    const texture = settle
+      ? this.derived.settledHeight({ texture: this.layeredTex, w: f.nx, h: f.ny, scale: 1, exag: 1, cellM: f.kmPerPx * 1000, sun: this.sunDir })
+      : this.layeredTex;
+    this.setHeightSource({ texture, scale: 1, nx: f.nx, ny: f.ny, cpu: height, kmPerPx: f.kmPerPx });
+  }
+
+  async updateSculpt(world: World) {
+    this.world = world;
+    this.syncWorldUniforms();
+    const key = this.foundationKeyNow();
+    if (this.foundation?.key !== key) {
+      if (this.stage === 'ready' || this.stage === 'idle' || this.stage === 'error') await this.bake();
+      return;
+    }
+    if (this.stage !== 'ready' && this.stage !== 'hydrology' && this.stage !== 'error') return;
+    this.refreshPaint();
+    await this.applyLayers(++this.bakeGen);
+  }
+
+  updatePaint(world: World) {
+    this.world = world;
+    this.refreshPaint();
+    this.refreshHover();
+  }
+
+  private refreshHover() {
+    if (this.hover) this.onHover(this.hexStats(this.hover.col, this.hover.row));
+  }
+
+  private refreshPaint(extra?: PaintEdit | null) {
+    if (!extra) {
+      this.paintBase = this.world.paint.length ? rasterPaint(this.world) : null;
+      this.paint = this.paintBase;
+    } else {
+      const base = this.paintBase ?? rasterPaint(this.world, 1024, []);
+      this.paint = { ...base, data: base.data.slice() };
+      applyPaintEdit(this.paint, extra);
+    }
+    const r = this.paint;
+    if (!r) {
+      this.uniforms.uPaintOn.value = 0;
+      this.invalidate();
+      return;
+    }
+    const [a, b] = packPaint(r);
+    if (!this.paintTex || this.paintTex[0].image.width !== r.nx || this.paintTex[0].image.height !== r.ny) {
+      this.paintTex?.forEach((t) => t.dispose());
+      const mk = (d: Uint8Array) => {
+        const t = new THREE.DataTexture(d, r.nx, r.ny, THREE.RGBAFormat, THREE.UnsignedByteType);
+        t.minFilter = t.magFilter = THREE.LinearFilter;
+        return t;
+      };
+      this.paintTex = [mk(a), mk(b)];
+    } else {
+      (this.paintTex[0].image as unknown as { data: Uint8Array }).data = a;
+      (this.paintTex[1].image as unknown as { data: Uint8Array }).data = b;
+    }
+    this.paintTex[0].needsUpdate = this.paintTex[1].needsUpdate = true;
+    this.uniforms.uPaintA.value = this.paintTex[0];
+    this.uniforms.uPaintB.value = this.paintTex[1];
+    this.uniforms.uPaintOn.value = 1;
+    this.invalidate();
+  }
+
+  previewSculpt(e: SculptEdit) { this.pendingPreview = { ...(this.pendingPreview ?? {}), sculpt: e }; this.invalidate(); }
+  previewPaint(e: PaintEdit) { this.pendingPreview = { ...(this.pendingPreview ?? {}), paint: e }; this.invalidate(); }
+
+  endPreview(restore: boolean) {
+    const had = this.pendingPreview || this.previewHeight;
+    this.pendingPreview = null;
+    this.previewHeight = null;
+    this.previewBox = null;
+    if (restore && had && this.layered && this.foundation) this.showHeight(this.layered, true);
+    if (restore) this.refreshPaint();
+  }
+
+  get canSculpt() { return !!this.foundation && !!this.layered && this.foundation.key === this.foundationKeyNow(); }
+
+  private stepPreview() {
+    const p = this.pendingPreview;
+    if (!p) return;
+    this.pendingPreview = null;
+    if (p.paint) this.refreshPaint(p.paint);
+    const e = p.sculpt;
+    const f = this.foundation;
+    if (!e || !f || !this.layered) return;
+    if (!this.previewHeight) this.previewHeight = this.layered.slice();
+    const box = editPixelBox(e, f);
+    if (!box) return;
+    const prev = this.previewBox;
+    const u: [number, number, number, number] = prev ? [Math.min(prev[0], box[0]), Math.min(prev[1], box[1]), Math.max(prev[2], box[2]), Math.max(prev[3], box[3])] : box;
+    const ph = this.previewHeight, base = this.layered;
+    for (let j = u[1]; j <= u[3]; j++) ph.set(base.subarray(j * f.nx + u[0], j * f.nx + u[2] + 1), j * f.nx + u[0]);
+    applySculptEdit({ height: ph, nx: f.nx, ny: f.ny, kmPerPx: f.kmPerPx }, e);
+    this.previewBox = u;
+    this.showHeight(ph, false);
+  }
+
+  setBrushCursor(c: { x: number; z: number; radiusKm: number; coreKm: number } | null) {
+    const v = this.uniforms.uBrush.value as THREE.Vector4;
+    if (!c) { if (v.w !== 0) { v.w = 0; this.invalidate(); } return; }
+    v.set(c.x, c.z, c.radiusKm, 1);
+    this.uniforms.uBrushCore.value = c.coreKm;
+    this.invalidate();
   }
 
   private setHeightSource(src: HeightSource) {
@@ -457,13 +639,11 @@ export class App {
     }
     this.timings.readback = performance.now() - t0;
     this.timings.erosion = performance.now() - (this.timings.erosionStart ?? 0);
-    this.erosionCpu = { height: rb.height, deposit: rb.deposit };
     const ed = mapDims(this.grid, this.settings.erodedRes ?? this.world.terrain.erodedRes);
-    const settled = this.derived.settledHeight({ texture: er.texture, w: er.nx, h: er.ny, scale: er.cellM, exag: 1, cellM: er.cellM, sun: this.sunDir });
     er.releaseTargets();
-    this.setHeightSource({ texture: settled, scale: 1, nx: er.nx, ny: er.ny, cpu: rb.height, kmPerPx: ed.kmPerPx });
-    this.labels.updateHeights((x, z) => this.heightAt(x, z));
-    await this.runHydrology(gen);
+    this.foundation = { key: this.bakingKey, nx: er.nx, ny: er.ny, kmPerPx: ed.kmPerPx, height: rb.height, deposit: rb.deposit };
+    if (this.cacheable() && this.bakingKey === foundationKey(this.world)) this.bakeStore?.saveBake(this.foundation);
+    await this.applyLayers(gen);
   }
 
   private async runHydrology(gen: number) {
@@ -642,27 +822,16 @@ export class App {
   classify(x: number, z: number, h: number, slope: number): { mat: string; water: boolean; moisture: number } {
     const w = this.world;
     const hy = this.hydro;
-    let moisture = w.climate.baseMoisture, logA = 0, water = false;
+    let moisture = w.climate.baseMoisture, logArea = 0, water = false, playa = false;
     if (hy) {
       const i = Math.min(hy.nx - 1, Math.max(0, Math.floor(x / hy.kmPerPx))), j = Math.min(hy.ny - 1, Math.max(0, Math.floor(z / hy.kmPerPx)));
       const k = j * hy.nx + i;
       moisture = hy.moisture[k];
-      logA = hy.logArea[k];
+      logArea = hy.logArea[k];
       water = hy.waterKind[k] === 1 || hy.waterKind[k] === 2;
-      if (hy.waterKind[k] === 3) return { mat: 'playa', water: false, moisture };
+      playa = hy.waterKind[k] === 3;
     }
-    const elev = h - w.terrain.seaLevelM;
-    const dry = 1 - moisture * 1.6 + w.climate.temperature * 0.3;
-    let mat = 'grassland';
-    if (water) mat = 'water';
-    else if (elev > w.climate.snowlineM && slope < 1.1) mat = 'snow';
-    else if (slope > 0.75) mat = 'rock';
-    else if (logA > 2.6 && slope < 0.1) mat = 'river';
-    else if (moisture > 0.78 && slope < 0.035 && elev < 400) mat = 'marsh';
-    else if (moisture > 0.48 && elev < w.climate.treelineM && slope < 0.7) mat = 'forest';
-    else if (dry > 0.85) mat = slope > 0.3 ? 'badlands' : 'desert';
-    else if (dry > 0.55) mat = 'steppe';
-    return { mat: surfaceName(w, mat, elev, slope), water, moisture };
+    return classifySurface(w, { moisture, logArea, water, playa }, h, slope, paintAt(this.paint, x, z));
   }
 
   private installPointer(canvas: HTMLCanvasElement) {
@@ -795,6 +964,7 @@ export class App {
     const gpuBusy = !this.erosionPacer.idle();
     const lightingWork = !gpuBusy && this.derived.fullPending;
     if (!gpuBusy) {
+      this.stepPreview();
       if (this.stage === 'eroding' && this.erosion) this.stepErosion(this.settings.erosionBudgetMs);
       this.stepLighting();
       const now=performance.now();

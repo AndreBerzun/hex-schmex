@@ -3,9 +3,10 @@
 
 import { hexId, makeGrid, parseHexId } from '../core/hex';
 import { OP_DESC_BY_TYPE, normalizeOp } from '../core/opSchema';
-import type { Op, World } from '../core/types';
+import type { PaintEdit, SculptEdit, World } from '../core/types';
 import { setWorldParam } from '../core/world';
-import { describeOp } from './context';
+import { normalizePaint, normalizeSculpt } from '../core/layers';
+import { describeEdit, describeOp } from './context';
 import { hexSummary, type TerrainProbe } from './probe';
 
 export interface ToolLogEntry {
@@ -33,6 +34,13 @@ export class ToolExecutor {
     }
   }
 
+  private layer(id: unknown): { list: 'sculpt' | 'paint'; i: number } | null {
+    const si = this.draft.sculpt.findIndex((e) => e.id === id);
+    if (si >= 0) return { list: 'sculpt', i: si };
+    const pi = this.draft.paint.findIndex((e) => e.id === id);
+    return pi >= 0 ? { list: 'paint', i: pi } : null;
+  }
+
   private find(id: unknown): number {
     const i = this.draft.ops.findIndex((o) => o.id === id);
     if (i < 0) throw new Error(`no op with id "${String(id)}". Existing ids: ${this.draft.ops.map((o) => o.id).join(', ') || '(none)'}`);
@@ -52,7 +60,52 @@ export class ToolExecutor {
         this.changed.add(op.id);
         return { result: `added ${op.id} at index ${idx}: ${JSON.stringify(describeOp(w, op))}`, opId: op.id };
       }
+      case 'add_sculpt': {
+        const e = normalizeSculpt(w, { ...((a.edit as Record<string, unknown>) ?? a) }, { source: 'prompt' });
+        w.sculpt.push(e);
+        this.changed.add(e.id);
+        return { result: `added ${e.id}: ${JSON.stringify(describeEdit(w, e))}`, opId: e.id };
+      }
+      case 'add_paint': {
+        const e = normalizePaint(w, { ...((a.edit as Record<string, unknown>) ?? a) }, { source: 'prompt' });
+        w.paint.push(e);
+        this.changed.add(e.id);
+        return { result: `added ${e.id}: ${JSON.stringify(describeEdit(w, e))}`, opId: e.id };
+      }
+      case 'update_edit': {
+        const at = this.layer(a.id);
+        if (!at) throw new Error(`no sculpt or paint edit with id "${String(a.id)}"`);
+        const old = w[at.list][at.i];
+        const patch = (a.patch ?? {}) as Record<string, unknown>;
+        const loose = JSON.parse(JSON.stringify(old)) as Record<string, unknown>;
+        const geometry = ['points', 'point', 'at', 'radiusKm', 'region', 'hexes'];
+        if (geometry.some((k) => k in patch)) {
+          const ex = { ...((loose.expr as Record<string, unknown>) ?? {}) };
+          delete ex.points; delete ex.region;
+          loose.expr = ex;
+          if (old.area.kind === 'stroke' && !('points' in patch || 'point' in patch || 'at' in patch || 'region' in patch || 'hexes' in patch)) {
+            loose.points = old.expr?.points ?? old.area.points;
+          }
+          if (old.area.kind === 'stroke' && !('radiusKm' in patch)) {
+            loose.radiusKm = old.area.radiusKm;
+          }
+          delete loose.area;
+        }
+        Object.assign(loose, patch);
+        const e = at.list === 'sculpt' ? normalizeSculpt(w, loose, { id: old.id, source: old.source }) : normalizePaint(w, loose, { id: old.id, source: old.source });
+        (w[at.list] as (SculptEdit | PaintEdit)[])[at.i] = e;
+        this.changed.add(e.id);
+        return { result: `updated ${e.id}: ${JSON.stringify(describeEdit(w, e))}`, opId: e.id };
+      }
+      case 'remove_edit': {
+        const at = this.layer(a.id);
+        if (!at) throw new Error(`no sculpt or paint edit with id "${String(a.id)}"`);
+        const [e] = w[at.list].splice(at.i, 1);
+        this.removed.add(e.id);
+        return { result: `removed ${e.id}`, opId: e.id };
+      }
       case 'update_op': {
+        if (this.layer(a.id) && !w.ops.some((o) => o.id === a.id)) return this.exec('update_edit', a);
         const i = this.find(a.id);
         const old = w.ops[i];
         const patch = (a.patch ?? {}) as Record<string, unknown>;
@@ -69,6 +122,7 @@ export class ToolExecutor {
         return { result: `updated ${op.id}: ${JSON.stringify(describeOp(w, op))}`, opId: op.id };
       }
       case 'remove_op': {
+        if (this.layer(a.id) && !w.ops.some((o) => o.id === a.id)) return this.exec('remove_edit', a);
         const i = this.find(a.id);
         const [op] = w.ops.splice(i, 1);
         this.changed.delete(op.id);
@@ -124,8 +178,9 @@ export class ToolExecutor {
 
 /** Ops in `after` that differ from `before` (added or modified). */
 export function diffOps(before: World, after: World): string[] {
-  const b = new Map(before.ops.map((o) => [o.id, JSON.stringify(o)]));
-  return after.ops.filter((o: Op) => b.get(o.id) !== JSON.stringify(o)).map((o) => o.id);
+  const all = (w: World): { id: string }[] => [...w.ops, ...(w.sculpt ?? []), ...(w.paint ?? [])];
+  const b = new Map(all(before).map((o) => [o.id, JSON.stringify(o)]));
+  return all(after).filter((o) => b.get(o.id) !== JSON.stringify(o)).map((o) => o.id);
 }
 
 export { OP_DESC_BY_TYPE };
