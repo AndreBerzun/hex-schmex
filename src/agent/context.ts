@@ -87,7 +87,7 @@ export function buildContext(world: World, probe: TerrainProbe | null): string {
   if (probe) {
     const stats = allHexSummaries(world, probe);
     L.push('');
-    L.push(...elevationTables(grid, stats, probe.kind));
+    L.push(...elevationTables(grid, stats, probe.kind, world.environment?.palette === 'ashen'));
   }
   if (world.meta.notes) {
     L.push('');
@@ -101,7 +101,7 @@ export function buildContext(world: World, probe: TerrainProbe | null): string {
   return L.join('\n');
 }
 
-export function elevationTables(grid: HexGrid, stats: HexSummary[], kind: 'eroded' | 'design'): string[] {
+export function elevationTables(grid: HexGrid, stats: HexSummary[], kind: 'eroded' | 'design', shore = false): string[] {
   const by = new Map(stats.map((s) => [s.id, s]));
   const L: string[] = [];
   const head = '     ' + Array.from({ length: grid.cols }, (_, i) => String(i + 1).padStart(2, '0').padStart(5)).join('');
@@ -120,7 +120,13 @@ export function elevationTables(grid: HexGrid, stats: HexSummary[], kind: 'erode
   L.push(`# Per-hex terrain (${kind === 'eroded' ? 'current eroded terrain' : 'op stack before erosion'}). Columns = CC, rows = RR.`);
   table('## mean elevation, m (negative = below datum; sea level is the terrain.seaLevelM above)', (s) => String(Math.round(s.meanM / 10) * 10));
   table('## max elevation, m', (s) => String(Math.round(s.maxM / 10) * 10));
-  const code: Record<string, string> = { water: '~', snow: '*', rock: '^', forest: 'f', grassland: '.', steppe: ':', desert: 'd', badlands: 'b', marsh: 'm', river: 'r', playa: 'p', alpine: 'a', 'lake basin': 'l' };
-  table('## dominant surface (~ water, * snow, ^ rock, a alpine, f forest, . grass, : steppe, d desert, b badlands, m marsh, r river, p playa, l lake basin)', (s) => code[s.surface] ?? '?');
+
+  const code: Record<string, string> = shore
+    ? { 'dark water': '~', 'mineral rock': '^', 'crimson coral': 'c', 'black earth': '.', 'ash-dusted earth': ':', ash: 'd', 'ash ridges': 'b', 'silt mire': 'm', 'tidal channel': 'r', 'tidal flats': 't', 'salt pan': 'p', 'dark pool': 'l', snow: '*' }
+    : { water: '~', snow: '*', rock: '^', forest: 'f', grassland: '.', steppe: ':', desert: 'd', badlands: 'b', marsh: 'm', river: 'r', playa: 'p', alpine: 'a', 'lake basin': 'l' };
+  const legend = shore
+    ? '~ dark water, ^ mineral rock, c crimson coral, . black earth, : ash-dusted earth, d ash, b ash ridges, m silt mire, r tidal channel, t tidal flats, p salt pan, l dark pool'
+    : '~ water, * snow, ^ rock, a alpine, f forest, . grass, : steppe, d desert, b badlands, m marsh, r river, p playa, l lake basin';
+  table(`## dominant surface (${legend})`, (s) => code[s.surface] ?? '?');
   return L;
 }

@@ -248,8 +248,8 @@ export interface Feature {
 export interface WorldEnvironment {
   palette?: 'ashen';
   hazeDensity?: number;
-  /** Supernatural tide, restricted to a circular basin; does not rebake erosion. */
-  tide?: { center: Vec2; radiusKm: number; lowM: number; highM: number };
+  /** Supernatural tide; without a centre it covers the whole region. Does not rebake erosion. */
+  tide?: { center?: Vec2; radiusKm?: number; lowM: number; highM: number };
 }
 
 /** A saved camera view. Points accept hex ids / compass words / km like op params. */

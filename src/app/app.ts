@@ -19,6 +19,7 @@ import { bakeCanopyLut } from '../render/canopyLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
 import { tideAt, tideLevel } from '../core/environment';
+import { surfaceName } from '../core/surfaces';
 import { GroundTravel } from './groundTravel';
 import { advanceClock, clockTide } from '../core/travel';
 import { FreeFlight } from './freeFlight';
@@ -168,6 +169,7 @@ export class App {
       uSpireRadius: { value: 0 },
       uTide: { value: new THREE.Vector4(0, 0, 0, -100000) },
       uAshen: { value: 0 },
+      uTidal: { value: 0 },
       uHeight: { value: placeholder(0) },
       uHeightScale: { value: 1 },
       uWaterTex: { value: this.waterTex },
@@ -227,7 +229,7 @@ export class App {
     this.labels.setExag(s.exag);
     this.landmarks.setExag(s.exag);
     const tide = this.world?.environment?.tide;
-    (u.uTide.value as THREE.Vector4).set(tide?.center[0] ?? 0, tide?.center[1] ?? 0, tide?.radiusKm ?? 0, tideLevel(this.world?.environment, s.tide));
+    (u.uTide.value as THREE.Vector4).set(tide?.center?.[0] ?? 0, tide?.center?.[1] ?? 0, tide ? tide.radiusKm ?? 1e9 : 0, tideLevel(this.world?.environment, s.tide));
     u.uHexOn.value = s.hexGrid ? 1 : 0;
     this.labels.mesh.visible = s.labels && s.hexGrid;
     u.uDebug.value = s.debug;
@@ -285,6 +287,7 @@ export class App {
     u.uTemp.value = w.climate.temperature;
     this.controls.maxPolarAngle = w.features.length ? Math.PI * 0.98 : Math.PI * 0.495;
     u.uAshen.value = w.environment?.palette === 'ashen' ? 1 : 0;
+    u.uTidal.value = w.environment?.tide ? Math.max(0, w.environment.tide.highM - w.terrain.seaLevelM) : 0;
     u.uHazeDensity.value = w.environment?.hazeDensity ?? 0.018;
     this.applySettings();
     u.uHexSize.value = this.grid.size;
@@ -659,7 +662,7 @@ export class App {
     else if (moisture > 0.48 && elev < w.climate.treelineM && slope < 0.7) mat = 'forest';
     else if (dry > 0.85) mat = slope > 0.3 ? 'badlands' : 'desert';
     else if (dry > 0.55) mat = 'steppe';
-    return { mat, water, moisture };
+    return { mat: surfaceName(w, mat, elev, slope), water, moisture };
   }
 
   private installPointer(canvas: HTMLCanvasElement) {

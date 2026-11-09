@@ -3,6 +3,7 @@
 
 import { hexCenter, hexId, inGrid, makeGrid, pointToHex, type HexGrid } from '../core/hex';
 import type { Heightfield } from '../core/ops';
+import { surfaceName } from '../core/surfaces';
 import type { World } from '../core/types';
 
 export interface SurfaceInfo { mat: string; water: boolean; moisture: number }
@@ -86,9 +87,9 @@ export function fieldProbe(world: World, hf: Heightfield): TerrainProbe {
       const c = world.climate;
       const moisture = Math.max(0, Math.min(1, c.baseMoisture + sample(hf.moisture, x, y)));
       const elev = h - world.terrain.seaLevelM;
-      if (elev < 0) return { mat: 'water', water: true, moisture: 1 };
-      if (sample(hf.lake, x, y) > 0.5) return { mat: 'lake basin', water: false, moisture };
-      if (sample(hf.river, x, y) > 0.5) return { mat: 'river', water: false, moisture };
+      if (elev < 0) return { mat: surfaceName(world, 'water', elev, slope), water: true, moisture: 1 };
+      if (sample(hf.lake, x, y) > 0.5) return { mat: surfaceName(world, 'lake basin', elev, slope), water: false, moisture };
+      if (sample(hf.river, x, y) > 0.5) return { mat: surfaceName(world, 'river', elev, slope), water: false, moisture };
       const dry = 1 - moisture * 1.6 + c.temperature * 0.3;
       let mat = 'grassland';
       if (elev > c.snowlineM && slope < 1.1) mat = 'snow';
@@ -97,7 +98,7 @@ export function fieldProbe(world: World, hf: Heightfield): TerrainProbe {
       else if (elev > c.treelineM) mat = 'alpine';
       else if (dry > 0.85) mat = slope > 0.3 ? 'badlands' : 'desert';
       else if (dry > 0.55) mat = 'steppe';
-      return { mat, water: false, moisture };
+      return { mat: surfaceName(world, mat, elev, slope), water: false, moisture };
     },
   };
 }

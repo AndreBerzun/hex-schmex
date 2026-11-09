@@ -65,6 +65,7 @@ uniform float uSnowline;
 uniform float uTreeline;
 uniform float uTemp;
 uniform float uAshen;
+uniform float uTidal;
 uniform float uHasHydro;
 uniform sampler2D uCanopy;
 uniform int uDebug;
@@ -131,7 +132,8 @@ vec3 matColor(float id) {
   if (id < 5.5) return vec3(0.9, 0.85, 0.5);
   if (id < 6.5) return vec3(0.35, 0.4, 0.2);
   if (id < 7.5) return vec3(0.75, 0.35, 0.15);
-  return vec3(0.1, 0.3, 0.8);
+  if (id < 8.5) return vec3(0.1, 0.3, 0.8);
+  return vec3(0.55, 0.5, 0.65);
 }
 
 // One filtered lookup supplies both colour breakup and height derivatives.
@@ -189,20 +191,23 @@ void main() {
   float nFine = noiseAt(xz, 0.12);    // texture
 
   // ---- materials (sRGB-authored, converted to linear)
-  vec3 cGrass = srgb(vec3(0.36, 0.40, 0.25));
-  vec3 cMeadow = srgb(vec3(0.45, 0.46, 0.30));
-  vec3 cDry = srgb(vec3(0.59, 0.53, 0.36));
-  vec3 cSand = srgb(vec3(0.78, 0.7, 0.5));
-  vec3 cBad = srgb(vec3(0.66, 0.36, 0.2));
-  vec3 cForest = srgb(vec3(0.22, 0.28, 0.18));
-  vec3 cConifer = srgb(vec3(0.17, 0.23, 0.19));
-  vec3 cAlpine = srgb(vec3(0.47, 0.46, 0.3));
-  vec3 cRock = srgb(vec3(0.46, 0.44, 0.41));
-  vec3 cRockDark = srgb(vec3(0.3, 0.29, 0.28));
-  vec3 cScree = srgb(vec3(0.55, 0.53, 0.5));
+  vec3 cGrass = srgb(mix(vec3(0.36, 0.40, 0.25), vec3(0.155, 0.15, 0.15), uAshen));
+  vec3 cMeadow = srgb(mix(vec3(0.45, 0.46, 0.30), vec3(0.19, 0.18, 0.18), uAshen));
+  vec3 cDry = srgb(mix(vec3(0.59, 0.53, 0.36), vec3(0.27, 0.26, 0.255), uAshen));
+  vec3 cSand = srgb(mix(vec3(0.78, 0.7, 0.5), vec3(0.48, 0.47, 0.455), uAshen));
+  vec3 cBad = srgb(mix(vec3(0.66, 0.36, 0.2), vec3(0.46, 0.44, 0.43), uAshen));
+  vec3 cForest = srgb(mix(vec3(0.22, 0.28, 0.18), vec3(0.40, 0.09, 0.10), uAshen));
+  vec3 cConifer = srgb(mix(vec3(0.17, 0.23, 0.19), vec3(0.25, 0.05, 0.065), uAshen));
+  vec3 cAlpine = srgb(mix(vec3(0.47, 0.46, 0.3), vec3(0.28, 0.27, 0.27), uAshen));
+  vec3 cRock = srgb(mix(vec3(0.46, 0.44, 0.41), vec3(0.31, 0.31, 0.33), uAshen));
+  vec3 cRockDark = srgb(mix(vec3(0.3, 0.29, 0.28), vec3(0.16, 0.16, 0.18), uAshen));
+  vec3 cScree = srgb(mix(vec3(0.55, 0.53, 0.5), vec3(0.34, 0.335, 0.33), uAshen));
   vec3 cSnow = srgb(vec3(0.93, 0.95, 0.98));
-  vec3 cMarsh = srgb(vec3(0.27, 0.32, 0.16));
-  vec3 cGravel = srgb(vec3(0.62, 0.6, 0.56));
+  vec3 cMarsh = srgb(mix(vec3(0.27, 0.32, 0.16), vec3(0.11, 0.12, 0.13), uAshen));
+  vec3 cMarshWet = srgb(mix(vec3(0.2, 0.3, 0.3), vec3(0.17, 0.155, 0.14), uAshen));
+  vec3 cGravel = srgb(mix(vec3(0.62, 0.6, 0.56), vec3(0.36, 0.35, 0.34), uAshen));
+  vec3 cSoil = srgb(mix(vec3(0.42, 0.36, 0.25), vec3(0.14, 0.13, 0.13), uAshen));
+  vec3 cTidal = srgb(vec3(0.30, 0.285, 0.265));
 
   float elev = h - uSea;
   float drySide = clamp(1.0 - moist * 1.6 + uTemp * 0.3, 0.0, 1.0);
@@ -210,7 +215,7 @@ void main() {
   // Soil between clumps; the fine layers below survive the ashen palette too.
   float gt = noiseAt(xz, 0.02);
   col *= 0.88 + 0.24 * (gt * 0.5 + 0.5);
-  col = mix(col, srgb(vec3(0.42, 0.36, 0.25)), smoothstep(0.55, 0.85, noiseAt(xz + 0.75, 0.25)) * 0.35);
+  col = mix(col, cSoil, smoothstep(0.55, 0.85, noiseAt(xz + 0.75, 0.25)) * 0.35);
   // above the treeline: thin alpine turf, browner and stonier
   float alpine = smoothstep(uTreeline - 50.0, uTreeline + 350.0, elev + nMid * 120.0);
   col = mix(col, cAlpine * (0.9 + 0.2 * nFine), alpine * (1.0 - drySide * 0.5));
@@ -218,13 +223,13 @@ void main() {
   float desert = smoothstep(0.78, 0.92, drySide + nBig * 0.1) * (1.0 - smoothstep(0.25, 0.5, g));
   col = mix(col, cSand * (0.92 + 0.12 * nMid), desert);
   float bad = smoothstep(0.7, 0.85, drySide) * smoothstep(0.18, 0.4, g);
-  vec3 badCol = mix(cBad, cBad * vec3(1.2, 1.05, 0.9), 0.5 + 0.5 * sin(h / 18.0 + nMid * 2.0));
+  vec3 badCol = mix(cBad, cBad * mix(vec3(1.2, 1.05, 0.9), vec3(0.8, 0.79, 0.8), uAshen), 0.5 + 0.5 * sin(h / 18.0 + nMid * 2.0));
   col = mix(col, badCol, bad);
   float id = desert > 0.5 ? 5.0 : bad > 0.5 ? 7.0 : 0.0;
 
   // marsh: flat, wet, low
   float marsh = smoothstep(0.72, 0.85, moist + nMid * 0.08) * (1.0 - smoothstep(0.015, 0.05, g)) * (1.0 - smoothstep(250.0, 500.0, elev));
-  col = mix(col, mix(cMarsh, srgb(vec3(0.2, 0.3, 0.3)), smoothstep(0.2, 0.6, nFine) * 0.5), marsh);
+  col = mix(col, mix(cMarsh, cMarshWet, smoothstep(0.2, 0.6, nFine) * 0.5), marsh);
   if (marsh > 0.5) id = 6.0;
 
   // forest canopy: below the treeline, moist enough, not too steep, clumped
@@ -234,6 +239,7 @@ void main() {
                * (1.0 - smoothstep(0.55, 0.85, g))
                * (1.0 - marsh * 0.8) * (1.0 - desert);
   forest = smoothstep(0.1, 0.9, forest);
+  forest *= mix(1.0, smoothstep(-0.45, 0.05, noiseAt(xz + 2.3, 0.35)), uAshen);
   vec3 fcol = mix(cForest, cConifer, smoothstep(tl - 900.0, tl - 200.0, elev));
   fcol *= 0.92 + 0.16 * nFine + 0.08 * nMid;
   col = mix(col, fcol, forest);
@@ -259,11 +265,14 @@ void main() {
   if (snow > 0.5) id = 3.0;
 
   // playa: salt-crusted dry lake bed
-  col = mix(col, srgb(vec3(0.86, 0.83, 0.76)) * (0.94 + 0.08 * nMid), playa);
+  col = mix(col, srgb(mix(vec3(0.86, 0.83, 0.76), vec3(0.42, 0.41, 0.40), uAshen)) * (0.94 + 0.08 * nMid), playa);
 
   // beaches near sea level
   float beach = (1.0 - smoothstep(1.5, 6.0, elev + nMid * 3.0)) * (1.0 - smoothstep(0.03, 0.12, g)) * step(-1.0, elev);
-  col = mix(col, cSand, beach * (1.0 - snow));
+  col = mix(col, cSand, beach * (1.0 - snow) * (1.0 - uAshen));
+  float tidal = uAshen * (1.0 - smoothstep(uTidal * 0.55, uTidal, elev + nMid * 10.0)) * (1.0 - smoothstep(0.04, 0.14, g)) * step(-1.0, elev) * (1.0 - forest * 0.85) * (1.0 - marsh);
+  col = mix(col, cTidal * (0.9 + 0.2 * nFine) * (0.85 + 0.3 * smoothstep(-0.4, 0.6, nMid)), tidal);
+  if (tidal > 0.5) id = 9.0;
 
   // streams and rivers from flow accumulation (+ explicit river ops)
   float area = uHasHydro > 0.5 ? smoothstep(uRiverMinLog, uRiverMinLog + 0.6, logA) : 0.0;
@@ -274,20 +283,11 @@ void main() {
   // gully darkening
   col *= 1.0 - clamp(lap * 2.5, 0.0, 0.25) * (1.0 - snow * 0.7);
 
-  // An optional mineral/coral palette for the Forgotten Shore prototype.
-  if (uAshen > 0.5) {
-    vec3 dust = mix(vec3(0.28, 0.26, 0.29), vec3(0.43, 0.38, 0.38), nMid * 0.5 + 0.5);
-    vec3 coral = mix(vec3(0.20, 0.12, 0.14), vec3(0.35, 0.20, 0.20), nBig * 0.5 + 0.5);
-    col = srgb(mix(dust, coral, smoothstep(0.09, 0.4, g)));
-    col = mix(col, srgb(vec3(0.48, 0.49, 0.54)), smoothstep(2400.0, 6000.0, h));
-    col = mix(col, srgb(vec3(0.78, 0.80, 0.84)), snow * 0.65);
-  }
-
   // Surface relief affects lighting, not geography, classification or picking.
   vec2 surfaceGrad = grad + dgrad;
   float canopyAO = 1.0;
   #ifdef SURFACE_DETAIL
-  float canopyWeight = forest * (1.0 - rockAmt) * (1.0 - snow) * (1.0 - uAshen);
+  float canopyWeight = forest * (1.0 - rockAmt) * (1.0 - snow);
   if (fw < 0.0039 && uDetailOn > 0.0) {
     vec3 tufts = groundDetail(xz, 0.006);    // six-metre tussocks / mineral rubble
     vec3 soil = groundDetail(xz + 1.7, 0.0009); // decimetre soil / gravel
