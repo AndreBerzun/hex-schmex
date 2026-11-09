@@ -64,8 +64,8 @@ try {
   // near the changing shoreline. The earlier boost test advanced only one step.
   await page.evaluate(`(() => {
     const a=window.__tp.app;
-    a.camera.position.set(35,(a.surfaceAt(35,35)+2)/1000,35);
-    a.camera.lookAt(40,.3,36.5);a.freeFlight.speed=.25;a.start();
+    a.camera.position.set(44.83,(a.surfaceAt(44.83,42.83)+2)/1000,42.83);
+    a.camera.lookAt(49.83,.5,42.83);a.freeFlight.speed=.25;a.start();
   })()`);
   await key('keyDown','ShiftLeft','Shift',SHIFT);
   await key('keyDown','KeyW','W',SHIFT);

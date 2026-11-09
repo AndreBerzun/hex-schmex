@@ -22,7 +22,7 @@ const closeups: Record<string, Record<string, ViewSpec>> = {
     'marsh': { from: '0609', fromAglM: 100, to: '0608' },
   },
   'forgotten-shore': {
-    'ground': { from: [45.5, 35.1], fromAglM: 2, to: [45.35, 35.1], toAglM: -2 },
+    'ground': { from: [44.83, 42.83], fromAglM: 2, to: [44.68, 42.83], toAglM: -2 },
   },
 };
 const server = await createServer({ server: { host: '127.0.0.1', port: 5191, strictPort: false }, logLevel: 'error' });

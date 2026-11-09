@@ -12,8 +12,8 @@ try {
   assert(await page.evaluate('window.__tp.app.ground.enabled'));
   // Deterministic terrain path to verify accelerated movement and exact campaign-time accounting.
   const journey=await page.evaluate<{distance:number;seconds:number;hour:number;eye:number}>(`(() => {
-    const a=window.__tp.app;a.running=false;a.camera.position.set(46.4,0,35.5);a.ground.placeCamera();
-    a.settings.timeOfDay=10;a.ground.goTo(46.45,35.5);
+    const a=window.__tp.app;a.running=false;a.camera.position.set(67.33,0,66.83);a.ground.placeCamera();
+    a.settings.timeOfDay=10;a.ground.goTo(67.38,66.83);
     for(let i=0;i<100&&a.ground.destination;i++)a.frame();
     // frame() is wall-clock driven; advance via the same travel component with explicit frame durations.
     for(let i=0;i<100&&a.ground.destination;i++) {
@@ -36,13 +36,13 @@ try {
   assert(await page.evaluate('!!window.__tp.app.ground.destination'));
   await page.evaluate('window.__tp.app.ground.stop()');
   const blocked=await page.evaluate(`(() => {
-    const a=window.__tp.app;a.setSettings({tide:1});a.camera.position.set(31,0,35);a.ground.placeCamera();a.ground.goTo(31.1,35);a.ground.update(.05);
+    const a=window.__tp.app;a.setSettings({tide:1});a.camera.position.set(74.83,0,114.83);a.ground.placeCamera();a.ground.goTo(74.93,114.83);a.ground.update(.05);
     return !a.ground.destination&&a.ground.message.includes('Water');
   })()`);assert(blocked);
   // Full day/night renders, including the automatically linked flood.
   for(const [name,time] of [['player-day',12],['player-night',22]] as const){
     await page.evaluate(`(() => {
-      const a=window.__tp.app;a.ground.leave();a.ground.enter();a.camera.position.set(45.6,0,35.1);a.camera.lookAt(40,.7,36.5);a.setSettings({timeOfDay:${time},tide:${time>18?1:0}});a.ground.placeCamera();a.render();
+      const a=window.__tp.app;a.ground.leave();a.ground.enter();a.camera.position.set(66.43,0,65.83);a.camera.lookAt(50.33,.9,81.83);a.setSettings({timeOfDay:${time},tide:${time>18?1:0}});a.ground.placeCamera();a.render();
     })()`);
     const daylight=await page.evaluate<number>('window.__tp.app.uniforms.uDaylight.value');
     assert(time===12?daylight>.99:daylight<.01);
@@ -58,7 +58,7 @@ try {
     let maxQueue=0;
     for(let i=0;i<100;i++){
       a.setSettings({tide:(Math.sin(i*.22)+1)/2,timeOfDay:16.5});
-      a.camera.position.set(35+i*.002,(a.surfaceAt(35+i*.002,35)+2)/1000,35);
+      a.camera.position.set(44.83+i*.002,(a.surfaceAt(44.83+i*.002,42.83)+2)/1000,42.83);
       a.camera.lookAt(40,.5,36.5);a.invalidate();
       await new Promise(r=>setTimeout(r,30));
       maxQueue=Math.max(maxQueue,a.terrain.nodeCount);
