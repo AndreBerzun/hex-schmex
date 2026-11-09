@@ -126,6 +126,15 @@ describe('op evaluation', () => {
     expect(at(flat([{ type: 'basin', region: { center: '0504', radiusKm: 10 }, depth: 200, falloffKm: 5 }]), x, y)).toBeLessThan(150);
     expect(Math.abs(at(flat([{ type: 'lowlands', region: 'all', targetElevation: 50, flatness: 1 }]), x, y) - 50)).toBeLessThan(5);
   });
+  it('keeps sub-kilometre plateaus and flats on their centre, wherever they sit', () => {
+    const fine = (ops: Record<string, unknown>[]) => evaluate(smallWorld(ops, { ...base, terrain: { ...defaultWorld('t').terrain, designRes: 1024 } }));
+    for (let c = 2; c <= 8; c++) {
+      const [x, y] = hexCenter(g, c, 4);
+      const id = `0${c}04`;
+      expect(at(fine([{ type: 'plateau', region: { center: id, radiusKm: 0.6 }, height: 900, edgeSteepness: 0.6 }]), x, y)).toBeGreaterThan(650);
+      expect(at(fine([{ type: 'lowlands', region: { center: id, radiusKm: 0.5 }, targetElevation: 100, flatness: 1, falloffKm: 0.15 }]), x, y)).toBeCloseTo(100, -1);
+    }
+  });
   it('coast pushes its side below sea level', () => {
     const hf = flat([{ type: 'coast', side: 'W', extentKm: 30, targetElevation: -200, falloffKm: 5, roughness: 0 }]);
     expect(at(hf, 3, g.heightKm / 2)).toBeLessThan(0);
