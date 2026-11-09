@@ -9,5 +9,6 @@ export function tideLevel(environment: WorldEnvironment | undefined, fraction: n
 }
 export function tideAt(environment: WorldEnvironment | undefined, fraction: number, x: number, z: number): number {
   const t = environment?.tide;
-  return t && Math.hypot(x - t.center[0], z - t.center[1]) < t.radiusKm ? tideLevel(environment, fraction) : -100000;
+  if (!t) return -100000;
+  return !t.center || Math.hypot(x - t.center[0], z - t.center[1]) < (t.radiusKm ?? Infinity) ? tideLevel(environment, fraction) : -100000;
 }

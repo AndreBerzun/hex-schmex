@@ -15,6 +15,9 @@ const SURFACE_RGB: Record<string, [number, number, number]> = {
   water: [46, 86, 130], snow: [236, 238, 242], rock: [128, 120, 112], forest: [62, 98, 56], grassland: [128, 150, 84],
   steppe: [168, 160, 104], desert: [212, 190, 140], badlands: [176, 120, 84], marsh: [88, 116, 84], river: [70, 120, 170],
   playa: [222, 214, 196], alpine: [140, 140, 110], 'lake basin': [90, 130, 150],
+  'dark water': [28, 34, 44], 'mineral rock': [104, 104, 110], 'crimson coral': [120, 30, 34], 'black earth': [52, 50, 50],
+  'ash-dusted earth': [84, 82, 80], ash: [150, 147, 142], 'ash ridges': [130, 124, 120], 'silt mire': [36, 38, 40],
+  'tidal channel': [44, 52, 64], 'tidal flats': [104, 100, 94], 'salt pan': [116, 114, 112], 'dark pool': [30, 36, 46],
 };
 
 // 3x5 digit font
