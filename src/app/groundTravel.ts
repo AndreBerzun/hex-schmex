@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 import { EYE_M, MARCH_KMH } from '../core/travel';
 import type { App } from './app';
+import { planRoute } from '../core/scenery/route';
+
+const LEG_KM = 0.9;
 
 /** Continuous terrain travel. Drag to look, click visible ground to march there. */
 export class GroundTravel {
   enabled = false;
   destination: THREE.Vector2 | null = null;
+  waypoints: [number, number][] = [];
   acceleration = 600;
   elapsedSeconds = 0;
   distanceKm = 0;
@@ -58,13 +62,28 @@ export class GroundTravel {
     this.placeCamera();
     this.app.invalidate();
   }
-  leave(){this.enabled=false;this.destination=null;this.pointer=null;}
+  leave(){this.enabled=false;this.destination=null;this.waypoints=[];this.pointer=null;}
   reset(){this.leave();this.initialized=false;this.distanceKm=0;this.elapsedSeconds=0;}
-  stop(message=''){this.destination=null;this.message=message;this.app.invalidate();}
+  stop(message=''){this.destination=null;this.waypoints=[];this.message=message;this.app.invalidate();}
   goTo(x:number,z:number) {
     if(!this.enabled || !Number.isFinite(x+z))return false;
     if(x<0||z<0||x>this.app.worldW||z>this.app.worldH){this.stop('Destination lies outside this region.');return false;}
-    this.destination=new THREE.Vector2(x,z);this.message='Marching';this.app.invalidate();return true;
+    this.destination=new THREE.Vector2(x,z);this.waypoints=[];this.message='Marching';
+    if(!this.planLeg()){this.stop('No way through — choose another destination.');return false;}
+    this.app.invalidate();return true;
+  }
+  private planLeg():boolean {
+    const d=this.destination;if(!d)return false;
+    const p=this.app.camera.position;
+    const dist=Math.hypot(d.x-p.x,d.y-p.z);
+    const k=Math.min(1,LEG_KM/Math.max(dist,1e-9));
+    let tx=p.x+(d.x-p.x)*k,tz=p.z+(d.y-p.z)*k;
+    const blocked=(x:number,z:number)=>this.app.sceneryBlocked(x,z);
+    if(k<1)for(let n=0;n<8&&blocked(tx,tz);n++){tx=p.x+(d.x-p.x)*k*(1-0.08*(n+1));tz=p.z+(d.y-p.z)*k*(1-0.08*(n+1));}
+    const route=planRoute(p.x,p.z,tx,tz,blocked);
+    if(!route)return false;
+    this.waypoints=route;
+    return true;
   }
   placeCamera() {
     const p=this.app.camera.position;
@@ -79,16 +98,29 @@ export class GroundTravel {
     let remaining=MARCH_KMH/3600*this.acceleration*Math.min(dt,0.05), walked=0;
     // Substeps prevent accelerated travel from jumping across cliffs or water.
     while(remaining>0 && this.destination) {
-      const dx=this.destination.x-p.x,dz=this.destination.y-p.z,d=Math.hypot(dx,dz);
-      if(d<0.0001){this.stop('Arrived');break;}
+      if(!this.waypoints.length && !this.planLeg()){this.stop('No way through — choose another destination.');break;}
+      const target=this.waypoints[0];
+      const dx=target[0]-p.x,dz=target[1]-p.z,d=Math.hypot(dx,dz);
+      if(d<0.0001){
+        this.waypoints.shift();
+        if(!this.waypoints.length && Math.hypot(this.destination.x-p.x,this.destination.y-p.z)<0.002){this.stop('Arrived');break;}
+        continue;
+      }
       let step=Math.min(remaining,d,0.005),x=p.x+dx/d*step,z=p.z+dz/d*step;
       let h=this.app.heightAt(x,z);const old=this.app.heightAt(p.x,p.z);
       if(this.app.surfaceAt(x,z)-h>0.3){this.stop('Water ahead — marching stopped.');break;}
       if(Math.abs(h-old)/(step*1000)>0.84){this.stop('Too steep — choose another approach.');break;}
+      if(this.app.sceneryBlocked(x,z)&&!this.app.sceneryBlocked(p.x,p.z)){
+        if(!this.planLeg()||this.app.sceneryBlocked(this.waypoints[0][0],this.waypoints[0][1])){this.stop('Blocked — choose another approach.');break;}
+        continue;
+      }
       let length=Math.hypot(step,(h-old)/1000);
       if(length>remaining){step*=remaining/length;x=p.x+dx/d*step;z=p.z+dz/d*step;h=this.app.heightAt(x,z);length=Math.hypot(step,(h-old)/1000);}
       p.x=x;p.z=z;walked+=length;remaining-=length;
-      if(step>=d-1e-9)this.stop('Arrived');
+      if(step>=d-1e-9){
+        this.waypoints.shift();
+        if(!this.waypoints.length && Math.hypot(this.destination.x-p.x,this.destination.y-p.z)<0.002)this.stop('Arrived');
+      }
     }
     this.placeCamera();
     const seconds=walked/MARCH_KMH*3600;

@@ -17,6 +17,7 @@ import { ToolExecutor, diffOps, type ToolLogEntry } from '../src/agent/tools';
 import { encodeRGB8 } from '../src/core/png';
 import type { World } from '../src/core/types';
 import { cloneWorld, defaultWorld, loadWorld, serializeWorld } from '../src/core/world';
+import { Resolver, type PointExpr } from '../src/core/resolve';
 
 const MAPS = 'maps';
 const HISTORY_KEEP = 50;
@@ -148,6 +149,10 @@ Edit (each command = one undo step in a linked browser; always pass --label "wha
                                          {"biome":"open|forest|marsh|desert|badlands|rock|snow|tidal|erase", "region"|"hexes"|"points"+"radiusKm", "falloffKm", "strength"}
                                          Shore names work too ("crimson coral", "silt mire", "ash", "black earth", …)
   layers <map>                           list sculpt and paint edits
+  features <map>                         landmarks (city, spire, colossi, leviathan skeleton, …)
+  feature <map> '<json>' [--remove]      add or change a landmark by id:
+                                         {"id":"bone-ridge","kind":"leviathan-skeleton","at":"0907","name":"Bone Ridge",
+                                          "radiusKm":0.45 (half length),"heightM":120 (rib height),"rotationDeg":30 (spine heading)}
   update/remove also take sculpt and paint edit ids
   apply <map> '<json array>' | -         several calls as ONE edit: [{"tool":"add_op","op":{…}}, {"tool":"update_op","id":"…","patch":{…}}]
   undo <map>                             restore the version before the last CLI edit
@@ -195,6 +200,38 @@ switch (cmd) {
     w.sculpt.forEach((e, i) => console.log(`  ${i}: ${JSON.stringify(describeEdit(w, e))}`));
     console.log(`paint (${w.paint.length}):`);
     w.paint.forEach((e, i) => console.log(`  ${i}: ${JSON.stringify(describeEdit(w, e))}`));
+    break;
+  }
+
+  case 'features': {
+    const w = readMap(mapPath(rest[0]));
+    for (const f of w.features) console.log(`${f.id.padEnd(18)} ${f.kind.padEnd(20)} ${f.name ?? ''}  pos ${f.pos?.map((v) => v.toFixed(2)).join(', ') ?? '-'}${f.hex ? ` (${f.hex})` : ''}${f.radiusKm !== undefined ? `  radius ${f.radiusKm} km` : ''}${f.heightM !== undefined ? `  height ${f.heightM} m` : ''}${f.rotationDeg !== undefined ? `  heading ${f.rotationDeg}°` : ''}`);
+    break;
+  }
+  case 'feature': {
+    const path = mapPath(rest[0]);
+    const before = readMap(path);
+    const after = cloneWorld(before);
+    const input = parseJson(rest[1] ?? fail('missing feature json'), 'feature') as Record<string, unknown>;
+    const id = String(input.id ?? fail('feature needs an id'));
+    const i = after.features.findIndex((f) => f.id === id);
+    if (flags.remove !== undefined) {
+      if (i < 0) fail(`no feature ${id}`);
+      after.features.splice(i, 1);
+      writeMap(path, before, after, needLabel(`remove ${id}`));
+      break;
+    }
+    const { at, ...rest2 } = input;
+    const next = { ...(i >= 0 ? after.features[i] : {}), ...rest2, id } as World['features'][number];
+    if (at !== undefined) {
+      next.pos = new Resolver(after).point(at as PointExpr);
+      if (typeof at === 'string' && /^\d{4}$/.test(at)) next.hex = at; else delete next.hex;
+    }
+    if (!next.kind) fail('feature needs a kind');
+    if (!next.pos) fail('feature needs a position ("at")');
+    if (i >= 0) after.features[i] = next; else after.features.push(next);
+    writeMap(path, before, after, needLabel(`${i >= 0 ? 'update' : 'add'} ${next.kind} ${id}`));
+    console.log(JSON.stringify(next));
     break;
   }
 

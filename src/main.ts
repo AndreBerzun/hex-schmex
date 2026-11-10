@@ -121,6 +121,8 @@ store.subscribe((c) => {
   }
 });
 
+if (params.has('shot')) app.sceneryBudgetMs = 1e9;
+if (params.get('scenery') === '0') app.sceneryOn = false;
 const ready = app.setWorld(store.world);
 if (params.has('tide')) app.setSettings({ tide: Number(params.get('tide')) });
 app.start();

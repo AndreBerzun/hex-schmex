@@ -108,6 +108,7 @@ export class Landmarks {
       if (f.kind === 'crimson-spire') this.spire(f, heightAt);
       if (f.kind === 'cursed-tree') this.tree(f, world.seed, heightAt);
       if (f.kind === 'walking-statue') this.statue(f, heightAt);
+      if (f.kind === 'leviathan-skeleton') this.leviathan(f, world.seed, heightAt);
     }
     for (const [shape, parts] of this.batches) {
       const geometry = this.geometries[shape].clone();
@@ -238,6 +239,60 @@ export class Landmarks {
         this.part('crown', p.toArray(), [r * 0.19, h * 0.13, r * 0.18], [0x731c32, 0xa02a3c, 0x50182d][j]);
       }
     }
+  }
+  private leviathan(f: Feature, seed: number, heightAt: (x: number, z: number) => number) {
+    const [x, z] = f.pos!;
+    const half = f.radiusKm ?? 0.45, ribH = (f.heightM ?? 120) / 1000;
+    const a = (f.rotationDeg ?? 0) * Math.PI / 180;
+    const random = mulberry32(seed ^ hashString(f.id));
+    const bone = 0xd9cfba, dark = 0xa39883;
+    const n = 44;
+    const spine: THREE.Vector3[] = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, u = (t - 0.5) * 2 * half, side = Math.sin(t * Math.PI * 1.6) * half * 0.12;
+      const px = x + Math.cos(a) * u - Math.sin(a) * side, pz = z - Math.sin(a) * u - Math.cos(a) * side;
+      const hump = Math.max(0, Math.sin(Math.min(1, Math.max(0, (t - 0.1) / 0.68)) * Math.PI));
+      const lift = ribH * 0.88 * Math.pow(hump, 0.6) + ribH * 0.05;
+      spine.push(new THREE.Vector3(px, heightAt(px, pz) / 1000 + lift, pz));
+    }
+    for (let i = 0; i < n; i++) {
+      const t = i / n, thick = ribH * 0.06 * (0.35 + 0.65 * Math.sin(Math.min(1, t * 1.3) * Math.PI));
+      this.beam(spine[i], spine[i + 1], thick, i % 2 ? bone : dark);
+      this.part('crown', spine[i].toArray(), [thick * 1.6, thick * 1.4, thick * 1.6], bone);
+      if (t > 0.08 && t < 0.85) this.beam(spine[i], spine[i].clone().add(new THREE.Vector3(0, ribH * 0.18 * (1 - Math.abs(t - 0.4)), 0)), thick * 0.35, dark);
+    }
+    const nx = Math.sin(a), nz = Math.cos(a);
+    for (let i = Math.round(n * 0.2); i < Math.round(n * 0.72); i += 2) {
+      const base = spine[i];
+      const g0 = heightAt(base.x, base.z) / 1000;
+      const h = base.y - g0;
+      if (h < ribH * 0.2) continue;
+      for (const s of [-1, 1]) {
+        if (random() < 0.1) continue;
+        const w = h * (0.62 + random() * 0.18);
+        const ex = base.x + nx * s * w, ez = base.z + nz * s * w;
+        const end = new THREE.Vector3(ex, heightAt(ex, ez) / 1000 - ribH * 0.03, ez);
+        const ctrl = new THREE.Vector3(base.x + nx * s * w * 1.25, base.y - h * 0.1, base.z + nz * s * w * 1.25);
+        let prev = base;
+        for (let k = 1; k <= 7; k++) {
+          const t = k / 7, u = 1 - t;
+          const p = base.clone().multiplyScalar(u * u).addScaledVector(ctrl, 2 * u * t).addScaledVector(end, t * t);
+          this.beam(prev, p, h * (0.03 - 0.012 * t), k % 3 ? bone : dark);
+          prev = p;
+        }
+      }
+    }
+    const head = spine[n], neck = spine[n - 2];
+    const dir = head.clone().sub(neck).normalize();
+    const skull = head.clone().addScaledVector(dir, ribH * 0.5);
+    skull.y = heightAt(skull.x, skull.z) / 1000 + ribH * 0.25;
+    this.part('crown', skull.toArray(), [ribH * 0.55, ribH * 0.32, ribH * 0.4], bone, -a);
+    const snout = skull.clone().addScaledVector(dir, ribH * 0.75);
+    snout.y = heightAt(snout.x, snout.z) / 1000 + ribH * 0.12;
+    this.beam(skull, snout, ribH * 0.16, bone);
+    const jaw = snout.clone(); jaw.y -= ribH * 0.14;
+    this.beam(skull.clone().add(new THREE.Vector3(0, -ribH * 0.22, 0)), jaw, ribH * 0.07, dark);
+    for (const s of [-1, 1]) this.part('crown', skull.clone().add(new THREE.Vector3(nx * s * ribH * 0.3, ribH * 0.06, nz * s * ribH * 0.3)).addScaledVector(dir, ribH * 0.2).toArray(), [ribH * 0.1, ribH * 0.09, ribH * 0.1], 0x2a2222);
   }
   private statue(f: Feature, heightAt: (x: number, z: number) => number) {
     const [x, z] = f.pos!, y = heightAt(x, z) / 1000, h = (f.heightM ?? 90) / 1000;
