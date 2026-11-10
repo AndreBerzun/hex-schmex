@@ -1,5 +1,6 @@
 // World defaults, validation/migration and (de)serialisation.
 
+import { normalizePaint, normalizeSculpt } from './layers';
 import { normalizeOp } from './opSchema';
 import type { ErosionSettings, World } from './types';
 
@@ -18,6 +19,8 @@ export function defaultWorld(name = 'Untitled marches'): World {
     terrain: { seaLevelM: 0, maxElevationM: 4500, designRes: 640, erodedRes: 1280 },
     base: { type: 'mixed', elevation: 260, amplitude: 260, wavelengthKm: 48, octaves: 7, warpKm: 18 },
     ops: [],
+    sculpt: [],
+    paint: [],
     erosion: { enabled: true, preset: 'medium', ...EROSION_PRESETS.medium, talusDeg: 34 },
     climate: { windFromDeg: 260, baseMoisture: 0.55, snowlineM: 2700, treelineM: 2100, temperature: 0 },
     features: [],
@@ -28,7 +31,7 @@ export function defaultWorld(name = 'Untitled marches'): World {
 /** Fill in missing fields (older/hand-written files) and normalise ops. */
 export function loadWorld(raw: unknown): World {
   if (!raw || typeof raw !== 'object') throw new Error('world JSON must be an object');
-  const r = raw as Partial<World> & { ops?: unknown[] };
+  const r = raw as Partial<World> & { ops?: unknown[]; sculpt?: unknown[]; paint?: unknown[] };
   const d = defaultWorld(r.meta?.name);
   const w: World = {
     version: 1,
@@ -37,6 +40,8 @@ export function loadWorld(raw: unknown): World {
     terrain: { ...d.terrain, ...(r.terrain ?? {}) },
     base: { ...d.base, ...(r.base ?? {}) },
     ops: [],
+    sculpt: [],
+    paint: [],
     erosion: { ...d.erosion, ...(r.erosion ?? {}) },
     climate: { ...d.climate, ...(r.climate ?? {}) },
     features: Array.isArray(r.features) ? r.features : [],
@@ -46,6 +51,8 @@ export function loadWorld(raw: unknown): World {
   const re = r.erosion as Partial<ErosionSettings> | undefined;
   if (re?.preset && EROSION_PRESETS[re.preset] && re.iterations === undefined) Object.assign(w.erosion, EROSION_PRESETS[re.preset], re, EROSION_PRESETS[re.preset]);
   for (const o of r.ops ?? []) w.ops.push(normalizeOp(w, o as unknown as Record<string, unknown>));
+  for (const e of r.sculpt ?? []) w.sculpt.push(normalizeSculpt(w, e as unknown as Record<string, unknown>));
+  for (const e of r.paint ?? []) w.paint.push(normalizePaint(w, e as unknown as Record<string, unknown>));
   return w;
 }
 

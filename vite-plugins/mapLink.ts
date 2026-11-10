@@ -31,6 +31,37 @@ export function mapLink(dir = 'maps'): Plugin {
       };
       server.watcher.on('change', onFile);
       server.watcher.on('add', onFile);
+      const bakeDir = join(root, '.bake');
+      server.middlewares.use('/__bake', (req, res) => {
+        const url = new URL(req.url ?? '/', 'http://x');
+        const name = decodeURIComponent(url.pathname.replace(/^\//, ''));
+        const end = (code: number, body: string | Buffer = '') => { res.statusCode = code; res.end(body); };
+        if (!nameOk(name)) return end(400);
+        const file = join(bakeDir, `${name}.bin`);
+        if (req.method === 'GET') {
+          if (!existsSync(file)) return end(404);
+          const buf = readFileSync(file);
+          const want = url.searchParams.get('key');
+          if (want) {
+            const len = buf.readUInt32LE(0);
+            const head = JSON.parse(buf.subarray(4, 4 + len).toString('utf8')) as { key: string };
+            if (head.key !== want) return end(404);
+          }
+          res.setHeader('content-type', 'application/octet-stream');
+          return end(200, buf);
+        }
+        if (req.method === 'PUT') {
+          const chunks: Buffer[] = [];
+          req.on('data', (c: Buffer) => chunks.push(c));
+          req.on('end', () => {
+            mkdirSync(bakeDir, { recursive: true });
+            writeFileSync(file, Buffer.concat(chunks));
+            end(200, '{"ok":true}');
+          });
+          return;
+        }
+        end(405);
+      });
       server.middlewares.use('/__maps', (req, res) => {
         const name = decodeURIComponent((req.url ?? '/').replace(/^\//, '').replace(/\?.*$/, '')).replace(/\.json$/, '');
         const send = (code: number, body: string, type = 'application/json') => { res.statusCode = code; res.setHeader('content-type', type); res.end(body); };

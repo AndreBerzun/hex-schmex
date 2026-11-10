@@ -74,7 +74,7 @@ export function mountToolbar(el: HTMLElement, app: App, store: Store, examples: 
       else void app.setWorld(store.world, { keepCamera: true });
     }),
     preset,
-    btn('Re-bake', 'Re-run evaluation and erosion', () => void app.setWorld(store.world, { keepCamera: true })),
+    btn('Re-bake', 'Re-run evaluation and erosion from scratch', () => void app.rebake()),
   );
 
   // ---- goto + export

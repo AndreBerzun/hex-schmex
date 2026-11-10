@@ -278,6 +278,34 @@ export interface ViewSpec {
   toAglM?: number;
 }
 
+export type SculptTool = 'raise' | 'lower' | 'flatten' | 'smooth';
+export type Biome = 'open' | 'forest' | 'marsh' | 'desert' | 'badlands' | 'rock' | 'snow' | 'tidal' | 'erase';
+
+export type EditArea =
+  | { kind: 'stroke'; points: Vec2[]; radiusKm: number }
+  | { kind: 'region'; region: Region };
+
+interface LayerEditCommon {
+  id: string;
+  label: string;
+  source: OpSource;
+  area: EditArea;
+  falloffKm: number;
+  strength: number;
+  expr?: Record<string, unknown>;
+}
+
+export interface SculptEdit extends LayerEditCommon {
+  tool: SculptTool;
+  amountM?: number;
+  targetM?: number;
+  scaleKm?: number;
+}
+
+export interface PaintEdit extends LayerEditCommon {
+  biome: Biome;
+}
+
 export interface World {
   version: 1;
   seed: number;
@@ -285,6 +313,8 @@ export interface World {
   terrain: { seaLevelM: number; maxElevationM: number; designRes: number; erodedRes: number };
   base: BaseTerrain;
   ops: Op[];
+  sculpt: SculptEdit[];
+  paint: PaintEdit[];
   erosion: ErosionSettings;
   climate: ClimateSettings;
   /** Optional landmarks, placed in continuous world km. Unknown kinds remain metadata. */

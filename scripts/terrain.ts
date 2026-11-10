@@ -9,11 +9,11 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFile
 import { basename, dirname, join } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { opCatalog } from '../src/agent/catalog';
-import { buildContext, describeOp } from '../src/agent/context';
+import { buildContext, describeEdit, describeOp } from '../src/agent/context';
 import { renderMapImage, type Overlay } from '../src/agent/mapImage';
-import { fieldProbe } from '../src/agent/probe';
+import { layeredProbe } from '../src/agent/layered';
+import { decodeFoundation, foundationKey, type Foundation } from '../src/core/layers';
 import { ToolExecutor, diffOps, type ToolLogEntry } from '../src/agent/tools';
-import { evaluate } from '../src/core/ops';
 import { encodeRGB8 } from '../src/core/png';
 import type { World } from '../src/core/types';
 import { cloneWorld, defaultWorld, loadWorld, serializeWorld } from '../src/core/world';
@@ -36,7 +36,8 @@ const flag = (k: string) => (typeof flags[k] === 'string' ? (flags[k] as string)
 
 function mapPath(arg: string | undefined): string {
   if (!arg) fail('missing map name (e.g. "my-marches" for maps/my-marches.json)');
-  return arg.includes('/') || arg.endsWith('.json') ? arg : join(MAPS, `${arg}.json`);
+  currentPath = arg.includes('/') || arg.endsWith('.json') ? arg : join(MAPS, `${arg}.json`);
+  return currentPath;
 }
 function fail(msg: string): never {
   console.error(`error: ${msg}`);
@@ -62,8 +63,29 @@ function writeMap(path: string, before: World | null, after: World, label: strin
   writeFileSync(path, serializeWorld(after) + '\n');
 }
 
+function bakePath(path: string) { return join(dirname(path), '.bake', `${basename(path, '.json')}.bin`); }
+
+function readBake(path: string): Foundation | null {
+  const f = bakePath(path);
+  if (!existsSync(f)) return null;
+  try { return decodeFoundation(new Uint8Array(readFileSync(f))); } catch { return null; }
+}
+
+let currentPath = '';
 function probeFor(w: World) {
-  return fieldProbe(w, evaluate(w, { res: Number(flag('res') ?? 384) }));
+  const bake = currentPath ? readBake(currentPath) : null;
+  const lp = layeredProbe(w, { res: Number(flag('res') ?? 384), bake });
+  if (lp.source === 'design') {
+    const why = bake ? 'the bake is out of date (ops or erosion settings changed since)' : 'no bake yet';
+    console.error(`note: ${why}; showing the op stack before erosion. Open the map in the browser to bake it.`);
+  }
+  return lp.probe;
+}
+
+function bakeStatus(path: string, w: World): string {
+  const b = readBake(path);
+  if (!b) return 'foundation: no bake yet (open the map in the browser once to bake it)';
+  return b.key === foundationKey(w) ? `foundation: baked by the browser, ${b.nx}x${b.ny} px, current` : 'foundation: bake out of date (ops or erosion changed); the browser re-bakes on open';
 }
 
 function printLog(log: ToolLogEntry[]) {
@@ -119,6 +141,14 @@ Edit (each command = one undo step in a linked browser; always pass --label "wha
   remove <map> <op-id>
   move <map> <op-id> <index>
   set <map> <path> <value>               e.g. climate.snowlineM 2400, erosion.preset heavy
+  sculpt <map> '<json>'                  direct height edit on the eroded ground, no re-erosion:
+                                         {"tool":"raise|lower|flatten|smooth", "region":{…} | "hexes":[…] | "points":[…],"radiusKm":3,
+                                          "amountM":300 (raise/lower), "targetM":420 (flatten), "scaleKm":1 (smooth), "falloffKm":1.5, "strength":1}
+  paint <map> '<json>'                   biome paint, wins over the climate rules:
+                                         {"biome":"open|forest|marsh|desert|badlands|rock|snow|tidal|erase", "region"|"hexes"|"points"+"radiusKm", "falloffKm", "strength"}
+                                         Shore names work too ("crimson coral", "silt mire", "ash", "black earth", …)
+  layers <map>                           list sculpt and paint edits
+  update/remove also take sculpt and paint edit ids
   apply <map> '<json array>' | -         several calls as ONE edit: [{"tool":"add_op","op":{…}}, {"tool":"update_op","id":"…","patch":{…}}]
   undo <map>                             restore the version before the last CLI edit
 
@@ -152,13 +182,40 @@ switch (cmd) {
   case 'context': {
     const path = mapPath(rest[0]);
     const w = readMap(path);
+    console.log(bakeStatus(path, w));
     console.log(buildContext(w, probeFor(w)));
+    break;
+  }
+
+  case 'layers': {
+    const path = mapPath(rest[0]);
+    const w = readMap(path);
+    console.log(bakeStatus(path, w));
+    console.log(`sculpt (${w.sculpt.length}):`);
+    w.sculpt.forEach((e, i) => console.log(`  ${i}: ${JSON.stringify(describeEdit(w, e))}`));
+    console.log(`paint (${w.paint.length}):`);
+    w.paint.forEach((e, i) => console.log(`  ${i}: ${JSON.stringify(describeEdit(w, e))}`));
+    break;
+  }
+
+  case 'sculpt': {
+    const edit = parseJson(rest[1] ?? fail('missing sculpt json'), 'sculpt edit') as Record<string, unknown>;
+    const lbl = needLabel(String(edit.label ?? `${edit.tool} ${JSON.stringify(edit.hexes ?? edit.region ?? edit.points ?? '')}`));
+    applyCalls(mapPath(rest[0]), [{ name: 'add_sculpt', input: { edit: { ...edit, label: edit.label ?? lbl } } }], lbl);
+    break;
+  }
+  case 'paint': {
+    const edit = parseJson(rest[1] ?? fail('missing paint json'), 'paint edit') as Record<string, unknown>;
+    const lbl = needLabel(String(edit.label ?? `paint ${edit.biome} ${JSON.stringify(edit.hexes ?? edit.region ?? edit.points ?? '')}`));
+    applyCalls(mapPath(rest[0]), [{ name: 'add_paint', input: { edit: { ...edit, label: edit.label ?? lbl } } }], lbl);
     break;
   }
 
   case 'show': {
     const w = readMap(mapPath(rest[0]));
     const op = w.ops.find((o) => o.id === rest[1]);
+    const edit = [...w.sculpt, ...w.paint].find((e) => e.id === rest[1]);
+    if (edit) { console.log(JSON.stringify({ ...describeEdit(w, edit), stored: edit }, null, 2)); break; }
     if (!op) fail(`no op "${rest[1]}". ids: ${w.ops.map((o) => o.id).join(', ')}`);
     console.log(JSON.stringify({ ...describeOp(w, op), stored: op }, null, 2));
     break;
@@ -173,7 +230,7 @@ switch (cmd) {
     const r = renderMapImage(w, probeFor(w), Number(flag('width') ?? 800), overlays);
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, await encodeRGB8(r.width, r.height, r.rgba, async (d) => deflateSync(d)));
-    console.log(`wrote ${out} (${r.width}x${r.height}; op stack before erosion, north up)`);
+    console.log(`wrote ${out} (${r.width}x${r.height}; ${bakeStatus(path, w)}; sculpt and paint included; north up)`);
     break;
   }
 
