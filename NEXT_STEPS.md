@@ -4,7 +4,11 @@
 
 The Forgotten Shore has its new geography: seven biomes after the Shadowdark hex terrain
 table (rulebook p. 132), the Dark City at the centre, erosion on, biomes following from
-the landforms. `FORGOTTEN_SHORE.md` describes it.
+the landforms. `FORGOTTEN_SHORE.md` describes it. Since the dramatic-Shore pass the
+Hollow Mountains are a 10–14 km wall along (and beyond) the north edge, the Dark Sea sits
+in a 44 km crater with a 2 km rim, and the flat biomes carry towers, stacks, buttes and
+sinkholes. Those read as steep mesas; slender pinnacles, sea arches and needles belong to
+the middle layer below.
 
 The previous city-centred trial (painted biome districts, reef walls, scenery v2,
 relief debug view) is parked on the local branch `archive/codex-shore-wip`. It was

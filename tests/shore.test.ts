@@ -39,6 +39,36 @@ describe('Forgotten Shore geography', () => {
     for (const v of hf.height) max = Math.max(max, v);
     expect(max).toBeGreaterThan(castle + 1500);
   });
+  it('shows the Spire and the Soul Tree crown from the castle towers, and hides the crater water', () => {
+    const probe = fieldProbe(world, evaluate(world));
+    const [cx, cy] = world.features.find((f) => f.id === 'dark-city')!.pos!;
+    const eye = probe.heightAt(cx, cy) + 130;
+    const clearance = (tx: number, ty: number, top: number) => {
+      const d = Math.hypot(tx - cx, ty - cy);
+      let worst = Infinity;
+      for (let s = 1.5; s < d - 0.3; s += 0.1) {
+        const t = s / d;
+        worst = Math.min(worst, eye + (top - eye) * t - probe.heightAt(cx + (tx - cx) * t, cy + (ty - cy) * t));
+      }
+      return worst;
+    };
+    const top = (id: string) => {
+      const f = world.features.find((g) => g.id === id)!;
+      return [f.pos![0], f.pos![1], probe.heightAt(f.pos![0], f.pos![1]) + f.heightM!, f.heightM!] as const;
+    };
+    const [sx, sy, st] = top('crimson-spire');
+    expect(clearance(sx, sy, st)).toBeGreaterThan(0);
+    const [tx, ty, tt, th] = top('soul-tree');
+    const tree = clearance(tx, ty, tt);
+    expect(tree).toBeGreaterThan(0);
+    expect(tree).toBeLessThan(th * 0.6);
+    const crater = world.ops.find((o) => o.type === 'crater')!;
+    if (crater.type !== 'crater') throw new Error('no crater');
+    for (const r of [0, 6, 12]) {
+      const a = Math.atan2(cy - crater.center[1], cx - crater.center[0]);
+      expect(clearance(crater.center[0] + Math.cos(a) * r, crater.center[1] + Math.sin(a) * r, 20)).toBeLessThan(-500);
+    }
+  });
   it('supports sub-kilometre terrain ridges without silently widening them', () => {
     const op = normalizeOp(world, { type: 'ridge', points: [[20, 30], [22, 31]], width: .25 });
     expect(op.type === 'ridge' && op.width).toBe(.25);

@@ -6,9 +6,9 @@ import {
   bboxOfPoints, clamp, lerp, polylineClosest, polylineInfo, regionBBox, regionMask, regionSdf,
   smoothPolyline, smoothstep, type BBox, type PolylineHit,
 } from './geom';
-import { hashString, Simplex2 } from './noise';
+import { Cells2, hashString, Simplex2, type CellHit } from './noise';
 import type {
-  BlendMode, CanyonOp, CoastOp, EscarpmentOp, HillsOp, LowlandsOp, Op, PeakOp, PlateauOp,
+  BlendMode, CanyonOp, CoastOp, CraterOp, EscarpmentOp, HillsOp, LowlandsOp, Op, PeakOp, PlateauOp,
   Region, RiverOp, Side, StrokeOp, Vec2, World,
 } from './types';
 
@@ -36,7 +36,7 @@ export interface EvalOptions {
 }
 
 export const DEFAULT_BLEND: Record<Op['type'], BlendMode> = {
-  ridge: 'add', peak: 'add', plateau: 'max', basin: 'add', valley: 'min', river: 'min', canyon: 'min',
+  ridge: 'add', peak: 'add', crater: 'replace', plateau: 'max', basin: 'add', valley: 'min', river: 'min', canyon: 'min',
   coast: 'min', hills: 'add', lowlands: 'replace', escarpment: 'add', smooth: 'replace', roughen: 'add',
   stroke: 'add', moisture: 'add',
 };
@@ -360,6 +360,7 @@ function applyOp(ctx: Ctx, op: Op) {
   switch (op.type) {
     case 'ridge': return opRidge(ctx, op, op.points, op.height, op.width, op.sharpness, op.roughness, op.asymmetry);
     case 'peak': return opPeak(ctx, op);
+    case 'crater': return opCrater(ctx, op);
     case 'plateau': return opPlateau(ctx, op);
     case 'basin': {
       const box = regionBBox(op.region, op.falloffKm + 3);
@@ -464,6 +465,68 @@ function opPeak(ctx: Ctx, op: PeakOp) {
       }
     }
     return [op.height * v, 1];
+  });
+}
+
+function opCrater(ctx: Ctx, op: CraterOp) {
+  const { hf } = ctx;
+  const sn = opNoise(ctx, op);
+  const sr = opNoise(ctx, op, 0x7a31);
+  const R = Math.max(1, op.radius);
+  const wall = clamp(op.wallKm, 0.5, R * 0.7);
+  const apron = Math.max(0.5, op.apronKm);
+  const reach = (R + apron) * 1.15;
+  const box: BBox = { minX: op.center[0] - reach, minY: op.center[1] - reach, maxX: op.center[0] + reach, maxY: op.center[1] + reach };
+  const floor = op.floorElevation;
+  const steps = Math.max(0, Math.round(op.terraces));
+  const hasBreach = op.breachBearingDeg !== undefined;
+  const bearing = ((op.breachBearingDeg ?? 0) * Math.PI) / 180;
+  const breachX = Math.sin(bearing), breachY = -Math.cos(bearing);
+  const breachHalf = (op.breachWidthKm ?? 4) / 2;
+  const breachFloor = op.breachElevation ?? 20;
+  const peakTop = op.centralPeakElevation;
+  const peakR = R * 0.24;
+  const lamWall = Math.max(wall * 0.5, hf.kmPerPx * 6);
+  const lamApron = Math.max(apron * 0.35, hf.kmPerPx * 6);
+  forEachPx(ctx, op, box, (x, y, h, k) => {
+    const dx = x - op.center[0], dy = y - op.center[1];
+    const r0 = Math.hypot(dx, dy);
+    const ca = r0 > 0 ? dx / r0 : 1, sa = r0 > 0 ? dy / r0 : 0;
+    const outline = 1 + 0.07 * sn.fbm(ca * 1.8 + 7.1, sa * 1.8 - 3.3, 3) + 0.012 * sn.noise(x / 2.5, y / 2.5);
+    const r = r0 / outline;
+    if (r >= R + apron) return null;
+    let crest = lerp(floor, op.rimElevation, 0.74 + 0.3 * (0.5 + 0.5 * sn.fbm(ca * 2.6 + 1.7, sa * 2.6 + 9.1, 3)));
+    let gap = 0;
+    if (hasBreach) {
+      const across = Math.abs(ca * breachY - sa * breachX) * R;
+      const facing = ca * breachX + sa * breachY;
+      gap = facing > 0 ? 1 - smoothstep(breachHalf * 0.6, breachHalf * 1.7, across) : 0;
+      crest = lerp(crest, Math.min(crest, breachFloor), gap);
+    }
+    if (r >= R) {
+      const q = (r - R) / apron;
+      const rays = lerp(1, 0.45 + 0.9 * sr.ridged(x / lamApron, y / lamApron, 4), 0.55 * smoothstep(0, 0.2, q) * (1 - gap));
+      const fade = Math.pow(1 - q, 2.4) * rays;
+      const flank = h + (crest - h) * clamp(fade, 0, 1);
+      return [gap > 0 ? lerp(flank, Math.min(flank, breachFloor - 8 * q), gap) : flank, 1];
+    }
+    hf.lake[k] = Math.max(hf.lake[k], smoothstep(0, wall * 0.5, R - r));
+    const t = clamp((R - r) / wall, 0, 1);
+    let drop = 1 - Math.pow(1 - t, 1.7);
+    if (steps > 0) {
+      const f = drop * steps;
+      drop = lerp(drop, (Math.floor(f) + smoothstep(0.3, 1, f - Math.floor(f))) / steps, 0.65 * (1 - gap));
+    }
+    const gullies = (sr.ridged(x / lamWall, y / lamWall, 4) - 0.5) * 0.09 * Math.sin(Math.PI * t) * (1 - gap);
+    let v = lerp(crest, floor, clamp(drop - gullies, 0, 1));
+    if (t >= 1) v += (crest - floor) * 0.012 * sn.fbm(x / 6, y / 6, 3);
+    if (peakTop !== undefined && peakTop > floor && r0 < peakR * 1.3) {
+      const pr = peakR * (1 + 0.25 * sn.noise(ca * 1.4 + 2, sa * 1.4 - 5));
+      const p = clamp(1 - r0 / pr, 0, 1);
+      const massif = Math.pow(p * p * (3 - 2 * p), 1.15) * (0.4 + 0.85 * sr.ridged(x / (peakR * 0.45), y / (peakR * 0.45), 5));
+      v = Math.max(v, floor + (peakTop - floor) * Math.min(1, massif));
+    }
+    return [v, 1];
   });
 }
 
@@ -614,6 +677,7 @@ function opHills(ctx: Ctx, op: HillsOp) {
   const fall = op.falloffKm ?? 6;
   const box = regionBBox(op.region, fall * 1.7 + 2);
   const lam = Math.max(op.wavelengthKm, ctx.hf.kmPerPx * 3);
+  if (op.style === 'towers' || op.style === 'sinkholes') return opStacks(ctx, op, sn, box, lam, fall);
   const oct = Math.max(1, Math.min(5, Math.floor(Math.log2(lam / (2 * ctx.hf.kmPerPx))) + 1));
   forEachPx(ctx, op, box, (x, y) => {
     const m = softRegion(sn, op.region, x, y, fall);
@@ -628,6 +692,42 @@ function opHills(ctx: Ctx, op: HillsOp) {
       v = saw * saw * (3 - 2 * saw) * (0.6 + 0.4 * (sn.noise(x / (lam * 3), y / (lam * 3)) * 0.5 + 0.5));
     }
     return [op.amplitude * v, m];
+  });
+}
+
+function opStacks(ctx: Ctx, op: HillsOp, sn: Simplex2, box: BBox | null, lam: number, fall: number) {
+  const cells = new Cells2((hashString(op.id) ^ ctx.world.seed ^ 0x3c6e) >>> 0);
+  const hit: CellHit = { d: 0, px: 0, py: 0, a: 0, b: 0 };
+  const pits = op.style === 'sinkholes';
+  const wallCells = (ctx.hf.kmPerPx * 1.5) / lam;
+  const reach = 1.35;
+  forEachPx(ctx, op, box, (x, y) => {
+    const m = softRegion(sn, op.region, x, y, fall);
+    if (m <= 0) return null;
+    const cx = x / lam, cy = y / lam;
+    const warp = 1 + 0.5 * sn.fbm(x / (lam * 0.22) + 1.9, y / (lam * 0.22) + 6.3, 3);
+    let best = 0;
+    for (let j = Math.floor(cy) - 1; j <= Math.floor(cy) + 1; j++) for (let i = Math.floor(cx) - 1; i <= Math.floor(cx) + 1; i++) {
+      cells.point(i, j, cx, cy, hit);
+      const radius = Math.max(wallCells * 2, 0.08 + 0.17 * hit.b);
+      const u = (hit.d * warp) / radius;
+      if (u >= reach) continue;
+      const stand = 0.5 + 0.5 * sn.fbm(hit.px / 3.2 + 4.4, hit.py / 3.2 - 8.6, 2);
+      const present = smoothstep(0.42, 0.5, stand * 0.75 + hit.a * 0.4);
+      if (present <= 0) continue;
+      const size = present * (0.4 + 0.6 * ((hit.a * 7.31 + hit.b * 3.17) % 1));
+      const inner = clamp(1 - wallCells / radius, 0.35, 0.8);
+      const wall = 1 - smoothstep(inner, 1, u);
+      if (pits) {
+        best = Math.max(best, size * wall);
+        continue;
+      }
+      const skirt = 0.1 * (1 - smoothstep(0.85, reach, u));
+      const cap = 0.9 + 0.1 * (1 - u * u) + 0.06 * sn.noise(x / (lam * 0.15), y / (lam * 0.15));
+      best = Math.max(best, size * Math.max(wall * cap, skirt));
+    }
+    if (best <= 0) return null;
+    return [(pits ? -1 : 1) * op.amplitude * best, m];
   });
 }
 
@@ -765,6 +865,7 @@ export function opBBox(op: Op): BBox | null {
   switch (op.type) {
     case 'ridge': return bboxOfPoints(op.points, op.width * 1.6);
     case 'peak': return { minX: op.center[0] - op.radius * 1.3, minY: op.center[1] - op.radius * 1.3, maxX: op.center[0] + op.radius * 1.3, maxY: op.center[1] + op.radius * 1.3 };
+    case 'crater': { const r = (op.radius + op.apronKm) * 1.15; return { minX: op.center[0] - r, minY: op.center[1] - r, maxX: op.center[0] + r, maxY: op.center[1] + r }; }
     case 'plateau': return regionBBox(op.region, 10);
     case 'basin': return regionBBox(op.region, op.falloffKm);
     case 'valley': case 'canyon': return bboxOfPoints(op.points, op.width * 1.6);

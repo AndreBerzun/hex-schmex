@@ -122,3 +122,36 @@ export class Simplex2 {
     return sum / norm;
   }
 }
+
+export interface CellHit { d: number; px: number; py: number; a: number; b: number }
+
+export class Cells2 {
+  constructor(private seed: number) {}
+
+  private hash(ix: number, iy: number, salt: number): number {
+    let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(salt + 1, 2246822519)) ^ this.seed;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+
+  point(i: number, j: number, x: number, y: number, out: CellHit): CellHit {
+    out.px = i + 0.15 + 0.7 * this.hash(i, j, 0);
+    out.py = j + 0.15 + 0.7 * this.hash(i, j, 1);
+    out.d = Math.hypot(x - out.px, y - out.py);
+    out.a = this.hash(i, j, 2);
+    out.b = this.hash(i, j, 3);
+    return out;
+  }
+
+  nearest(x: number, y: number, out: CellHit): CellHit {
+    const cx = Math.floor(x), cy = Math.floor(y);
+    out.d = Infinity;
+    for (let j = cy - 1; j <= cy + 1; j++) for (let i = cx - 1; i <= cx + 1; i++) {
+      const px = i + 0.15 + 0.7 * this.hash(i, j, 0), py = j + 0.15 + 0.7 * this.hash(i, j, 1);
+      const d = Math.hypot(x - px, y - py);
+      if (d < out.d) { out.d = d; out.px = px; out.py = py; out.a = this.hash(i, j, 2); out.b = this.hash(i, j, 3); }
+    }
+    return out;
+  }
+}

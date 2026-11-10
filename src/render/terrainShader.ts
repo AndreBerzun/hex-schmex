@@ -270,8 +270,10 @@ void main() {
 
   // rock on steep slopes, more on convex ridges, banded strata hint
   float rockAmt = smoothstep(0.55, 0.95, g + nMid * 0.12 - lap * 0.6 + nFine * 0.05 + alpine * 0.25);
+  float strataH = h + dot(xz, vec2(21.0, 28.0)) + nBig * 260.0;
+  float beds = 0.5 * sin(strataH / 40.0 + nMid * 3.0) + 0.35 * sin(strataH / 113.0 + nBig * 2.0) + 0.15 * sin(strataH / 17.0);
+  vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.4 * beds * clamp(0.55 + 0.45 * nBig, 0.15, 1.0));
   rockAmt = mix(rockAmt, pB.r, pCov);
-  vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.5 * sin(h / 40.0 + nMid * 3.0));
   rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
   col = mix(col, rcol, rockAmt);
   if (rockAmt > 0.5) id = 2.0;

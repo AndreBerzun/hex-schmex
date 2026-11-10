@@ -95,7 +95,7 @@ Hex ids more than one hex outside the grid are rejected.
 
 `npm run terrain -- ops` prints the full parameter list, generated from the code, so it is always current. In short:
 
-- **Shapes:** `ridge` (a range along a crest line), `peak` (cone, dome, massif or volcano), `plateau`, `hills` (rolling, rugged or dunes), `roughen`.
+- **Shapes:** `ridge` (a range along a crest line), `peak` (cone, dome, massif or volcano), `crater` (raised rim, terraced inner wall, flat floor, optional central peak and breach; absolute elevations), `plateau`, `hills` (rolling, rugged, dunes, or `towers` / `sinkholes`: steep-sided stacks or pits with open ground between them, `wavelengthKm` = spacing), `roughen`.
 - **Cuts:** `valley` (V, or U for glacial), `river`, `canyon`, `basin` (lakes), `coast` (sea along a side or in a region), `escarpment`.
 - **Levelling:** `lowlands` (plains, marsh), `smooth`.
 - **Climate only:** `moisture` (+ forest and swamp, − steppe and desert; it doesn't change height).
@@ -117,4 +117,5 @@ Ops run top to bottom. Broad shapes (coast, lowlands, plateau) go before the fea
 - **Label ops so a GM recognises them** ("Greyspine range", "Saltmere basin").
 - **Refine, don't stack.** When the GM refines something that exists ("higher", "move it east"), `update` that op instead of stacking a new one. Remove ops the GM wants gone.
 - **Keep design intent in `meta.notes`.** Put region names and anything later sessions should respect there (`set <map> meta.notes "…"`). `context` prints the notes and the last edits.
+- **Map edges are mirrored.** Outside the map the renderer mirrors the terrain and fades it into haze. A range whose crest runs along an edge (and whose crest line runs on 30 km past the corners, so it does not taper on the map) reads as continuing beyond it. A closed landform within ~20 km of an edge shows a faint twin in the haze.
 - **Mind the context source.** With a current bake, the CLI shows the eroded ground with water, sculpt and paint. Without one, it shows the op stack *before* erosion: peaks erode down a little in the browser, valleys fill with sediment, and rivers and lakes appear where the water actually goes.

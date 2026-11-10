@@ -55,6 +55,21 @@ export interface PeakOp extends OpCommon {
   shape: PeakShape;
 }
 
+export interface CraterOp extends OpCommon {
+  type: 'crater';
+  center: Vec2;
+  radius: number;
+  rimElevation: number;
+  floorElevation: number;
+  wallKm: number;
+  apronKm: number;
+  terraces: number;
+  centralPeakElevation?: number;
+  breachBearingDeg?: number;
+  breachWidthKm?: number;
+  breachElevation?: number;
+}
+
 export interface PlateauOp extends OpCommon {
   type: 'plateau';
   region: Region;
@@ -124,7 +139,7 @@ export interface HillsOp extends OpCommon {
   region: Region;
   amplitude: number;
   wavelengthKm: number;
-  style: 'rolling' | 'rugged' | 'dunes';
+  style: 'rolling' | 'rugged' | 'dunes' | 'towers' | 'sinkholes';
   falloffKm?: number;
 }
 
@@ -192,7 +207,7 @@ export interface MoistureOp extends OpCommon {
 }
 
 export type Op =
-  | RidgeOp | PeakOp | PlateauOp | BasinOp | ValleyOp | RiverOp | CanyonOp | CoastOp
+  | RidgeOp | PeakOp | CraterOp | PlateauOp | BasinOp | ValleyOp | RiverOp | CanyonOp | CoastOp
   | HillsOp | LowlandsOp | EscarpmentOp | SmoothOp | RoughenOp | StrokeOp | MoistureOp;
 export type OpType = Op['type'];
 
