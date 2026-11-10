@@ -110,29 +110,24 @@ export class Scenery {
   }
 
   private batch(key: string, need: number): Batch {
-    let b = this.batches.get(key);
-    if (b && b.capacity >= need) return b;
+    const old = this.batches.get(key);
+    if (old && old.capacity >= need) return old;
+    if (old) { this.group.remove(old.mesh); old.geo.dispose(); }
     const [kind, variant, lod] = key.split(':');
     const capacity = 2 ** Math.ceil(Math.log2(Math.max(64, need * 1.3)));
     const buf = new THREE.InstancedInterleavedBuffer(new Float32Array(capacity * FLOATS), FLOATS);
     buf.setUsage(THREE.DynamicDrawUsage);
-    let geo: THREE.InstancedBufferGeometry;
-    if (b) {
-      geo = b.geo;
-    } else {
-      const base = this.base(kind as Kind, Number(variant), Number(lod) as Lod);
-      geo = new THREE.InstancedBufferGeometry();
-      for (const name of ['position', 'normal', 'color']) geo.setAttribute(name, base.getAttribute(name));
-      const mesh = new THREE.Mesh(geo, this.material);
-      mesh.frustumCulled = false;
-      this.group.add(mesh);
-      b = { mesh, geo, buf, capacity, count: 0 };
-      this.batches.set(key, b);
-    }
+    const base = this.base(kind as Kind, Number(variant), Number(lod) as Lod);
+    const geo = new THREE.InstancedBufferGeometry();
+    for (const name of ['position', 'normal', 'color']) geo.setAttribute(name, base.getAttribute(name));
     geo.setAttribute('aA', new THREE.InterleavedBufferAttribute(buf, 4, 0));
     geo.setAttribute('aB', new THREE.InterleavedBufferAttribute(buf, 4, 4));
     geo.setAttribute('aC', new THREE.InterleavedBufferAttribute(buf, 4, 8));
-    b.buf = buf; b.capacity = capacity;
+    const mesh = new THREE.Mesh(geo, this.material);
+    mesh.frustumCulled = false;
+    this.group.add(mesh);
+    const b = { mesh, geo, buf, capacity, count: 0 };
+    this.batches.set(key, b);
     return b;
   }
 

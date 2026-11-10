@@ -21,6 +21,8 @@ This is **Terrain Prompter**, a browser terrain generator for a Shadowdark westm
 - `npm run perf`: bake timeline, frame gaps and GPU ms per camera preset
 - `npm run check:bake`: real-browser check that edits and scripted bakes run erosion to the end
 - `npm run check:layers`: real-browser check that sculpt, paint and brush strokes skip erosion and that a reopened map uses its saved bake
+- `npm run check:scenery`: real-browser check that the middle layer redraws the same after a cache rebuild, that a march routes round a coral wall, and that idle draws nothing
+- `npm run gallery -- near:0,mid:1,far:2`: every middle-layer object in a row at a forced detail level, into `shots/_tmp/gallery/`
 - `npm run terrain -- <command>`: look at and edit map files from the terminal (replaces the planned `npm run prompt`; see `TERRAIN_AGENT.md`)
 
 ## Editing terrain

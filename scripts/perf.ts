@@ -11,6 +11,7 @@ const opt = (name: string, def: string) => {
   return v;
 };
 const [W, H] = opt('size', '1280x720').split('x').map(Number);
+const extra = opt('params', '');
 const worlds = args.length ? args : readdirSync('worlds').filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));
 
 const FRAME_RECORDER = `
@@ -41,6 +42,8 @@ const VIEW_COSTS = `(async () => {
   const out = {};
   for (const view of tp.viewNames) {
     tp.setView(view);
+    tp.renderFrames(2);
+    app.running = false;
     const samples = [];
     for (let i = 0; i < 12; i++) {
       if (!app.settings.mapMode) app.controls.update();
@@ -115,7 +118,7 @@ const page = await BrowserPage.launch({ width: W, height: H });
 await page.addInitScript(FRAME_RECORDER);
 try {
   for (const world of worlds) {
-    await page.navigate(`${url}?shot=1&world=${world}`);
+    await page.navigate(`${url}?shot=1&world=${world}${extra ? `&${extra}` : ''}`);
     await page.waitFor('window.__tp');
     await page.waitFor("window.__tp.app.stage === 'ready' && !window.__tp.app.derived.fullPending");
     await page.evaluate('new Promise((r) => setTimeout(r, 500))');

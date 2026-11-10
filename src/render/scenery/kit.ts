@@ -20,7 +20,7 @@ const P = {
   goldDark: [0.5, 0.4, 0.2] as C,
   wood: [0.42, 0.31, 0.21] as C,
   woodGrey: [0.5, 0.46, 0.4] as C,
-  ochre: [0.8, 0.56, 0.26] as C,
+  ochre: [0.72, 0.54, 0.32] as C,
   violet: [0.5, 0.3, 0.52] as C,
   orange: [0.9, 0.4, 0.2] as C,
   sandstone: [0.62, 0.5, 0.42] as C,
@@ -325,13 +325,13 @@ function reedBed(b: MeshBuilder, rng: () => number, lod: Lod, variant: number) {
   const g = variant === 1 ? mixC(P.gold, [0.6, 0.58, 0.32], 0.45) : variant === 2 ? mixC(P.gold, P.ochre, 0.4) : P.gold;
   const soil: C = [0.2, 0.17, 0.13];
   const R = 15.4;
-  b.prism([0, 0, 0], R, lod === 2 ? 6 : 12, [{ y: -0.5, s: 1.03 }, { y: 0.25, s: 1 }, { y: 0.4, s: 0.9 }], (_p, _n, t) => mixC(soil, mixC(P.goldDark, g, 0.3), t), { jitter: 0.35, seed: variant * 3 + 1, stretch: [1, 0.75] });
+  b.prism([0, 0, 0], R, lod === 2 ? 6 : 12, [{ y: -0.5, s: 1.03 }, { y: 0.25, s: 1 }, { y: 0.4, s: 0.9 }], (_p, _n, t) => mixC(soil, mixC(P.goldDark, g, 0.55), Math.min(1, t * 1.6)), { jitter: 0.35, seed: variant * 3 + 1, stretch: [1, 0.75] });
   const n = lod === 0 ? 70 : lod === 1 ? 14 : 0;
   for (let k = 0; k < n; k++) {
     const a = rng() * 6.28, d = Math.sqrt(rng()) * R * 0.88;
     const x = Math.cos(a) * d, z = Math.sin(a) * d * 0.75;
     const h = 0.6 + rng() * 0.6, w = lod === 0 ? 0.55 + rng() * 0.5 : 1.4;
-    b.prism([x, 0.3, z], w, lod === 0 ? 4 : 3, [{ y: 0, s: 1 }, { y: h * 0.6, s: 0.75 }, { y: h, s: 0.08 }], (_p, _n, t) => mixC(P.goldDark, g, 0.3 + t * 0.7), { jitter: 0.3, seed: k, yaw: rng() * 3 });
+    b.prism([x, 0.3, z], w, lod === 0 ? 4 : 3, [{ y: 0, s: 1 }, { y: h * 0.6, s: 0.75 }, { y: h, s: 0.08 }], (_p, _n, t) => mixC(P.goldDark, g, 0.45 + t * 0.4), { jitter: 0.3, seed: k, yaw: rng() * 3 });
   }
 }
 

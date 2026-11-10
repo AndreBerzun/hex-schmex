@@ -2,18 +2,27 @@
 
 ## Where things stand (2026-11-10)
 
-The dramatic Forgotten Shore (hex-schmex#5) is merged on top of the sculpt and paint
-layers (hex-schmex#6). `FORGOTTEN_SHORE.md` describes that map: the Dark City at the
-centre, the Hollow Mountains as a 10–14 km wall along the north edge, the Dark Sea in
-a 44 km crater, towers, stacks, buttes and sinkholes in the flat biomes.
+The middle layer has a first pass (Step 1 below, branch `feat/middle-layer`): a seeded
+kit of 30 procedural objects across the Shore biomes, placed by reading the ground,
+streamed in three size tiers with simplified far shapes, with collision so the march
+walks round coral walls and large objects. The landmark tier gained the Bone Ridge
+leviathan skeleton as a feature kind; the GM has not placed it yet. `PROGRESS.md` has
+the numbers and an honest list of what still looks off.
 
-A new geography is agreed but deliberately not built yet (Step 2). The GM decided to
-build the middle layer first: it is the biggest gap at eye level, and its kits belong
-to biomes, not to places, so they carry over when the map changes.
+What the middle layer still needs, in the GM's order of choice:
+- **The look pass.** Objects are flat-coloured low-poly shapes on a very dark ashen
+  ground; the references are bright, sunlit and painted. Objects were built as clear
+  silhouettes for exactly this pass; the ground palette is part of it.
+- **Placing Bone Ridge** (`npm run terrain -- feature …`, see `TERRAIN_AGENT.md`).
+- **Crater shallows and sea coast.** Plateaus, sea stacks and arches are in the kit and
+  placed by water depth and steep shores, but the current map has almost no shallow
+  water by a steep coast; the new geography (Step 2) brings both.
+- Objects cast no shadows on the ground yet; the leviathan has no collision.
 
-The previous city-centred trial (painted biome districts, reef walls, scenery v2,
-relief debug view) is parked on the local branch `archive/codex-shore-wip`. It was
-rejected visually; take pieces from it only deliberately.
+The new geography is agreed but deliberately not built yet (Step 2). The previous
+city-centred trial (painted biome districts, reef walls, scenery v2, relief debug view)
+is parked on the local branch `archive/codex-shore-wip`. Its streaming idea was reused,
+its code and look were not.
 
 ## Look and references
 
@@ -28,7 +37,7 @@ rejected visually; take pieces from it only deliberately.
   instruction. Compare a screenshot only with references of the same biome and the same
   distance (from above, from the castle towers, eye level).
 
-## Step 1: the middle layer (next session)
+## Step 1: the middle layer (first pass built)
 
 **Why.** The terrain covers landforms from a few hundred metres to tens of km
 (samples ~60–85 m apart). Nothing on master stands between the ground texture and

@@ -508,6 +508,7 @@ export class App {
     this.world = world;
     this.refreshPaint();
     this.refreshHover();
+    if (this.stage === 'ready') this.refreshScenery();
   }
 
   private refreshHover() {

@@ -65,6 +65,34 @@ colossi, the one on the northern downs and the one in the ash are hidden by terr
 ones on the southern road and under the Hollow Spur stand 70–80 m above the line of sight
 (of their 200 m) and rely on distance and haze.
 
+## The middle layer
+
+Between the ground and the landforms stands a layer of objects 1–150 m tall, grown from the
+ground at load time and the same on every visit. What stands where follows the biome, the
+slope, crests, the foot of steep faces, channel banks and water depth; it never reads map
+coordinates. Objects stand in groves and fields with clearings between, and thin out over the
+last few hundred metres of a biome, so biomes fade into each other on foot.
+
+| Biome | What stands there |
+|---|---|
+| crimson coral | coral trees with wide red crowns in stands, fan corals, brain-coral mounds, knee-high coral clumps, and a labyrinth of coral walls 5–12 m high with passages and blind alleys |
+| tidal flats and channels | wreck hulls, mossy and barnacled boulders, paving slabs along the channels, rows of rotten posts, the odd coral tree |
+| silt mire | golden reed islands, tube-sponge chimneys, dead trunks along the banks, ribs in the silt |
+| mudflats (tidal flats and mire) | fields of horn-shaped spires up to 100 m, leaning towers |
+| shallow water | flat coral plateaus standing in it; sea stacks and arches off steep shores |
+| black earth | tors on the crests, golden grass, boulders at the foot of slopes, a lone dead coral tree, scattered bones |
+| ash | half-buried giant spiral shells, bleached coral skeletons, giant skulls, buttes |
+| Hollow Mountains and rock | boulder fields and fallen blocks at the foot of the faces, rock needles |
+| anywhere, rare | half-collapsed towers and ruined walls |
+
+Coral walls, boulders, tors and the larger objects block the march; the party walks round
+them. Small objects fade out at a distance, large ones (spires, towers, buttes, sea stacks,
+plateaus) stay visible for up to 20 km as simplified shapes.
+
+The landmark tier is placed by the GM through the terrain CLI (`feature`): the Crimson
+Spire, the headless colossi and the Bone Ridge leviathan skeleton (`leviathan-skeleton`,
+not placed yet).
+
 ## Tide
 
 Day sea at 0 m. At night the tide rises to +120 m across the whole region, flooding the
@@ -89,5 +117,4 @@ Castle towers: `castle-to-spire`, `castle-to-mountains`, `castle-to-west`,
   erosion detail of the reference images.
 - The mirrored surround shows a faint twin of the crater in the haze beyond the east and
   south edges.
-- At eye level the lowlands still lack objects 5–200 m tall (the middle layer, see
-  `NEXT_STEPS.md`).
+- The middle layer has simple, flat-coloured shapes; the look pass is still to come (`NEXT_STEPS.md`).

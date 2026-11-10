@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current focus (2026-11-10): **the middle layer** on the Forgotten Shore, objects 2–200 m tall per biome, built against the GM's Midjourney references. A new Shore geography is agreed and comes after it. Both are in [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
+Current focus (2026-11-10): **the middle layer** on the Forgotten Shore has a first pass (objects 1–150 m tall per biome, see below). Its look pass, then the agreed new Shore geography, are next; both are in [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
 
 | # | State | Notes |
 |---|---|---|
@@ -347,3 +347,104 @@ What looks off:
 - A large raise across a valley dams it, and the water pools behind it. That is physically right but easy to do by accident.
 - Once in four runs of `check:layers`, a terminal write right after the browser's own save to the same map file did not reach the page. That is the live file link's watcher, not the layers; not fixed here.
 
+
+## Middle layer, first pass (2026-11-10)
+
+From the handover in `NEXT_STEPS.md`. The Shore had nothing between the ground texture and
+the landforms; at eye level every biome was an empty surface.
+
+**What stands where.** 30 procedural object kinds, all generated locally, each in three
+detail levels built from the same skeleton so the silhouette holds when it switches:
+
+- crimson coral: coral trees with wide crowns in stands, fan corals, brain mounds, knee-high
+  coral clumps, a labyrinth of coral walls 5–12 m high
+- tidal flats: wreck hulls, mossy and barnacled boulders, paving slabs along channels, rows
+  of rotten posts
+- silt mire: golden reed islands, tube-sponge chimneys, dead trunks, ribs in the silt
+- tidal flats and mire (the mudflats kit): horn spires up to 100 m, leaning towers
+- shallow water: coral plateaus; off steep shores, sea stacks and arches
+- black earth: tors on crests, golden grass, boulders at slope feet, a lone dead coral tree, bones
+- ash: half-buried spiral shells, bleached coral skeletons, giant skulls, buttes
+- rock: boulder fields and fallen blocks at the foot of faces, rock needles
+- anywhere, rare: half-collapsed towers and ruined walls
+
+**Placement reads the ground, never coordinates.** Each cell reads a small lattice of spots
+for biome (the same classifier as the shader and the CLI), slope, crests, the foot of steep
+faces, channel banks, water depth and steep shores. Seeded noise fields make stands and
+clearings. A biome's share of the surrounding ~0.9 km thins objects over the last few
+hundred metres of a biome. Coral walls follow contour lines of one global field, so the
+maze continues across cells and has passages and blind alleys; gaps in a second field open
+it up. Objects keep clear of the city, the Spire's footing, the Soul Tree and the colossi.
+Cells are seeded by world seed and cell; generation order, camera and quality do not change
+them. Nothing is stored in the map file; ground edits (sculpt, paint) re-place them.
+
+**Streaming.** Three tiers: near (80 m cells, up to 420 m), mid (320 m cells, up to 3.2 km),
+far (1.28 km cells, up to 20 km). Each object's reach also depends on its projected size, so
+small things stop at 6 px instead of speckling the distance, and big ones (spires, towers,
+buttes, sea stacks, plateaus) stay as simplified shapes to 20 km. Objects fade in with a
+screen-door dither instead of popping. One instanced draw per kind, variant and detail
+level; frustum culling per cell and per object; a cell cache with fixed limits. Generation
+gets 4 ms per frame; scripted shots generate everything at once. Objects use the terrain's
+sun, sky light, heightfield shadows, Spire shadow and haze; the tide floods them through the
+water surface. Off above ~250 m / 3 km / 15 km above ground per tier.
+
+**Collision.** Coral walls, boulders, tors, mounds, wrecks, sponges and the large objects
+block the march. Blockers are rasterised into a 2 m mask per cell, and the march plans an A*
+route round them in legs of up to 0.9 km, re-planning when it runs into something.
+
+**Landmark tier.** New feature kind `leviathan-skeleton` (Bone Ridge): vertebral spine raised
+over arched ribs, skull and tail, sized by half-length and rib height. Not placed; the GM
+chooses where. The terrain CLI gained `features` and `feature` (add, change, remove by id,
+`at` takes hex ids like ops).
+
+**Tools.** `npm run check:scenery` (real browser: identical redraw after a cache rebuild,
+the scenery draws in coral, a march routes round a coral wall and arrives, shader and GL
+health, zero idle redraws). `npm run gallery` renders every kind at a forced detail level.
+`npm run probe:scenery` prints the ground reading and object counts per saved view.
+`tests/scenery.test.ts`: determinism, kits stay in their biome, edge thinning, water rules,
+landmark clearance, wall-crossing route.
+
+**Performance** (Intel UHD, 1280×720, GPU ms per frame, scenery off → on):
+
+| View | Off | On | Triangles on |
+|---|---:|---:|---:|
+| coral-to-spire | 9.5 | 14.6 | 351k |
+| coral-lowlands | 11.7 | 11.6 | 309k |
+| mire-towers | 12.2 | 14.1 | 297k |
+| city-approach | 12.2 | 13.4 | 279k |
+| ash-sea | 11.1 | 17.6 | 224k |
+| silt-mires | 12.1 | 10.3 | 245k |
+| tidal-flats | 12.7 | 12.5 | 215k |
+| black-downs | 11.6 | 14.6 | 237k |
+| castle-to-spire | 15.7 | 11.7 | 210k |
+| hex-closeup | 19.0 | 19.9 | 221k |
+
+Every Shore view stays at or under ~20 ms; orbit 30 drawn frames/s either way; zero idle
+frames. Run-to-run noise is about ±3 ms (several views are faster "on"). The densest coral
+view adds ~135k triangles and ~5 ms. Scenery updates take about 1 ms when the camera moves.
+
+**Perf harness fix.** `npm run perf` timed each view right after `setView` without a frame,
+so the near clip plane stayed where the previous view left it (kilometres at the region
+view) and close objects were clipped from the measurement. It now settles each view with
+two frames first. This also changes the terrain-only numbers slightly; older tables were
+measured the old way.
+
+**What looks off (honest).**
+- The look: flat-coloured low-poly shapes, saturated, on a near-black ashen ground. Next to
+  the references (bright sand, painted light) the scenes read as toy pieces on asphalt. The
+  silhouettes are right for most kinds; colour, ground palette and style are the look pass.
+- Coral: trees and stands read; crowns are faceted lumps, not finger clusters. The walls
+  read as walls and the maze works, but they are smooth red sheets with spikes on top.
+- Silt mire: reed islands are flat golden patches; tube sponges read as posts at a distance.
+- Ash and downs: sparse by design, but at mid distance only the larger pieces register;
+  buttes are plain stepped mesas.
+- Coral plateaus, sea stacks and arches barely appear: the current map has almost no shallow
+  water by a steep shore. They wait for the new geography's crater shallows and west cliffs.
+- Objects cast no shadows on the ground; contact with the ground is only a darker base.
+- The leviathan has no collision yet.
+
+**Checks.** 72 unit tests, both builds, `check:scenery`, `check:shore`, `check:player`,
+`check:flight`, `check:bake` pass. `check:layers` fails at "a paint edit from the terminal
+shows up live" in this worktree, and fails identically on unchanged master in a sibling
+worktree under `.claude/worktrees/`: an environment problem with the live file link's watcher
+there, not this change. Worth one run from the main checkout before merging.

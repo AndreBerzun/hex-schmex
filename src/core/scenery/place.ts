@@ -73,7 +73,7 @@ const RULES: Record<Tier, Rule[]> = {
       weight: (s) => s.zone === 'coral' ? 0.28 * core(s) * gentle(s, 0.6) : by(s, { tidal: 0.04 }) },
     { kind: 'brain-mound', spacingKm: 0.035, sizeM: [1.5, 5], sink: 0.3, tilt: 0.6,
       weight: (s) => s.zone === 'coral' ? 0.12 * core(s) : by(s, { tidal: 0.06 }) },
-    { kind: 'reed-bed', spacingKm: 0.045, sizeM: [0.7, 1.4], tilt: 1, sink: 0.35, water: 'shallow',
+    { kind: 'reed-bed', spacingKm: 0.045, sizeM: [0.7, 1.4], tilt: 1, sink: -0.08, water: 'shallow',
       weight: (s) => (s.zone === 'mire' ? 0.5 : s.zone === 'water' && s.depth < 1 ? 0.3 : by(s, { tidal: 0.08 * s.bank })) * gentle(s, 0.1) },
   ],
   far: [
