@@ -64,11 +64,20 @@ npm run terrain -- sculpt <map> '{"tool":"raise","points":["0405","0607"],"radiu
 npm run terrain -- paint <map> '{"biome":"crimson coral","region":{"hex":"0607","radius":1},"falloffKm":3}' --label "…"
 npm run terrain -- layers <map>                                   # sculpt and paint edits with ids
 npm run terrain -- update <map> <edit-id> '{"amountM":500}'       # update/remove/show take edit ids too
+
+npm run terrain -- features <map>                                 # landmarks with position, size, heading
+npm run terrain -- feature <map> '{"id":"bone-ridge","kind":"leviathan-skeleton","at":"0907","name":"Bone Ridge","radiusKm":0.45,"heightM":120,"rotationDeg":30}' --label "Bone Ridge in 0907"
+npm run terrain -- feature <map> '{"id":"bone-ridge","rotationDeg":60}' --label "…"   # change an existing landmark by id
+npm run terrain -- feature <map> '{"id":"bone-ridge"}' --remove --label "…"
 ```
 
 **Sculpt** (`tool`): `raise` / `lower` (by `amountM`), `flatten` (to the absolute `targetM`), `smooth` (blur over `scaleKm`, default 1). **Paint** (`biome`): `open`, `forest`, `marsh`, `desert`, `badlands`, `rock`, `snow`, `tidal`, or `erase` to give the ground back to the climate rules; Shore names work too (`crimson coral`, `silt mire`, `ash`, `ash ridges`, `black earth`, `mineral rock`, `tidal flats`). Painted open ground still shows steppe or grass by moisture.
 
 Both take the area as `hexes`, a `region` (same forms as ops), or a brush path: `points` plus `radiusKm`. `falloffKm` softens the edge (default 1.5 km for areas, half the radius for paths); `strength` (0–1) blends. Edits apply in list order, so a later one wins where they overlap. Hex-shaped paint with a short falloff reads as a pasted hexagon; give paint 2–3 km of falloff, or a path, unless a hard edge is the point.
+
+**Landmarks** (`features`): `walled-city`, `crimson-spire`, `cursed-tree`, `walking-statue` (the headless colossi) and `leviathan-skeleton` (Bone Ridge: `radiusKm` is half the length, `heightM` the rib height, `rotationDeg` the spine's heading). `at` takes the same point forms as ops. The GM places landmarks; ask where before adding one.
+
+**Middle layer.** Objects 1–150 m tall (coral trees, walls and fans, wrecks, boulders, sponges, horn spires, shells, buttes, sea stacks, ruins) are not in the map file. They grow from the ground at load time: biome, slope, crests, the foot of steep faces, channel banks and water depth decide what stands where, seeded by the world seed. Edits to the ground move them with it: paint coral and coral trees grow there; raise a ridge and tors follow its crest. There is nothing to place by hand, and no op or setting tunes them.
 
 `<map>` is a name in `maps/` (`my-marches` means `maps/my-marches.json`) or a path. A command whose calls fail writes nothing and prints why; add `--partial` to keep the calls that worked. Every write keeps a snapshot in `maps/.history/` (last 50).
 

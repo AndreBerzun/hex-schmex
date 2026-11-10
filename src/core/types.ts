@@ -265,6 +265,7 @@ export interface WorldEnvironment {
   hazeDensity?: number;
   /** Supernatural tide; without a centre it covers the whole region. Does not rebake erosion. */
   tide?: { center?: Vec2; radiusKm?: number; lowM: number; highM: number };
+  scenery?: boolean;
 }
 
 /** A saved camera view. Points accept hex ids / compass words / km like op params. */

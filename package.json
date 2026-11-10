@@ -17,7 +17,10 @@
     "check:shore": "tsx scripts/shore-check.ts",
     "check:bake": "tsx scripts/bake-check.ts",
     "check:layers": "tsx scripts/layers-check.ts",
-    "terrain": "tsx scripts/terrain.ts"
+    "terrain": "tsx scripts/terrain.ts",
+    "gallery": "tsx scripts/gallery.ts",
+    "check:scenery": "tsx scripts/scenery-check.ts",
+    "probe:scenery": "tsx scripts/scenery-probe.ts"
   },
   "dependencies": {
     "three": "0.170.0"

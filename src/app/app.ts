@@ -18,6 +18,10 @@ import { bakeNoiseLut } from '../render/noiseLut';
 import { bakeCanopyLut } from '../render/canopyLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
+import { Scenery } from '../render/scenery';
+import { Ground } from '../core/scenery/ground';
+import { ScenerySource, sceneryEnabled } from '../core/scenery/place';
+import { SceneryCells } from '../core/scenery/store';
 import { tideAt, tideLevel } from '../core/environment';
 import { classifySurface } from '../core/surfaces';
 import { applySculpt, applySculptEdit, applyPaintEdit, editPixelBox, foundationKey, packPaint, paintAt, rasterPaint, type Foundation, type PaintRaster } from '../core/layers';
@@ -90,6 +94,10 @@ export class App {
   readonly skirt: Skirt;
   readonly labels: HexLabels;
   readonly landmarks: Landmarks;
+  readonly scenery: Scenery;
+  sceneryCells: SceneryCells | null = null;
+  sceneryBudgetMs = 4;
+  sceneryOn = true;
   private pendingView?: string;
   readonly uniforms: Record<string, THREE.IUniform>;
   readonly workers = new WorkerClient();
@@ -239,6 +247,8 @@ export class App {
     this.labels = new HexLabels();
     this.landmarks = new Landmarks(this.uniforms);
     this.scene.add(this.landmarks.group);
+    this.scenery = new Scenery(this.uniforms);
+    this.scene.add(this.scenery.group);
     this.scene.add(this.sky.mesh, this.terrain.mesh, this.labels.mesh);
     this.applySettings();
     this.installPointer(canvas);
@@ -498,6 +508,7 @@ export class App {
     this.world = world;
     this.refreshPaint();
     this.refreshHover();
+    if (this.stage === 'ready') this.refreshScenery();
   }
 
   private refreshHover() {
@@ -696,6 +707,7 @@ export class App {
     // river threshold: streams draining > ~120 km² at default; scale is in log10 km²
     this.uniforms.uRiverMinLog.value = 2.1;
     this.refreshLandmarks();
+    this.refreshScenery();
     this.setStage('ready', '');
     if (this.pendingView) {
       const v = this.world.meta.views?.[this.pendingView];
@@ -724,6 +736,41 @@ export class App {
       (this.uniforms.uSpire.value as THREE.Vector4).set(spire.pos[0], spire.pos[1], this.heightAt(...spire.pos) / 1000, (spire.heightM ?? 1800) / 1000);
       this.uniforms.uSpireRadius.value = spire.radiusKm ?? 0.22;
     }
+  }
+
+  refreshScenery() {
+    if (!sceneryEnabled(this.world) || !this.hydro) {
+      this.sceneryCells = null;
+      this.scenery.setCells(null, this.worldW, this.worldH);
+      return;
+    }
+    const ground = new Ground({
+      height: (x, z) => this.heightAt(x, z),
+      surface: (x, z, h, slope) => this.classify(x, z, h, slope),
+      water: (x, z) => this.restingWater(x, z),
+    }, this.world, this.worldW, this.worldH);
+    this.sceneryCells = new SceneryCells(new ScenerySource(ground, this.world.seed));
+    this.scenery.setCells(this.sceneryCells, this.worldW, this.worldH);
+    this.invalidate();
+  }
+
+  restingWater(x: number, z: number): { kind: number; level: number } {
+    const hy = this.hydro;
+    if (!hy) return { kind: 0, level: 0 };
+    const i = Math.min(hy.nx - 1, Math.max(0, Math.floor(x / hy.kmPerPx))), j = Math.min(hy.ny - 1, Math.max(0, Math.floor(z / hy.kmPerPx)));
+    const k = j * hy.nx + i;
+    const kind = hy.waterKind[k];
+    return kind === 1 || kind === 2 ? { kind, level: hy.waterLevel[k] } : { kind: 0, level: 0 };
+  }
+
+  sceneryReport() {
+    const c = this.camera.position;
+    const spot = this.sceneryCells?.source.ground.describe(c.x, c.z);
+    return { spot, stats: { ...this.scenery.stats }, kinds: this.scenery.kindCounts() };
+  }
+
+  sceneryBlocked(x: number, z: number): boolean {
+    return !!this.sceneryCells && this.sceneryOn && this.sceneryCells.blocked(x, z);
   }
 
   // ------------------------------------------------------------------ sampling / picking
@@ -1068,6 +1115,8 @@ export class App {
     else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * this.terrain.rangeK;
     this.terrain.update(cam, !this.settings.mapMode, this.renderer.domElement.width);
     this.sky.update(cam);
+    const aglM = cam.position.y / (0.001 * this.settings.exag) - this.surfaceAt(cam.position.x, cam.position.z);
+    if (this.scenery.update(this.camera, aglM, this.renderer.domElement.height, this.sceneryBudgetMs, this.settings.mapMode || !this.sceneryOn)) this.invalidate();
     this.skirt.mesh.visible = !this.settings.mapMode;
     this.renderer.setRenderTarget(null);
     this.timer.begin();
