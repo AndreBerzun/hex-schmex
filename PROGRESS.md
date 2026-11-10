@@ -445,6 +445,7 @@ measured the old way.
 
 **Checks.** 72 unit tests, both builds, `check:scenery`, `check:shore`, `check:player`,
 `check:flight`, `check:bake` pass. `check:layers` fails at "a paint edit from the terminal
-shows up live" in this worktree, and fails identically on unchanged master in a sibling
-worktree under `.claude/worktrees/`: an environment problem with the live file link's watcher
-there, not this change. Worth one run from the main checkout before merging.
+shows up live" (the browser never sees the terminal's write). Unchanged master fails at the
+same step in fresh worktrees, inside and outside `.claude/`, so this change did not cause
+it; the live file link's watcher misses the write in a fresh worktree (symlinked
+`node_modules`, or the timing noted under "Direct edit layers"). Not investigated further.
