@@ -1,5 +1,9 @@
 # Next steps
 
+> 2026-11-11: The first middle-layer pass is on master (PR #7). See
+> [FPS_IMPROVEMENT_PLAN.md](FPS_IMPROVEMENT_PLAN.md) for the incremental
+> FPS-quality handoff.
+
 ## Where things stand (2026-11-10)
 
 The middle layer has a first pass (Step 1 below, branch `feat/middle-layer`): a seeded
