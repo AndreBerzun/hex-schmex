@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current focus: **Forgotten Shore spatial prototype**, at the GM’s request (2026-11-07). Choose scale and expedition geography before resuming the old editor roadmap. M1–M5 remain done; M6 brushes are deferred; M4 visual gaps remain.
+Current focus (2026-11-10): **the middle layer** on the Forgotten Shore, objects 2–200 m tall per biome, built against the GM's Midjourney references. A new Shore geography is agreed and comes after it. Both are in [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
 
 | # | State | Notes |
 |---|---|---|

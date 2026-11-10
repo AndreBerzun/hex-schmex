@@ -1,49 +1,95 @@
 # Next steps
 
-## Where things stand (2026-11-09)
+## Where things stand (2026-11-10)
 
-The Forgotten Shore has its new geography: seven biomes after the Shadowdark hex terrain
-table (rulebook p. 132), the Dark City at the centre, erosion on, biomes following from
-the landforms. `FORGOTTEN_SHORE.md` describes it. Since the dramatic-Shore pass the
-Hollow Mountains are a 10–14 km wall along (and beyond) the north edge, the Dark Sea sits
-in a 44 km crater with a 2 km rim, and the flat biomes carry towers, stacks, buttes and
-sinkholes. Those read as steep mesas; slender pinnacles, sea arches and needles belong to
-the middle layer below.
+The dramatic Forgotten Shore (hex-schmex#5) is merged on top of the sculpt and paint
+layers (hex-schmex#6). `FORGOTTEN_SHORE.md` describes that map: the Dark City at the
+centre, the Hollow Mountains as a 10–14 km wall along the north edge, the Dark Sea in
+a 44 km crater, towers, stacks, buttes and sinkholes in the flat biomes.
+
+A new geography is agreed but deliberately not built yet (Step 2). The GM decided to
+build the middle layer first: it is the biggest gap at eye level, and its kits belong
+to biomes, not to places, so they carry over when the map changes.
 
 The previous city-centred trial (painted biome districts, reef walls, scenery v2,
 relief debug view) is parked on the local branch `archive/codex-shore-wip`. It was
 rejected visually; take pieces from it only deliberately.
 
-## Step 2: the middle layer (next session)
+## Look and references
+
+- Lighter than the Shadow Slave novel: weathered, sunlit, adventurous; not grim.
+- Realistic rendering is not required. Painted is welcome; pixel art is fine if it buys
+  more detail in the first-person view. The style is undecided and comes last, as a
+  screen pass over the same world. Build objects as clear silhouettes with simple
+  colour that survive any of those passes; don't invest in fine texture.
+- The GM's Midjourney references are in `reference/midjourney/` (views from above in
+  `aerial/`). They are untracked; ask the GM before committing them, the repo is
+  public. Each file is named after what the GM liked about it: read the name as the
+  instruction. Compare a screenshot only with references of the same biome and the same
+  distance (from above, from the castle towers, eye level).
+
+## Step 1: the middle layer (next session)
 
 **Why.** The terrain covers landforms from a few hundred metres to tens of km
-(samples ~60 m apart), and the debris layer covers pebbles and knee-high coral.
-Nothing in between: no objects 5–200 m tall with a recognisable shape. At eye
-level those are what block the view, stand against the sky and carry known
-sizes, so they sell distance. Without them every biome reads as an empty surface.
+(samples ~60–85 m apart). Nothing on master stands between the ground texture and
+those landforms: no objects 2–200 m tall with a recognisable shape. At eye level
+those are what block the view, stand against the sky and carry known sizes, so they
+sell distance. Without them every biome reads as an empty surface.
 
-**What.** A small kit of procedural objects per biome, with distinct silhouettes:
+**What.** A small kit of procedural objects per biome, with distinct silhouettes.
+Biome names are the Shore names the readout uses today; the right column is the
+reference file in `reference/midjourney/`.
 
-| Biome | Middle-layer objects |
-|---|---|
-| Crimson labyrinth | coral trees with real branching, fan corals, layered coral blades and walls with blind passages, brain-coral mounds |
-| Sea of ash | grey dead-coral skeletons, half-buried giant spiral shells, ash drifts banked against rock |
-| Black downs | tors and outcrops, lone dead coral trees, scattered bones |
-| Silt mires | tube-sponge chimneys, ribs and spines sticking out of the silt |
-| Tidal channels | sea stacks, arches, wreck hulls, barnacled boulders |
-| Hollow Mountains | boulder fields, rock needles, fallen blocks |
-| Dark Sea shore | stacks and islets |
+| Biome | Middle-layer objects | References |
+|---|---|---|
+| crimson coral | coral trees with real branching and wide crowns, fan corals, coral blades and walls with blind passages, brain-coral mounds | `coral_trees .png`, `coral_trees_2`, `coral_trees_3_and_views`, `more_rock_formations` |
+| tidal flats and channels | wreck hulls, barnacled boulders, stone paving slabs in the channels, rotten posts | `blocky_rock_formations`, `atmospheric_cloud_formations`, `aerial/coral-and-sand-cut-by-channels` |
+| silt mire | golden marsh islands between channels, tube-sponge chimneys, ribs and spines in the silt, dead trunks | `sumpf`, `obelisks` |
+| mudflats before the crater | horn-shaped spires, leaning towers | `wetland_approaching the crater` |
+| crater shallows | flat coral plateaus standing in clear shallow water (not floating) | `floating_island` |
+| black earth | tors and outcrops, golden grass, a lone dead coral tree, scattered bones | `overgrown ruins` |
+| ash and the dry east | half-buried giant spiral shells, bleached coral skeletons, skulls and bones, small buttes | `endless dunes of sand in the distance towards the east`, `eastern edge of the map, places that never get wet` |
+| Hollow Mountains | boulder fields, rock needles, fallen blocks | `make_this_coral_ravines` (its rock shapes) |
+| sea coast | sea stacks, arches, broken cliff blocks | `ocean cliffs say on the west`, `cool_castles_on_cliffs` |
+| any biome, rare | half-collapsed towers and walls | `interesting_half_collapsed_ruins_`, `overgrown ruins`, `cool_castles` |
 
 Plus a landmark tier visible from kilometres away (Bone Ridge leviathan skeleton,
-the headless colossi), placed by the GM.
+the headless colossi, the Crimson Spire), placed by the GM.
 
 **Placement matters as much as the objects.** Stands and groves with clearings
 instead of an even scatter; objects follow ridgelines, slope breaks and channel
-banks; density thins toward biome edges. Seeded and deterministic as today.
+banks; density thins toward biome edges, so biomes fade into each other on foot.
+Placement reads the ground (biome, slope, height, wetness, water), never map
+coordinates. Seeded and deterministic.
 
 **Technical notes.**
-- Reuse the existing scenery streaming (seeded cells, instancing, size-based LOD).
+- Master has no scenery streaming. `archive/codex-shore-wip` has one (seeded cells,
+  instancing, size-based LOD, `src/core/scenery.ts`, `src/render/scenery.ts`,
+  `SCENERY.md`); its mechanics may be worth taking, its look was rejected.
 - Big objects need a cheap far version so their silhouette is visible from
   kilometres, not popping in at a fixed radius.
-- Labyrinth walls need collision so travel follows the passages.
-- Budget on the Intel UHD with `npm run perf`; check eye-level shots per biome.
+- Coral walls need collision so travel follows the passages.
+- Budget on the Intel UHD with `npm run perf`; check the eye-level saved view of
+  every biome against its references.
+
+## Step 2: the new geography (after the middle layer)
+
+Sketch with the GM's references pinned: https://claude.ai/artifact/2AJ7hCm7YPfzdTSnswWiLy
+
+- The city sits at the foot of the Hollow Mountains, north centre. Exploration runs in
+  a half ring: west to the cliffs, south down into the wet, east into the dry.
+- The lower, the wetter: black downs, coral ravines just below the city, coral and sand
+  channels, marsh, mudflats with spires, then the crater sea.
+- The crater has no raised rim: the land runs down to cliffs that drop into it. Its
+  south side is broken open onto an open ocean. Coral plateaus stand in its shallows.
+- The night tide comes in from the ocean through that breach and climbs up from the
+  crater; only ground connected to the sea floods.
+- The whole west coast is broken cliffs with sea stacks and arches.
+- The east dries out toward the edge: grey ash (the old Sea of Ash), then dunes, buttes
+  and giant shells, then white sand that never gets wet.
+- No hard borders: each biome keeps a recognisable core; blends about a third of a band
+  wide.
+
+What the app lacks for it: wetness driven by height and an east–west gradient instead
+of wind and rain shadow, a second dry tone (white sand beside grey ash), a tide that
+floods only what connects to the ocean, and a landform for ravines cut into a slope.
