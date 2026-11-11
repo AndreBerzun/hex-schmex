@@ -94,16 +94,16 @@ function coralTree(b: MeshBuilder, rng: () => number, lod: Lod, variant: number)
   }
   if (dead) return;
   const tips = sk.filter((x) => x.depth >= (lod === 0 ? 2 : 1));
-  const crownPaint = (p: V, n: V): C => mixC(scaleC(red, 0.75), P.tip, Math.max(0, n[1]) * 0.45 + hash3(p, 3) * 0.15);
+  const crownPaint = (p: V, n: V): C => mixC(scaleC(red, 0.75), P.tip, Math.max(0, n[1]) * 0.45 + hash3(p, 3) * 0.05);
   if (lod === 2) {
     const top = sk[0].path[sk[0].path.length - 1];
-    b.blob([top[0], top[1] + 2.6, top[2]], [7, 3.4, 7], -1, crownPaint, { jitter: 0.15, seed: variant });
+    b.blob([top[0], top[1] + 2.6, top[2]], [7, 3.4, 7], -1, crownPaint, { jitter: 0.15, seed: variant, flat: false });
     return;
   }
   for (const t of tips) {
     const e = t.path[t.path.length - 1];
     const r = lod === 0 ? 2.2 + rng() * 1.1 : 3.6;
-    b.blob([e[0], e[1] + 0.5, e[2]], [r * 1.2, r * 0.82, r * 1.2], lod === 0 ? 1 : 0, crownPaint, { jitter: 0.32, seed: hashString(String(e[0])), yaw: rng() * 6 });
+    b.blob([e[0], e[1] + 0.5, e[2]], [r * 1.2, r * 0.82, r * 1.2], lod === 0 ? 1 : 0, crownPaint, { jitter: 0.32, seed: hashString(String(e[0])), yaw: rng() * 6, flat: false });
     if (lod === 0) for (let k = 0; k < 6; k++) {
       const a = rng() * Math.PI * 2, rr = rng() * r * 0.9;
       const base: V = [e[0] + Math.cos(a) * rr, e[1] + 0.4, e[2] + Math.sin(a) * rr];

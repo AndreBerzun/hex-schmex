@@ -3,6 +3,7 @@ import { KINDS, TIERS, type Kind, type Placed, type Tier } from '../../core/scen
 import type { SceneryCells } from '../../core/scenery/store';
 import { ATMOS, LANDMARK_SHADOW } from '../glsl';
 import { buildKind, type Lod } from './kit';
+import { SUN_SHADOW_GLSL, type ShadowCaster } from '../sunShadow';
 
 const VS = /* glsl */ `
 attribute vec4 aA;
@@ -12,10 +13,13 @@ attribute vec3 color;
 uniform float uPxPerRad;
 uniform float uAlbedo;
 uniform float uExag;
+uniform vec2 uTexOrigin;
+uniform vec3 uEye;
 varying vec3 vWorld;
 varying vec3 vNormal;
 varying vec3 vColor;
 varying float vVis;
+varying vec3 vTexP;
 vec3 lean(vec3 v, vec2 l) {
   float a = length(l);
   if (a < 1e-4) return v;
@@ -33,23 +37,41 @@ void main() {
   n = lean(n, aC.xy);
   vec3 base = vec3(aA.x, aA.y * 0.001 * uExag, aA.z);
   vec3 wp = base + vec3(p.x, p.y * uExag, p.z) * 0.001;
-  float d = distance(cameraPosition, base + vec3(0.0, aC.w * 0.0004 * uExag, 0.0));
+  float d = distance(uEye, base + vec3(0.0, aC.w * 0.0004 * uExag, 0.0));
   float px = aC.w * 0.001 * uPxPerRad / max(d, 1e-5);
   float vis = (1.0 - smoothstep(aC.z * 0.78, aC.z, d)) * smoothstep(0.8, 2.0, px);
   vVis = vis;
   vColor = color * aB.w * uAlbedo;
   vNormal = normalize(vec3(n.x, n.y / uExag, n.z));
   vWorld = wp;
+  vTexP = vec3((aA.x - uTexOrigin.x) * 1000.0 + p.x, aA.y + p.y, (aA.z - uTexOrigin.y) * 1000.0 + p.z);
   gl_Position = vis <= 0.0 ? vec4(2.0, 2.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 
-const FS = ATMOS + LANDMARK_SHADOW + /* glsl */ `
+const DEPTH_FS = /* glsl */ `
+varying float vVis;
+void main() {
+  if (vVis < 0.5) discard;
+  gl_FragColor = vec4(1.0);
+}`;
+
+const FS = ATMOS + LANDMARK_SHADOW + SUN_SHADOW_GLSL + /* glsl */ `
 uniform sampler2D uShadowTex;
 uniform vec2 uGridKm;
+uniform sampler2D uCoralTurf;
+uniform sampler2D uCoralRock;
 varying vec3 vWorld;
 varying vec3 vNormal;
 varying vec3 vColor;
 varying float vVis;
+varying vec3 vTexP;
+const vec3 LUMA = vec3(0.3, 0.55, 0.15);
+float paintedTone(sampler2D t, vec3 p, vec3 n, float tileM, float meanLuma) {
+  vec3 w = pow(abs(n), vec3(4.0));
+  w /= dot(w, vec3(1.0));
+  vec3 c = texture2D(t, p.zy / tileM).rgb * w.x + texture2D(t, p.xz / tileM).rgb * w.y + texture2D(t, p.xy / tileM).rgb * w.z;
+  return clamp(dot(c, LUMA) / meanLuma, 0.25, 2.2);
+}
 void main() {
   if (vVis < 0.999) {
     float dither = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
@@ -57,12 +79,15 @@ void main() {
   }
   vec3 n = normalize(vNormal);
   if (!gl_FrontFacing) n = -n;
-  float shadow = texture2D(uShadowTex, clamp(vWorld.xz / uGridKm, 0.0, 1.0)).r * landmarkShadow(vWorld);
+  float shadow = texture2D(uShadowTex, clamp(vWorld.xz / uGridKm, 0.0, 1.0)).r * landmarkShadow(vWorld) * sunShadow(vWorld);
   vec3 skyAmb = mix(srgb(vec3(0.3, 0.29, 0.24)), uSkyZenith * 1.15, n.y * 0.5 + 0.5);
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 fillDir = normalize(vec3(-uSunDir.x, 0.35, -uSunDir.z) + vec3(0.0001, 0.0, 0.0));
   float fill = max(dot(n, fillDir), 0.0) * 0.45 + (1.0 - abs(n.y)) * 0.35 + max(-n.y, 0.0) * 0.3;
-  vec3 col = vColor * (uSunColor * (ndl * shadow * 3.1 + fill) + skyAmb * 0.66);
+  float coral = smoothstep(0.25, 0.55, (vColor.r - max(vColor.g, vColor.b)) / max(vColor.r, 1e-4));
+  float tone = coral > 0.01 ? paintedTone(uCoralTurf, vTexP, n, 1.6, 0.19) : 1.0;
+  if (coral < 0.99) tone = mix(paintedTone(uCoralRock, vTexP, n, 2.0, 0.33), tone, coral);
+  vec3 col = vColor * tone * (uSunColor * (ndl * shadow * 3.1 + fill) + skyAmb * 0.66);
   gl_FragColor = vec4(toDisplay(applyAtmosphere(col, vWorld, cameraPosition)), 1.0);
 }`;
 
@@ -75,10 +100,11 @@ const ALTITUDE_CUTOFF_M: Record<Tier, number> = { near: 250, mid: 3000, far: 150
 
 interface Batch { mesh: THREE.Mesh; geo: THREE.InstancedBufferGeometry; buf: THREE.InstancedInterleavedBuffer; capacity: number; count: number }
 
-export class Scenery {
+export class Scenery implements ShadowCaster {
   readonly group = new THREE.Group();
   readonly stats = { instances: 0, cells: 0, pending: false, updateMs: 0, triangles: 0, batches: 0 };
   readonly material: THREE.ShaderMaterial;
+  private depthMaterial!: THREE.ShaderMaterial;
   private cells: SceneryCells | null = null;
   private width = 0;
   private height = 0;
@@ -93,7 +119,8 @@ export class Scenery {
   forceLod: Lod | null = null;
 
   constructor(uniforms: Record<string, THREE.IUniform>) {
-    this.material = new THREE.ShaderMaterial({ uniforms: { ...uniforms, uPxPerRad: { value: 900 }, uAlbedo: { value: 0.5 } }, vertexShader: VS, fragmentShader: FS });
+    this.material = new THREE.ShaderMaterial({ uniforms: { ...uniforms, uPxPerRad: { value: 900 }, uAlbedo: { value: 0.5 }, uEye: { value: new THREE.Vector3() } }, vertexShader: VS, fragmentShader: FS });
+    this.depthMaterial = new THREE.ShaderMaterial({ uniforms: this.material.uniforms, vertexShader: VS, fragmentShader: DEPTH_FS, side: THREE.DoubleSide });
     this.group.frustumCulled = false;
   }
 
@@ -133,6 +160,13 @@ export class Scenery {
     return b;
   }
 
+  renderDepth(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
+    if (!this.group.visible) return;
+    for (const b of this.batches.values()) b.mesh.material = this.depthMaterial;
+    renderer.render(this.group, camera);
+    for (const b of this.batches.values()) b.mesh.material = this.material;
+  }
+
   sizeM(o: Placed): number {
     if (o.kind === 'coral-wall') return Math.max(o.heightM, o.sx * 8);
     return o.heightM * Math.max(1, KINDS[o.kind].footRatio * 0.7);
@@ -146,6 +180,7 @@ export class Scenery {
     const pxPerRad = viewportPx / THREE.MathUtils.degToRad(camera.fov);
     this.material.uniforms.uPxPerRad.value = pxPerRad;
     const cp = camera.position;
+    (this.material.uniforms.uEye.value as THREE.Vector3).copy(cp);
     const q = camera.quaternion;
     this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projView);

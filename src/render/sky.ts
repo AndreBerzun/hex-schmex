@@ -19,17 +19,22 @@ export class Sky {
         uniform mat4 uInvViewProj;
         uniform vec3 uCamPos;
         varying vec2 vNdc;
+        float cloudDensity(vec2 p) {
+          float n = texture2D(uNoise, p / 36.0).r * 0.6 + texture2D(uNoise, p / 11.0 + 0.31).r * 0.28 + texture2D(uNoise, p / 3.7 + 0.73).r * 0.12;
+          return n - 0.515;
+        }
         void main() {
           vec4 p = uInvViewProj * vec4(vNdc, 1.0, 1.0);
           vec3 dir = normalize(p.xyz / p.w - uCamPos);
           vec3 c = skyColor(dir);
-          // a few soft cumulus near the horizon band for scale and mood
           if (dir.y > 0.0) {
-            vec2 cp = dir.xz / (dir.y + 0.08) * 1.6;
-            float cl = smoothstep(0.15, 0.65, (texture2D(uNoise, cp / 32.0).r - 0.5) * 3.0 * 1.05 + 0.1);
-            cl *= smoothstep(0.0, 0.12, dir.y) * (1.0 - smoothstep(0.35, 0.8, dir.y));
-            float lit = 0.75 + 0.25 * max(dot(dir, uSunDir), 0.0);
-            c = mix(c, mix(uSkyHorizon, vec3(1.0), 0.7) * lit * 1.05, cl * 0.75 * uDaylight);
+            vec2 cp = dir.xz / (dir.y + 0.1) * 1.3;
+            float d = cloudDensity(cp);
+            float toward = cloudDensity(cp + normalize(uSunDir.xz + vec2(1e-4)) * 0.12);
+            float cover = smoothstep(0.0, 0.07, d) * smoothstep(0.0, 0.1, dir.y);
+            float lit = clamp(0.62 + (d - toward) * 3.5 - smoothstep(0.04, 0.2, d) * 0.3, 0.0, 1.0);
+            vec3 shade = mix(uSkyZenith * 1.6 + vec3(0.12, 0.12, 0.14), vec3(1.25, 1.18, 1.05), lit);
+            c = mix(c, shade * mix(0.4, 1.0, uDaylight), cover);
           }
           gl_FragColor = vec4(toDisplay(c), 1.0);
         }`,

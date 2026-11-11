@@ -4,6 +4,7 @@ import { ATMOS, LANDMARK_SHADOW, TIDE } from './glsl';
 import { NOISE_LUT } from './noiseLut';
 import { CANOPY_TILE_KM } from './canopyLut';
 import { DETAIL_GLSL } from '../core/detail';
+import { SUN_SHADOW_GLSL } from './sunShadow';
 
 export const TERRAIN_VS = TIDE + /* glsl */ `
 attribute vec4 aNode; // x0, z0 (km), size (km), level
@@ -19,6 +20,7 @@ uniform float uCoarseKm;
 uniform vec2 uOrigin;
 uniform float uExag;
 uniform float uDetailOn;
+uniform vec2 uTexOrigin;
 varying vec3 vWorld;
 varying vec2 vUv;
 varying float vLevel;
@@ -26,6 +28,7 @@ varying float vOut;
 varying vec4 vDetail;
 varying float vKnoll;
 varying vec4 vCover;
+varying vec2 vTexM;
 ` + DETAIL_GLSL + /* glsl */ `
 vec2 gridUv(vec2 xz) { return (1.0 - abs(mod(xz / uWorldKm, 2.0) - 1.0)) * uWorldKm / uGridKm; }
 
@@ -64,6 +67,7 @@ void main() {
   float base = level < -0.5 ? coarseSurf(xz) : surf(uv);
   wp = vec3(xz.x, (base + vDetail.x) * 0.001 * uExag, xz.y);
   vWorld = wp;
+  vTexM = (xz - uTexOrigin) * 1000.0;
   vUv = uv;
   vec2 o = max(-xz, xz - uWorldKm);
   vOut = max(o.x, o.y);
@@ -71,7 +75,7 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 
-export const TERRAIN_FS = ATMOS + LANDMARK_SHADOW + TIDE + NOISE_LUT + /* glsl */ `
+export const TERRAIN_FS = ATMOS + LANDMARK_SHADOW + SUN_SHADOW_GLSL + TIDE + NOISE_LUT + /* glsl */ `
 uniform sampler2D uHeight;
 uniform float uHeightScale;
 uniform sampler2D uSurf;      // rg slope, b curvature (>0 concave), a mean slope magnitude
@@ -115,6 +119,7 @@ varying float vOut;
 varying vec4 vDetail;
 varying float vKnoll;
 varying vec4 vCover;
+varying vec2 vTexM;
 
 float H(vec2 uv) { return texture2D(uHeight, uv).r * uHeightScale; }
 
@@ -177,6 +182,49 @@ vec3 groundDetail(vec2 xz, float wavelength) {
   return vec3((texel.r - 0.5) * 3.0, gradient) * visible;
 }
 #endif
+
+#ifdef SURFACE_DETAIL
+uniform sampler2D uCoralSand;
+uniform sampler2D uCoralTurf;
+uniform sampler2D uCoralRock;
+vec3 paintTex(sampler2D t, vec2 m, float tileM, float blend) {
+  float far = smoothstep(0.004, 0.03, gFw * 1000.0 / tileM);
+  vec3 b = texture2D(t, m / (tileM * 2.5) + vec2(0.37, 0.61)).rgb;
+  vec3 nearMix = far < 1.0 ? mix(texture2D(t, m / tileM).rgb, b, blend) : b;
+  vec3 farMix = far > 0.0 ? mix(b, texture2D(t, m / (tileM * 6.25) + vec2(0.71, 0.13)).rgb, blend) : b;
+  return mix(nearMix, farMix, far);
+}
+#endif
+
+const float PAINT_ALBEDO = 0.55;
+const vec3 CORAL_TINT = vec3(0.8, 0.62, 0.78);
+const vec3 SAND_TINT = vec3(0.74, 0.7, 0.66);
+
+vec3 coralGround(vec2 xz, vec2 m, float stands, float fw) {
+  float big = noiseAt(xz + 4.1, 0.06);
+  float small = noiseAt(xz + 8.3, 0.012);
+  float blend = clamp(0.5 + 0.7 * noiseAt(xz + 1.9, 0.03), 0.0, 1.0);
+  float turfField = stands * 0.5 + big * 0.55 + small * 0.35 - 0.45;
+  float rockField = noiseAt(xz + 6.6, 0.009) + small * 0.2;
+  float edge = 0.03 + fw * 40.0;
+#ifdef SURFACE_DETAIL
+  float margin = edge + 0.12;
+  vec3 sand = turfField < margin ? paintTex(uCoralSand, m, 1.0, blend) * SAND_TINT : vec3(0.0);
+  vec3 turf = turfField > -margin ? paintTex(uCoralTurf, m, 1.25, blend) * CORAL_TINT : vec3(0.0);
+  float turfTone = dot(turf, vec3(0.3, 0.5, 0.2));
+  float turfW = turfField >= margin ? 1.0 : turfField <= -margin ? 0.0 : smoothstep(-edge, edge, turfField + (turfTone - 0.12) * 0.8);
+  float rockW = smoothstep(0.62, 0.62 + edge * 2.0, rockField) * (1.0 - turfW);
+  vec3 c = mix(sand, turf, turfW);
+  if (rockW > 0.001) c = mix(c, paintTex(uCoralRock, m, 2.0, blend), rockW);
+#else
+  vec3 sand = srgb(vec3(0.91, 0.83, 0.72)) * SAND_TINT;
+  vec3 turf = srgb(vec3(0.73, 0.22, 0.17)) * CORAL_TINT;
+  vec3 rock = srgb(vec3(0.64, 0.58, 0.5));
+  float turfW = smoothstep(-edge, edge, turfField);
+  vec3 c = mix(mix(sand, turf, turfW), rock, smoothstep(0.62, 0.62 + edge * 2.0, rockField) * (1.0 - turfW));
+#endif
+  return c * PAINT_ALBEDO * (0.8 + 0.2 * clamp(0.5 + big + small * 0.5, 0.0, 1.0));
+}
 
 void main() {
   vec2 uv = vUv;
@@ -287,7 +335,9 @@ void main() {
                * (1.0 - marsh * 0.8) * (1.0 - desert);
   forest = smoothstep(0.1, 0.9, forest);
   forest = mix(forest, pA.r, pCov);
-  forest *= mix(1.0, smoothstep(-0.45, 0.05, noiseAt(xz + 2.3, 0.35)), uAshen);
+  float coralZone = smoothstep(0.25, 0.75, forest) * uAshen * (1.0 - marsh);
+  float stands = smoothstep(-0.45, 0.05, noiseAt(xz + 2.3, 0.35));
+  forest *= mix(1.0, stands, uAshen);
   vec3 fcol = mix(cForest, cConifer, smoothstep(tl - 900.0, tl - 200.0, elev));
   fcol *= 0.92 + 0.16 * nFine + 0.08 * nMid;
   col = mix(col, fcol, forest);
@@ -324,6 +374,8 @@ void main() {
   }
   rockAmt = max(rockAmt, outcrop);
   if (rockAmt > 0.5) id = 2.0;
+  float coralW = coralZone * (1.0 - rockAmt);
+  if (coralW > 0.001) col = mix(col, coralGround(xz, vTexM, stands, fw), coralW);
 
   // scree / talus: deposition on moderate slopes at altitude, and at the foot of cliffs
   float scree = smoothstep(2.0, 12.0, dep) * smoothstep(0.12, 0.35, gR) * (1.0 - smoothstep(0.75, 1.0, gR)) * smoothstep(tl - 400.0, tl + 200.0, elev);
@@ -363,7 +415,7 @@ void main() {
   vec2 surfaceGrad = grad + dgrad;
   float canopyAO = 1.0;
   #ifdef SURFACE_DETAIL
-  float canopyWeight = forest * (1.0 - rockAmt) * (1.0 - snow);
+  float canopyWeight = forest * (1.0 - coralZone) * (1.0 - rockAmt) * (1.0 - snow);
   if (fw < 0.0039 && uDetailOn > 0.0) {
     vec3 tufts = groundDetail(xz, 0.006);    // six-metre tussocks / mineral rubble
     vec3 soil = groundDetail(xz + 1.7, 0.0009); // decimetre soil / gravel
@@ -388,7 +440,7 @@ void main() {
   n = normalize(vec3(-surfaceGrad.x * uExag, 1.0, -surfaceGrad.y * uExag));
 
   // ---- lighting
-  float shadow = texture2D(uShadowTex, uv).r * landmarkShadow(vWorld);
+  float shadow = texture2D(uShadowTex, uv).r * landmarkShadow(vWorld) * sunShadow(vWorld);
   float ao = texture2D(uAOTex, uv).r * canopyAO;
   float ndl = max(dot(n, uSunDir), 0.0);
   shadow = mix(shadow, 1.0, outside * 0.7);

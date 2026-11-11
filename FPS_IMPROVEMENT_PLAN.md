@@ -211,3 +211,7 @@ next numbered step in this task."
   on the route, frame gap p95 16.8 ms, cold planning ~148 ms. Limits in PROGRESS.md. Next
   single task: step 5, ash landform (dunes, wind-scoured hollows).
 
+- 2026-11-11: GM review after step 4: one biome of seven moved in seven iterations. Steps 5–7
+  are replaced by a per-biome ground scene: all eye-level ingredients (painted textures,
+  shadows, sky, painterly finish) for one biome at a time, judged against its Midjourney
+  reference. Coral done first on `feat/coral-ground-scene`; see PROGRESS.md.

@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current focus (2026-11-10): **the middle layer** on the Forgotten Shore has a first pass (objects 1–150 m tall per biome, see below). Its look pass, then the agreed new Shore geography, are next; both are in [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
+Current focus (2026-11-11): **the eye-level ground scene**, one biome at a time against its Midjourney reference. The coral is first (painted textures, sun shadows, painterly finish; see the last section). Earlier: the middle layer, see below and [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
 
 | # | State | Notes |
 |---|---|---|
@@ -557,3 +557,39 @@ grass along gullies can stripe far slopes; outcrop boulders carry the boulder ki
 lichen tops; the ash gained a small grassy mound at its edge; the lowest mountain slopes get turf
 patches; up close the ground is soft, not textured like the references.
 
+
+## 2026-11-11 — Coral ground scene: painted textures, sun shadows, painterly finish
+
+Change of approach after the GM's review of steps 1–4: seven iterations had moved one biome
+of seven. Instead of one ingredient per step, the coral now gets every eye-level ingredient at
+once and is judged against `reference/midjourney/coral_trees_3_and_views.png`.
+
+- Painted ground textures from Midjourney (`src/render/textures/`, 1024², sand, coral turf,
+  coral rock). Coral ground is pale sand with turf patches by noise and turf brightness, rock
+  patches here and there. Texture coordinates are anchored to a 1 km grid around the camera
+  (exact near the player), three scales with the larger ones taking over with distance, only
+  the textures a pixel shows are read. The overview material uses their mean colours.
+- Objects take the same textures (triplanar, turf on red parts, rock elsewhere) as a tone on
+  their own colour; coral tree crowns are smooth-shaded.
+- Sun shadow map for objects within 160 m of the player (2048², 4 taps), on the ground and on
+  other objects, below 400 m above ground.
+- Deeper blue sky with lit cumulus; the haze picks up the bluer tone.
+- Painterly pass below 1.5 km above ground: Kuwahara filter at half resolution, 30% of the full
+  image blended back, bluish shadows and warm highlights, ink lines on depth jumps up to 3 km.
+  The scene is drawn without multisampling for it.
+
+Comparison: `shots/biomes/compare-07-final-vs-08-coral-scene.jpg` (all seven spots) and
+`compare-coral-00-before-vs-coral-08-scene.jpg` (three coral views from
+`scripts/coral-spots.json`, `npm run shots:biomes -- --spots scripts/coral-spots.json <label>`).
+
+Measured once at the end, 1920×1080 headless on the real GPU, coral spots, interleaved per
+spot: master `2071e93` 25.3 ms GPU median; this branch 30.8 ms with everything on (paint pass
+about free, shadows about +2 ms). Before the fetch guards it was 45 ms without the paint pass:
+the coral texture lookups ran for every terrain pixel on the map.
+Checks: 81 unit tests, build, `build:single` (2.2 MB with textures), `check:scenery`,
+`check:player`, `check:shore`.
+
+Looks off: the ground is flat (no dunes, no foreground stones or shells); the coral turf is a
+flat carpet at your feet, with no clumps that stand up; trees are rounded umbrellas, not the
+gnarled trees of the reference; the purple fan coral carries a blotchy rock tone; the other six
+biomes only got the sky and the painterly finish.
