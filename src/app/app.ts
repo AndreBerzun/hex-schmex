@@ -20,7 +20,7 @@ import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
 import { Scenery } from '../render/scenery';
 import { Ground, exclusionKm, zoneOf } from '../core/scenery/ground';
-import { DetailMask, buildDetailMask, downsDetail, type DetailSample } from '../core/detail';
+import { DetailMask, buildDetailMask, coverFields, coverFrom, downsDetail, type Cover, type CoverFields, type DetailSample } from '../core/detail';
 import type { Zone } from '../core/scenery/ground';
 
 const DETAIL_WEIGHT: Record<Zone, number> = { downs: 1, rock: 0.8, ash: 0.6, none: 0, coral: -1, mire: -1, tidal: -1, water: -1 };
@@ -115,7 +115,9 @@ export class App {
   design: Heightfield | null = null;
   heightSrc: HeightSource | null = null;
   detailMask: DetailMask | null = null;
-  private detailSample: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0 };
+  private detailSample: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0, field: -1 };
+  private coverSample: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0, field: -1 };
+  private coverTmp: CoverFields = { rock: 0, apron: 0, hollow: 0, grass: 0 };
   hydro: (HydroOutput & { nx: number; ny: number; kmPerPx: number }) | null = null;
   erosion: Erosion | null = null;
   foundation: Foundation | null = null;
@@ -794,6 +796,7 @@ export class App {
       height: (x, z) => this.groundAt(x, z),
       surface: (x, z, h, slope) => this.classify(x, z, h, slope),
       water: (x, z) => this.restingWater(x, z),
+      cover: (x, z) => this.coverAt(x, z),
     }, this.world, this.worldW, this.worldH);
     const source = this.downsWalkPrototype && this.world.seed === 5150
       ? new DownsWalkSource(ground, this.world.seed, (x, z) =>
@@ -847,6 +850,15 @@ export class App {
     if (!m) return 0;
     const w = m.at(x, z);
     return w > 0 ? downsDetail(x, z, this.terrain.fineQuadM, this.world.seed | 0, this.detailSample).h * w : 0;
+  }
+
+  coverAt(x: number, z: number): Cover | null {
+    const m = this.detailMask;
+    const w = m ? m.at(x, z) : 0;
+    if (w <= 0) return null;
+    const q = this.terrain.fineQuadM, seed = this.world.seed | 0;
+    const d = downsDetail(x, z, q, seed, this.coverSample);
+    return coverFrom(coverFields(x, z, q, seed, d, w, this.coverTmp), w, d.gx * w, d.gz * w);
   }
 
   standHeightAt(x: number, z: number): number {

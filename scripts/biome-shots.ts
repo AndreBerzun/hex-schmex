@@ -5,10 +5,12 @@ import { BrowserPage } from './browser';
 interface BiomeSpot { name: string; from: [number, number]; to: [number, number] }
 
 const root = 'shots/biomes';
-const spots: BiomeSpot[] = JSON.parse(readFileSync('scripts/biome-spots.json', 'utf8'));
+const spotsAt = process.argv.indexOf('--spots');
+const spotsFile = spotsAt >= 0 ? process.argv[spotsAt + 1] : 'scripts/biome-spots.json';
+const spots: BiomeSpot[] = JSON.parse(readFileSync(spotsFile, 'utf8'));
 const compareAt = process.argv.indexOf('--compare');
 const labels = compareAt >= 0 ? process.argv[compareAt + 1].split(',') : [];
-const label = process.argv.slice(2).find((a) => !a.startsWith('--') && !labels.includes(a)) ?? 'latest';
+const label = process.argv.slice(2).find((a) => !a.startsWith('--') && !labels.includes(a) && a !== spotsFile) ?? 'latest';
 
 const server = await createServer({ server: { port: 5198, strictPort: false }, logLevel: 'error' });
 await server.listen();
@@ -28,6 +30,7 @@ async function capture(name: string) {
     const a = window.__tp.app; a.running = false; a.autoTide = false;
     a.setSettings({ exag: 1, timeOfDay: 12, tide: 0, mapMode: false });
     a.ground.enter();
+    if (${Number(process.env.TP_DEBUG ?? 0)}) a.uniforms.uDebug.value = ${Number(process.env.TP_DEBUG ?? 0)};
   })()`);
   await page.evaluate('window.__tp.finish()');
   const spotsSeen: unknown[] = [];

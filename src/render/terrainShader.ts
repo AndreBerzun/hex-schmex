@@ -25,6 +25,7 @@ varying float vLevel;
 varying float vOut;
 varying vec4 vDetail;
 varying float vKnoll;
+varying vec4 vCover;
 ` + DETAIL_GLSL + /* glsl */ `
 vec2 gridUv(vec2 xz) { return (1.0 - abs(mod(xz / uWorldKm, 2.0) - 1.0)) * uWorldKm / uGridKm; }
 
@@ -59,6 +60,7 @@ void main() {
   uv = gridUv(xz);
   vDetail = groundDetail(xz, size * 1000.0 / uGridN * (1.0 + k));
   vKnoll = dKnoll * vDetail.w;
+  vCover = dCover;
   float base = level < -0.5 ? coarseSurf(xz) : surf(uv);
   wp = vec3(xz.x, (base + vDetail.x) * 0.001 * uExag, xz.y);
   vWorld = wp;
@@ -112,6 +114,7 @@ varying float vLevel;
 varying float vOut;
 varying vec4 vDetail;
 varying float vKnoll;
+varying vec4 vCover;
 
 float H(vec2 uv) { return texture2D(uHeight, uv).r * uHeightScale; }
 
@@ -199,6 +202,7 @@ void main() {
     dgrad = noiseGradAt(xz, ws) / (ws * 1000.0) * amp * detailFade;
   }
   float g = max(surf.a, length(grad + dgrad * 0.5));
+  float gR = max(surf.a, length(grad - vDetail.yz + dgrad * 0.5));
   vec3 n = normalize(vec3(-(grad.x + dgrad.x) * uExag, 1.0, -(grad.y + dgrad.y) * uExag));
 
   vec4 data = uHasHydro > 0.5 ? texture2D(uData, uv) : vec4(0.5, 0.0, 0.0, 0.0);
@@ -290,27 +294,35 @@ void main() {
   if (forest > 0.5) id = 1.0;
 
   // rock on steep slopes, more on convex ridges, banded strata hint
-  float rockAmt = smoothstep(0.55, 0.95, g + nMid * 0.12 - lap * 0.6 + nFine * 0.05 + alpine * 0.25);
+  float rockAmt = smoothstep(0.55, 0.95, gR + nMid * 0.12 - lap * 0.6 + nFine * 0.05 + alpine * 0.25);
   float strataH = h + dot(xz, vec2(21.0, 28.0)) + nBig * 260.0;
   float beds = 0.5 * sin(strataH / 40.0 + nMid * 3.0) + 0.35 * sin(strataH / 113.0 + nBig * 2.0) + 0.15 * sin(strataH / 17.0);
   vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.4 * beds * clamp(0.55 + 0.45 * nBig, 0.15, 1.0));
   rockAmt = mix(rockAmt, pB.r, pCov);
   rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
   col = mix(col, rcol, rockAmt);
-  float dSlope = length(vDetail.yz);
-  float crest = smoothstep(0.62, 0.9, vKnoll + noiseAt(xz + 4.1, 0.03) * 0.25 + nFine * 0.1);
-  float outcrop = clamp(crest + vKnoll * smoothstep(0.35, 0.7, dSlope) * 0.6, 0.0, 1.0);
-  float apron = smoothstep(0.0, 0.08, vKnoll) * (1.0 - smoothstep(0.25, 0.55, vKnoll)) * (1.0 - outcrop);
-  float hollow = smoothstep(-0.8, -3.0, vDetail.x) * vDetail.w * (1.0 - outcrop);
-  col = mix(col, srgb(mix(vec3(0.3, 0.32, 0.2), vec3(0.17, 0.17, 0.13), uAshen)) * (0.9 + 0.2 * nFine), hollow * 0.7);
-  col = mix(col, cScree * (0.8 + 0.3 * nFine), apron * 0.6);
-  vec3 slab = mix(cRock, cRockDark, 0.3 + 0.3 * sin(h * 1.3 + noiseAt(xz, 0.02) * 2.0)) * 1.2 * (0.85 + 0.3 * (nFine * 0.5 + 0.5));
+  float coverOn = step(0.001, vDetail.w) * (1.0 - desert) * (1.0 - marsh) * (1.0 - rockAmt) * (1.0 - smoothstep(uSnowline - 700.0, uSnowline - 300.0, elev));
+  float e = noiseAt(xz + 5.3, 0.004) * 0.7 + noiseAt(xz + 2.9, 0.0016) * 0.3;
+  float outcrop = smoothstep(0.85, 0.91, vCover.x + e * 0.07) * step(0.001, vDetail.w);
+  float apron = smoothstep(0.42, 0.58, vCover.y + e * 0.25 + gt * 0.25) * (1.0 - outcrop) * coverOn;
+  float hollow = vCover.z * (1.0 - outcrop) * coverOn;
+  float grass = smoothstep(-0.06, 0.09, vCover.w + e * 0.12 + gt * 0.06) * (1.0 - outcrop) * (1.0 - apron) * coverOn;
+  vec3 cEarth = srgb(mix(vec3(0.3, 0.25, 0.18), vec3(0.215, 0.19, 0.165), uAshen)) * (0.86 + 0.28 * (gt * 0.5 + 0.5));
+  col = mix(col, cEarth * (1.0 - 0.22 * hollow) * (1.0 - 0.3 * smoothstep(0.0, 0.4, noiseAt(xz + 6.1, 0.0009))) * (1.0 + 0.3 * smoothstep(0.15, 0.5, noiseAt(xz + 8.3, 0.0006))), coverOn * 0.85);
+  float tuft = noiseAt(xz + 7.7, 0.012) * 0.5 + 0.5;
+  vec3 cGold = mix(srgb(vec3(0.43, 0.37, 0.23)), srgb(vec3(0.31, 0.31, 0.19)), hollow * 0.8) * (0.85 + 0.3 * tuft);
+  col = mix(col, cGold, grass * (0.6 + 0.4 * tuft));
+  vec3 cPebble = srgb(mix(vec3(0.55, 0.53, 0.5), vec3(0.32, 0.315, 0.3), uAshen)) * (0.72 + 0.4 * (e * 0.5 + 0.5));
+  col = mix(col, cPebble, apron * 0.75);
+  col *= 1.0 - grass * smoothstep(-0.05, 0.35, noiseAt(xz + 1.1, 0.0022)) * 0.35;
+  col *= 1.0 - apron * smoothstep(0.0, 0.4, noiseAt(xz + 4.4, 0.0011)) * 0.35;
+  vec3 slab = mix(cRock, cRockDark, 0.45 + 0.3 * sin(h * 1.3 + noiseAt(xz, 0.02) * 2.0)) * (0.8 + 0.4 * smoothstep(-0.2, 0.8, noiseAt(xz + 3.7, 0.0018)));
   col = mix(col, slab, outcrop);
   rockAmt = max(rockAmt, outcrop);
   if (rockAmt > 0.5) id = 2.0;
 
   // scree / talus: deposition on moderate slopes at altitude, and at the foot of cliffs
-  float scree = smoothstep(2.0, 12.0, dep) * smoothstep(0.12, 0.35, g) * (1.0 - smoothstep(0.75, 1.0, g)) * smoothstep(tl - 400.0, tl + 200.0, elev);
+  float scree = smoothstep(2.0, 12.0, dep) * smoothstep(0.12, 0.35, gR) * (1.0 - smoothstep(0.75, 1.0, gR)) * smoothstep(tl - 400.0, tl + 200.0, elev);
   scree *= 1.0 - pCov;
   col = mix(col, cScree * (0.9 + 0.2 * nFine), scree * 0.8);
   if (scree > 0.5) id = 4.0;

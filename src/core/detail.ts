@@ -34,11 +34,11 @@ function band(wavelengthM: number, quadM: number): number {
   return 1 - t * t * (3 - 2 * t);
 }
 
-export interface DetailSample { h: number; gx: number; gz: number; knoll: number }
+export interface DetailSample { h: number; gx: number; gz: number; knoll: number; field: number }
 
-export function downsDetail(xKm: number, zKm: number, quadM: number, seed: number, into: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0 }): DetailSample {
+export function downsDetail(xKm: number, zKm: number, quadM: number, seed: number, into: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0, field: -1 }): DetailSample {
   const x = xKm * 1000, z = zKm * 1000;
-  let h = 0, gx = 0, gz = 0, knoll = 0;
+  let h = 0, gx = 0, gz = 0, knoll = 0, field = -1;
   const add = (lambda: number, amp: number, s: number, ox = 0, oz = 0) => {
     const w = band(lambda, quadM) * amp;
     if (w <= 0) return 0;
@@ -66,21 +66,57 @@ export function downsDetail(xKm: number, zKm: number, quadM: number, seed: numbe
     const k0 = a[0], kx = a[1] / 160, kz = a[2] / 160;
     const b = noise(x / 45, z / 45, seed + 6);
     const lump = band(45, quadM) * 0.35;
-    const k = k0 + b[0] * lump, dkx = kx + b[1] / 45 * lump, dkz = kz + b[2] / 45 * lump;
+    const b0 = b[0], bx = b[1] / 45, bz = b[2] / 45;
+    const v = noise(x / 600, z / 600, seed + 10), v0 = v[0], vx = v[1] / 600, vz = v[2] / 600;
+    const k = k0 + b0 * lump + 0.08 * v0, dkx = kx + bx * lump + 0.08 * vx, dkz = kz + bz * lump + 0.08 * vz;
+    field = k;
     const t = Math.max(0, Math.min(1, (k - 0.28) / 0.16));
     if (t > 0) {
       const s = t * t * (3 - 2 * t), ds = t < 1 ? 6 * t * (1 - t) / 0.16 : 0;
       knoll = s * wk;
-      const top = 11 * wk;
-      h += s * top; gx += ds * dkx * top; gz += ds * dkz * top;
+      const top = 11 * wk * (0.85 + 0.3 * v0), tx = 11 * wk * 0.3 * vx, tz = 11 * wk * 0.3 * vz;
+      h += s * top; gx += ds * dkx * top + s * tx; gz += ds * dkz * top + s * tz;
       const c = noise(x / 12, z / 12, seed + 7);
       const cw = band(12, quadM) * 1.4 * wk;
       h += s * c[0] * cw; gx += (ds * dkx * c[0] + s * c[1] / 12) * cw; gz += (ds * dkz * c[0] + s * c[2] / 12) * cw;
     }
   }
   add(14, 0.35, 8);
-  into.h = h; into.gx = gx; into.gz = gz; into.knoll = knoll;
+  into.h = h; into.gx = gx; into.gz = gz; into.knoll = knoll; into.field = field;
   return into;
+}
+
+export interface CoverFields { rock: number; apron: number; hollow: number; grass: number }
+export interface Cover extends CoverFields { mask: number; gx: number; gz: number }
+
+export function coverFields(xKm: number, zKm: number, quadM: number, seed: number, d: DetailSample, mask: number, into: CoverFields): CoverFields {
+  const x = xKm * 1000, z = zKm * 1000;
+  const k = d.knoll, slope = Math.hypot(d.gx, d.gz) * mask, on = Math.min(1, mask * 1.6);
+  const n1 = noise(x / 30, z / 30, seed + 21)[0] * band(30, quadM);
+  const g1 = noise(x / 26, z / 26, seed + 22)[0] * band(26, quadM);
+  const g2 = noise(x / 9, z / 9, seed + 23)[0] * band(9, quadM);
+  const hollow = smooth(-0.8, -3, d.h * mask);
+  into.rock = (k + n1 * 0.25 + k * smooth(0.35, 0.7, slope) * 0.5) * on;
+  into.apron = smooth(0.04, 0.14, k) * (1 - smooth(0.4, 0.6, k)) * (0.75 + 0.5 * n1) * on;
+  into.hollow = hollow;
+  into.grass = mix(0.02, g1 + 0.5 * g2 + hollow * 0.5 + 0.08, band(26, quadM)) * mask;
+  return into;
+}
+
+export function coverFrom(f: CoverFields, mask: number, gx: number, gz: number): Cover {
+  const rock = smooth(0.84, 0.92, f.rock);
+  const apron = smooth(0.4, 0.6, f.apron) * (1 - rock);
+  const grass = smooth(-0.03, 0.06, f.grass) * (1 - rock) * (1 - apron) * (mask > 0 ? 1 : 0);
+  return { rock, apron, hollow: f.hollow * (1 - rock), grass, mask, gx, gz };
+}
+
+function smooth(a: number, b: number, v: number): number {
+  const t = Math.max(0, Math.min(1, (v - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+function mix(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
 
 export const DETAIL_GLSL = /* glsl */ `
@@ -117,8 +153,11 @@ vec3 dOctave(vec2 p, float lambda, float amp, float q, int s) {
   return vec3(n.x * w, n.yz * w / lambda);
 }
 float dKnoll;
+float dField;
+vec4 dCover;
 vec3 downsDetail(vec2 p, float q) {
   dKnoll = 0.0;
+  dField = -1.0;
   vec3 r = dOctave(p, 230.0, 8.0, q, 1) + dOctave(p, 95.0, 3.0, q, 2);
   float wg = dBand(38.0, q) * 2.4;
   if (wg > 0.0) {
@@ -134,14 +173,16 @@ vec3 downsDetail(vec2 p, float q) {
     vec3 a = dNoise(p / 160.0, uDetailSeed + 5);
     vec3 b = dNoise(p / 45.0, uDetailSeed + 6);
     float lump = dBand(45.0, q) * 0.35;
-    float k = a.x + b.x * lump;
-    vec2 dk = a.yz / 160.0 + b.yz / 45.0 * lump;
+    vec3 v = dNoise(p / 600.0, uDetailSeed + 10);
+    float k = a.x + b.x * lump + 0.08 * v.x;
+    vec2 dk = a.yz / 160.0 + b.yz / 45.0 * lump + 0.08 * v.yz / 600.0;
+    dField = k;
     float t = clamp((k - 0.28) / 0.16, 0.0, 1.0);
     if (t > 0.0) {
       float s = t * t * (3.0 - 2.0 * t), ds = t < 1.0 ? 6.0 * t * (1.0 - t) / 0.16 : 0.0;
       dKnoll = s * wk;
-      float top = 11.0 * wk;
-      r += vec3(s * top, ds * dk * top);
+      float top = 11.0 * wk * (0.85 + 0.3 * v.x);
+      r += vec3(s * top, ds * dk * top + s * 11.0 * wk * 0.3 * v.yz / 600.0);
       vec3 c = dNoise(p / 12.0, uDetailSeed + 7);
       float cw = dBand(12.0, q) * 1.4 * wk;
       r += vec3(s * c.x * cw, (ds * dk * c.x + s * c.yz / 12.0) * cw);
@@ -159,11 +200,25 @@ float detailMask(vec2 xzKm) {
   float c = texelFetch(uDetailMask, i + ivec2(0, 1), 0).r, d = texelFetch(uDetailMask, i + ivec2(1, 1), 0).r;
   return (a * (1.0 - t.x) + b * t.x) * (1.0 - t.y) + (c * (1.0 - t.x) + d * t.x) * t.y;
 }
+vec4 coverFields(vec2 p, float q, vec3 d, float m) {
+  float k = dKnoll, slope = length(d.yz) * m, on = min(1.0, m * 1.6);
+  float n1 = dNoise(p / 30.0, uDetailSeed + 21).x * dBand(30.0, q);
+  float g1 = dNoise(p / 26.0, uDetailSeed + 22).x * dBand(26.0, q);
+  float g2 = dNoise(p / 9.0, uDetailSeed + 23).x * dBand(9.0, q);
+  float hollow = 1.0 - smoothstep(-3.0, -0.8, d.x * m);
+  float rock = (k + n1 * 0.25 + k * smoothstep(0.35, 0.7, slope) * 0.5) * on;
+  float apron = smoothstep(0.04, 0.14, k) * (1.0 - smoothstep(0.4, 0.6, k)) * (0.75 + 0.5 * n1) * on;
+  float grass = mix(0.02, g1 + 0.5 * g2 + hollow * 0.5 + 0.08, dBand(26.0, q)) * m;
+  return vec4(rock, apron, hollow, grass);
+}
 vec4 groundDetail(vec2 xzKm, float q) {
   float m = detailMask(xzKm);
   dKnoll = 0.0;
+  dCover = vec4(0.0);
   if (m <= 0.0) return vec4(0.0);
-  return vec4(downsDetail(xzKm * 1000.0, q) * m, m);
+  vec3 d = downsDetail(xzKm * 1000.0, q);
+  dCover = coverFields(xzKm * 1000.0, q, d, m);
+  return vec4(d * m, m);
 }
 `;
 

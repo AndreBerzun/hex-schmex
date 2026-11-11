@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { coverFields, coverFrom, downsDetail } from '../src/core/detail';
 import { defaultWorld } from '../src/core/world';
 import { Ground, type GroundSampler } from '../src/core/scenery/ground';
 import { ScenerySource } from '../src/core/scenery/place';
@@ -104,5 +105,34 @@ describe('coral walls and travel', () => {
       px = x; pz = z;
     }
     expect(Math.hypot(px - bx, pz - bz)).toBeLessThan(0.03);
+  });
+});
+
+describe('downs objects follow the ground cover', () => {
+  const coverAt = (x: number, z: number) => {
+    const d = downsDetail(x, z, 5.3, 5150);
+    return coverFrom(coverFields(x, z, 5.3, 5150, d, 1, { rock: 0, apron: 0, hollow: 0, grass: 0 }), 1, d.gx, d.gz);
+  };
+  const downs = () => {
+    const w = defaultWorld('scenery');
+    w.seed = 7;
+    w.features = [];
+    return new ScenerySource(new Ground({
+      height: (x, z) => 300 + downsDetail(x, z, 5.3, 5150).h,
+      surface: () => ({ mat: 'black earth', water: false, moisture: 0.5 }),
+      water: () => ({ kind: 0, level: 0 }),
+      cover: coverAt,
+    }, w, 80, 80), w.seed);
+  };
+
+  it('lays rock shelves on rock and tussocks mostly in grass', () => {
+    const src = downs();
+    const shelves = collect(src, 'mid', 40.5, 41.5, 45.5, 46.5).filter((o) => o.kind === 'boulder' && o.sx > o.sz * 1.05);
+    expect(shelves.length).toBeGreaterThan(10);
+    for (const o of shelves) expect(coverAt(o.x, o.z).rock).toBeGreaterThan(0.2);
+    const tussocks = collect(src, 'near', 40.8, 41.0, 45.9, 46.1).filter((o) => o.kind === 'tussock');
+    const inGrass = tussocks.filter((o) => coverAt(o.x, o.z).grass > 0.5).length;
+    expect(tussocks.length).toBeGreaterThan(20);
+    expect(inGrass / tussocks.length).toBeGreaterThan(0.8);
   });
 });
