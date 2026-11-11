@@ -71,90 +71,79 @@ Do not claim visual success from object counts or automated tests alone.
 Review checkpoint: show the user the route and fixed comparisons before generalizing
 it. If the arrangement fails, revise it rather than increasing clutter everywhere.
 
-## 3. Make the ground and objects belong together
+## Revision 2026-11-11: what Tectonic and Minecraft do differently
 
-Task: Add one integrated outcrop composition: exposed rock, downhill rubble that
-becomes smaller away from the source, sheltered grass pockets and an open approach.
-Use the same composition footprint/orientation to drive object placement and local
-material patches. Avoid independent noise fields for every supporting element.
+The GM reviewed the authored walk: more interesting, but one hand-placed walk cannot
+show what a world of them would look like. The GM had asked several times for a look
+at Minecraft's and Tectonic's terrain source; this revision acts on it. Tectonic was
+read at `~/development/minecraft/source/tectonic` (3.0.25, data pack JSON under
+`src/common/main/resources/resourcepacks/tectonic/data`). Vanilla Minecraft source is
+not public; Tectonic replaces the vanilla terrain functions, so its files are the
+relevant part.
 
-Add one small ground-form feature, such as a bank, shelf or depression, using a local
-patch or integrated mesh. Choose the smallest implementation compatible with current
-terrain sampling. Regional samples are about 85 m apart; extra shading cannot supply
-this geometry. Do not increase the entire world's terrain resolution.
+- **The ground itself carries the detail.** Minecraft evaluates its terrain function
+  every 4 m horizontally and interpolates to 1 m blocks (`noise.size_horizontal: 1`),
+  only for chunks near the player. Our ground stops at ~85 m samples; below that there
+  are only shading and props. That gap, not the number of props, is why the walk reads
+  as smooth grey with objects on top.
+- **Most "rocks" are ground.** Surface rules turn steep spots to stone and lay gravel,
+  coarse dirt or grass patches by noise thresholds (`steep`, `noise_threshold`,
+  `stone_depth` dominate Tectonic's surface rule). Placed features come on top, sparsely.
+- **Landform families per region.** A low-frequency region selector picks a family,
+  each with its own spline: plateaus with steps, single and double valleys, rolling
+  hills, dunes, badlands ridges, pillars (`density_function/region/*`).
+- **Ruggedness varies by place.** How much small-scale relief applies is a spline over
+  large-scale fields (continents, erosion): jaggedness is strong in some places and
+  absent in others, never uniform (`terrain_spline/jaggedness`, `factor`).
+- **Erosion look without simulation.** Ridge detail noise is domain-shifted by the
+  gradient of the base noise times 3000 (`mountain_ridges/shifteddetail`), so small
+  ridges run downhill like gullies. `abs()` and folded noise make ridges and dunes.
 
-Rendering, ground height sampling and collision must agree. Preserve tide behaviour;
-if the prototype stays dry, explicitly document that limitation rather than claiming
-wet-ground support. Check seams from both eye level and above.
+Consequence: the composition-to-generator path below (old steps 3 and 5) is replaced.
+Detail goes into a procedural ground layer first; objects follow the ground. The
+authored downs walk stays as a fixed comparison route, not as a template to generalize.
 
-Deliverable: the integrated composition and close/medium comparisons.
-Done when supports do not visibly float, the player does not clip through or hover
-above the new ground, and rubble/grass visibly relate to the main outcrop.
+## 3. Detail ground for the downs
 
-## 4. Compare two coherent visual treatments
+Task: add a detail height layer on top of the regional terrain near the player:
+seeded noise generated in chunks (2–4 m spacing) in a worker, streamed like scenery
+cells. The renderer and the ground height / collision read the same chunk data, so
+they agree by construction. Not per-pixel shader noise (that was slow before); detail
+fades out with distance so far leaves keep their current triangle size.
 
-Task: Render the SAME composition in two modest styles:
-A. Painted/simplified 3D: controlled palette, broad material patches, restrained
-surface noise, coordinated terrain/object lighting.
-B. Retro textured 3D: deliberately limited texture resolution and palette, matching
-terrain/object detail scale. A pixelation filter alone does not constitute this style.
+Downs landform: rolling `abs()` hills, slope-shifted ridge detail, and rock knolls
+that break through the ground (tors as ground, not stacked props). Ruggedness comes
+from a spline over fields the app already has (regional slope, biome, erosion amount),
+so some stretches stay calm. Add a fill light so shaded faces are not near-black;
+it is part of judging the ground, not the later style choice.
 
-Start with A, save comparisons, then add B without losing A. Keep geometry, cameras,
-lighting direction and object placement fixed. Improve object-ground contact using a
-budgeted contact-shadow or local-shadow approach; compare its cost and artifacts.
-No new full-world voxel engine, comprehensive asset library or expensive post stack.
+Done when the baseline route shows banks, hollows and knolls at eye level, the player
+neither hovers nor sinks, tide behaviour is unchanged or the limit is documented, and
+`npm run perf` / `check:fps-baseline` stay near the step 1 numbers.
 
-Deliverable: side-by-side eye-level and approach views plus timings for both styles.
-Done when ground and objects read as the same world and each treatment is inspectable
-in motion. Ask the user to choose or revise the direction before propagating it.
-Painted 3D is the proposed default, not an already approved final art direction.
+## 4. Ground material and objects from the detail
 
-## 5. Convert the successful composition into a deterministic generator
+Surface rules on the detail ground: exposed rock on steep detail slopes, rubble and
+gravel at their foot, grass in hollows, patches by noise threshold. Move existing
+scenery to follow the same rules (rubble below faces, shrubs in sheltered hollows) and
+thin out the uniform random scatter. Compare against step 1 and 2 captures.
 
-Task: Generate a small family of outcrop sites with a shared anchor, orientation,
-footprint, exposed edge, rubble zone, vegetation pockets and route clearance.
-Choose sites from terrain suitability; generate dependent elements relative to the
-site. Vary proportions and damage, not merely uniform scale and random rotation.
-Keep the successful authored route as a reference fixture.
+## 5. One landform family per biome
 
-Maintain stable site IDs and deterministic generation across cell unload/reload.
-Assign cross-cell sites to one owner and query their overlap in adjacent cells so
-boundaries do not duplicate or cut off compositions. Preserve quality-level stability.
+One task each, in this order: ash (dunes, wind-scoured hollows), coral (ravines and
+walls as ground, passages preserved), mire (raised islands, channels), tidal flats
+(scour, channels). Each with ruggedness varying by place, a biome-edge comparison and
+a moving performance check. Sea stacks and arches need coast geometry; don't force them.
 
-Deliverable: outcrop compositions at three seeds/locations, including a biome edge.
-Done when all three retain recognizable structure without looking identical.
-Tests should cover determinism, boundary ownership and route clearance, not exact
-counts that merely mirror implementation constants.
+## 6. Two visual treatments on a whole biome
 
-## 6. Improve distant continuity only where the route exposes a problem
+As the old step 4, but over the downs as a whole rather than one composition:
+A painted/simplified, B retro textured (a pixel filter alone is not B). The GM chooses.
 
-Task: Inspect existing LOD transitions along the approach. Retain current streaming,
-instancing and three mesh LODs. Add a cheap combined far representation for a site or
-stand only if individual-object fading destroys its identity. Preserve its main
-silhouette and openings; use hysteresis or a suitable transition to avoid flicker.
+## 7. Distant continuity
 
-Important destinations persist farther than minor vegetation; tiny clutter may vanish
-early. Do not increase every object's draw distance. Do not change collision with
-visual LOD. Check both walking and camera rotation for popping and generation hitches.
-
-Deliverable: approach/departure comparison and cold/warm traversal measurements.
-Done when the destination remains recognizable as detail resolves and no visible
-transition introduces a major frame hitch. Compare against step 1; investigate
-repeatable regressions rather than explaining them away as measurement noise.
-
-## 7. Expand one biome at a time
-
-Only after the downs prototype works, add these as separate tasks:
-1. Ash: shell, wind-scoured hollow, drift and related fragments.
-2. Mire: raised island, wet boundary, reeds/sponges and a traversable crossing.
-3. Tidal flats: wreck, scour, aligned debris and sediment/pools.
-4. Coral refinement: better wall bases/crowns and chamber variation, preserving the
-   connected passages that already work.
-
-Each task needs one authored reference composition, procedural variants, a biome-edge
-comparison and a moving performance check. Reuse the composition machinery only where
-it helps. Sea stacks/arches need appropriate coast geometry; don't force them onto
-unsuitable terrain to make an object-count test pass.
+As the old step 6: inspect transitions along the approach, keep streaming and the
+three mesh LODs, preserve silhouettes of knolls and destinations, measure cold/warm.
 
 ## Validation and handoff after every implementation step
 
@@ -199,3 +188,7 @@ next numbered step in this task."
   opt-in `?world=forgotten-shore&prototype=downs-walk`. See FPS_COMPOSITION.md
   for the layout, eight captured views, measured traversal and limitations.
   Existing baseline preserved. Layout awaits user visual review; step 3 not started.
+
+- 2026-11-11: GM review of step 2: more interesting, but one walk cannot be
+  extrapolated. Steps 3–7 rewritten after reading Tectonic's terrain source (see the
+  revision section): detail ground first, objects follow it. Step 3 not started.
