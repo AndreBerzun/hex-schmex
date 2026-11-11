@@ -51,7 +51,7 @@ const RULES: Record<Tier, Rule[]> = {
       weight: (s) => (s.zone === 'tidal' || (s.zone === 'water' && s.depth < 3)) ? 0.32 * gentle(s, 0.12) : 0 },
     { kind: 'ruin-wall', spacingKm: 0.32, sizeM: [5, 12], sink: 0.1, weight: (s) => dry(s) && s.zone !== 'rock' && s.zone !== 'none' ? 0.03 * gentle(s, 0.25) : 0 },
     { kind: 'tor', spacingKm: 0.11, sizeM: [6, 22], skew: 1.6, sink: 0.12,
-      weight: (s, _f, _x, _z, c) => by(s, { downs: 0.004 + 0.12 * (c?.rock ?? 0), ash: 0.015 + 0.2 * s.ridge, rock: 0.06 * s.ridge }) * gentle(s, 0.6) },
+      weight: (s) => by(s, { downs: 0.002, ash: 0.015 + 0.2 * s.ridge, rock: 0.06 * s.ridge }) * gentle(s, 0.6) },
     { kind: 'spiral-shell', spacingKm: 0.08, sizeM: [3, 16], skew: 1.8, sink: 0.32, lean: 0.55,
       weight: (s) => by(s, { ash: 0.08 + 0.12 * s.foot, downs: 0.004, tidal: 0.006 }) * gentle(s, 0.4) },
     { kind: 'skull', spacingKm: 0.12, sizeM: [2.5, 8], sink: 0.22, lean: 0.3, weight: (s) => by(s, { ash: 0.025, downs: 0.004 }) },

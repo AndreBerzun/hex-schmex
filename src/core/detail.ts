@@ -68,13 +68,13 @@ export function downsDetail(xKm: number, zKm: number, quadM: number, seed: numbe
     const lump = band(45, quadM) * 0.35;
     const b0 = b[0], bx = b[1] / 45, bz = b[2] / 45;
     const v = noise(x / 600, z / 600, seed + 10), v0 = v[0], vx = v[1] / 600, vz = v[2] / 600;
-    const k = k0 + b0 * lump + 0.08 * v0, dkx = kx + bx * lump + 0.08 * vx, dkz = kz + bz * lump + 0.08 * vz;
+    const k = k0 + b0 * lump + 0.14 * v0, dkx = kx + bx * lump + 0.14 * vx, dkz = kz + bz * lump + 0.14 * vz;
     field = k;
     const t = Math.max(0, Math.min(1, (k - 0.28) / 0.16));
     if (t > 0) {
       const s = t * t * (3 - 2 * t), ds = t < 1 ? 6 * t * (1 - t) / 0.16 : 0;
       knoll = s * wk;
-      const top = 11 * wk * (0.85 + 0.3 * v0), tx = 11 * wk * 0.3 * vx, tz = 11 * wk * 0.3 * vz;
+      const top = 11 * wk * (1.05 + 0.55 * v0), tx = 11 * wk * 0.55 * vx, tz = 11 * wk * 0.55 * vz;
       h += s * top; gx += ds * dkx * top + s * tx; gz += ds * dkz * top + s * tz;
       const c = noise(x / 12, z / 12, seed + 7);
       const cw = band(12, quadM) * 1.4 * wk;
@@ -174,15 +174,15 @@ vec3 downsDetail(vec2 p, float q) {
     vec3 b = dNoise(p / 45.0, uDetailSeed + 6);
     float lump = dBand(45.0, q) * 0.35;
     vec3 v = dNoise(p / 600.0, uDetailSeed + 10);
-    float k = a.x + b.x * lump + 0.08 * v.x;
-    vec2 dk = a.yz / 160.0 + b.yz / 45.0 * lump + 0.08 * v.yz / 600.0;
+    float k = a.x + b.x * lump + 0.14 * v.x;
+    vec2 dk = a.yz / 160.0 + b.yz / 45.0 * lump + 0.14 * v.yz / 600.0;
     dField = k;
     float t = clamp((k - 0.28) / 0.16, 0.0, 1.0);
     if (t > 0.0) {
       float s = t * t * (3.0 - 2.0 * t), ds = t < 1.0 ? 6.0 * t * (1.0 - t) / 0.16 : 0.0;
       dKnoll = s * wk;
-      float top = 11.0 * wk * (0.85 + 0.3 * v.x);
-      r += vec3(s * top, ds * dk * top + s * 11.0 * wk * 0.3 * v.yz / 600.0);
+      float top = 11.0 * wk * (1.05 + 0.55 * v.x);
+      r += vec3(s * top, ds * dk * top + s * 11.0 * wk * 0.55 * v.yz / 600.0);
       vec3 c = dNoise(p / 12.0, uDetailSeed + 7);
       float cw = dBand(12.0, q) * 1.4 * wk;
       r += vec3(s * c.x * cw, (ds * dk * c.x + s * c.yz / 12.0) * cw);
