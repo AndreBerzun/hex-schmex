@@ -19,7 +19,7 @@ const uniforms: Record<string, THREE.IUniform> = {
   uDaylight: { value: 1 }, uSunDir: { value: new THREE.Vector3(-0.5, 0.75, 0.45).normalize() }, uSunColor: { value: new THREE.Color(1, 0.93, 0.8) },
   uSkyZenith: { value: new THREE.Color(0.16, 0.32, 0.62) }, uSkyHorizon: { value: new THREE.Color(0.66, 0.74, 0.84) },
   uHazeDensity: { value: 0 }, uHazeScaleH: { value: 2.6 }, uExag: { value: 1 }, uSpire: { value: new THREE.Vector4() }, uSpireRadius: { value: 0 },
-  uShadowTex: { value: white }, uWorldKm: { value: new THREE.Vector2(100, 100) },
+  uShadowTex: { value: white }, uWorldKm: { value: new THREE.Vector2(100, 100) }, uGridKm: { value: new THREE.Vector2(100, 100) },
 };
 const scenery = new Scenery(uniforms);
 scenery.forceLod = lod;

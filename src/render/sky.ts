@@ -76,6 +76,7 @@ export class Skirt {
         uniform float uHeightScale;
         uniform sampler2D uWaterTex;
         uniform vec2 uWorldKm;
+        uniform vec2 uGridKm;
         uniform float uExag;
         varying vec3 vWorld;
         varying float vTop;
@@ -88,7 +89,7 @@ export class Skirt {
           else if (s < W + Hh) xz = vec2(W, s - W);
           else if (s < 2.0 * W + Hh) xz = vec2(W - (s - W - Hh), Hh);
           else xz = vec2(0.0, Hh - (s - 2.0 * W - Hh));
-          vec2 uv = clamp(xz / uWorldKm, 0.0005, 0.9995);
+          vec2 uv = clamp(xz / uGridKm, 0.0005, 0.9995);
           float h = texture2D(uHeight, uv).r * uHeightScale;
           float w = texture2D(uWaterTex, uv).r;
           float top = (w - h > 0.25 ? w : h) * 0.001 * uExag;

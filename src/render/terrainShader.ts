@@ -11,6 +11,7 @@ uniform sampler2D uHeight;
 uniform float uHeightScale;
 uniform sampler2D uWaterTex;
 uniform vec2 uWorldKm;
+uniform vec2 uGridKm;
 uniform float uGridN;
 uniform float uLeafRange;
 uniform float uMinLevel;
@@ -25,14 +26,14 @@ varying float vOut;
 varying vec4 vDetail;
 varying float vKnoll;
 ` + DETAIL_GLSL + /* glsl */ `
-vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
+vec2 gridUv(vec2 xz) { return (1.0 - abs(mod(xz / uWorldKm, 2.0) - 1.0)) * uWorldKm / uGridKm; }
 
 float surf(vec2 uv) {
   float h = texture2D(uHeight, uv).r * uHeightScale;
-  float w = max(texture2D(uWaterTex, uv).r, tideAt(uv * uWorldKm));
+  float w = max(texture2D(uWaterTex, uv).r, tideAt(uv * uGridKm));
   return w - h > 0.25 ? w : h;
 }
-float surfAt(vec2 xz) { return surf(mirrorUv(xz / uWorldKm)); }
+float surfAt(vec2 xz) { return surf(gridUv(xz)); }
 float coarseSurf(vec2 xz) {
   vec2 g = (xz - uOrigin) / uCoarseKm;
   vec2 i = floor(g), t = g - i;
@@ -47,7 +48,7 @@ void main() {
   float size = aNode.z;
   float level = aNode.w;
   vec2 xz = aNode.xy + g / uGridN * size;
-  vec2 uv = mirrorUv(xz / uWorldKm);
+  vec2 uv = gridUv(xz);
   vec3 wp = vec3(xz.x, surf(uv) * 0.001 * uExag, xz.y);
   float range = uLeafRange * exp2(level);
   float prev = level > uMinLevel + 0.5 ? range * 0.5 : 0.0;
@@ -55,7 +56,7 @@ void main() {
   float k = clamp((distance(cameraPosition, wp) - mStart) / max(1e-4, range - mStart), 0.0, 1.0);
   vec2 gm = g - fract(g * 0.5) * 2.0 * k;
   xz = aNode.xy + gm / uGridN * size;
-  uv = mirrorUv(xz / uWorldKm);
+  uv = gridUv(xz);
   vDetail = groundDetail(xz, size * 1000.0 / uGridN * (1.0 + k));
   vKnoll = dKnoll * vDetail.w;
   float base = level < -0.5 ? coarseSurf(xz) : surf(uv);
@@ -82,6 +83,7 @@ uniform sampler2D uWaterTex;  // water surface level, m
 uniform sampler2D uShadowTex;
 uniform sampler2D uAOTex;
 uniform vec2 uWorldKm;
+uniform vec2 uGridKm;
 uniform float uSea;
 uniform float uMaxElev;
 uniform float uSnowline;
@@ -112,7 +114,6 @@ varying vec4 vDetail;
 varying float vKnoll;
 
 float H(vec2 uv) { return texture2D(uHeight, uv).r * uHeightScale; }
-vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
 
 float sdHexFlat(vec2 p, float r) {
   const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
@@ -219,7 +220,7 @@ void main() {
   vec4 pA = vec4(0.0);
   vec4 pB = vec4(0.0);
   if (uPaintOn > 0.5) {
-    vec2 puv = uv + noiseGradAt(xz, 1.3) * 0.14 / uWorldKm;
+    vec2 puv = uv + noiseGradAt(xz, 1.3) * 0.14 / uGridKm;
     pA = texture2D(uPaintA, puv);
     pB = texture2D(uPaintB, puv);
     float raw = pB.a;

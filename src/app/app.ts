@@ -219,6 +219,7 @@ export class App {
       uShadowTex: { value: white },
       uAOTex: { value: white },
       uWorldKm: { value: new THREE.Vector2(1, 1) },
+      uGridKm: { value: new THREE.Vector2(1, 1) },
       uTexel: { value: new THREE.Vector2(1, 1) },
       uCellKm: { value: 0.1 },
       uExag: { value: this.settings.exag },
@@ -326,6 +327,7 @@ export class App {
     this.worldH = dims.ny * dims.kmPerPx;
     const u = this.uniforms;
     (u.uWorldKm.value as THREE.Vector2).set(this.worldW, this.worldH);
+    (u.uGridKm.value as THREE.Vector2).set(this.worldW, this.worldH);
     u.uSea.value = w.terrain.seaLevelM;
     u.uMaxElev.value = w.terrain.maxElevationM;
     u.uSnowline.value = w.climate.snowlineM;
@@ -452,6 +454,7 @@ export class App {
       this.uniforms.uHeight.value = this.erosion.texture;
       this.uniforms.uHeightScale.value = cellM;
       (this.uniforms.uTexel.value as THREE.Vector2).set(1 / ed.nx, 1 / ed.ny);
+      (this.uniforms.uGridKm.value as THREE.Vector2).set(ed.nx * ed.kmPerPx, ed.ny * ed.kmPerPx);
       this.uniforms.uCellKm.value = ed.kmPerPx;
       this.setStage('eroding', `eroding 0/${params.iterations}`);
     } else {
@@ -608,6 +611,7 @@ export class App {
     this.uniforms.uHeight.value = src.texture;
     this.uniforms.uHeightScale.value = src.scale;
     (this.uniforms.uTexel.value as THREE.Vector2).set(1 / src.nx, 1 / src.ny);
+    (this.uniforms.uGridKm.value as THREE.Vector2).set(src.nx * src.kmPerPx, src.ny * src.kmPerPx);
     this.uniforms.uCellKm.value = src.kmPerPx;
     this.terrain.setSource(src, this.worldW, this.worldH);
     this.refreshLighting('draft');
