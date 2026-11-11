@@ -449,3 +449,37 @@ shows up live" (the browser never sees the terminal's write). Unchanged master f
 same step in fresh worktrees, inside and outside `.claude/`, so this change did not cause
 it; the live file link's watcher misses the write in a fresh worktree (symlinked
 `node_modules`, or the timing noted under "Direct edit layers"). Not investigated further.
+
+## 2026-11-11 — FPS comparison baseline (plan step 1)
+
+Added `npm run check:fps-baseline`, a fixed 400 m downs route with five eye-level
+views and an approach view, raw cold/warm traversal records and retained screenshots.
+See `FPS_BASELINE.md` for reproduction, measured costs and scope limits. This uses
+the merged middle-layer implementation on master; no product rendering changed.
+
+Both traversals arrived, WebGL error was zero and `npm run build` passed. Cold
+path planning took 61.8 ms and the worst cold RAF gap was 116.6 ms; warm replay
+worst gap was 16.8 ms. The controlled loop freezes the campaign clock and bypasses
+the normal app scheduler, so these are not full-app FPS claims. The route stays
+in dry black earth rather than crossing the optional coral edge. Visually it
+remains sparse, with broad smooth ground, isolated props and apparent hovering
+objects in the midpoint capture. Step 2 will compose a walk; no fixes were made here.
+
+## 2026-11-11 — FPS step 2: authored downs walk
+
+Opt-in downs-walk prototype composes the baseline route with sixteen existing-kit
+objects: an approach tor, staggered shoulders, central occluder/western passage and
+a ruined-tower reveal. Scenery is replaced only within the local stage; normal
+world files and procedural rules are unchanged. Authored supports sample rendered
+terrain triangles, fixing a mismatch noticed during visual review.
+
+See FPS_COMPOSITION.md for launch/reproduction instructions and matching screenshots.
+Cold and warm browser traversals arrived. Build, existing 72 tests, two new routing/
+isolation tests, and the standard perf harness passed. Final route measurements
+and GL health are retained in shots/fps-composition/results.json.
+
+Visual assessment: concealment and reveal now read, but stacked faceted tors and a
+dark tower still look like blockout props on smooth ground. The painted reference's
+integrated banks, material transitions and vegetation remain absent; far LOD loses
+rock silhouette detail. This is a spatial prototype ready for review, not a finished
+biome or final style. Step 3 is deliberately not started.

@@ -185,3 +185,17 @@ next numbered step in this task."
 
 - 2026-11-11: Plan written. No implementation steps started. Local worktree state
   inspected; no branches merged, removed or cleaned up.
+
+- 2026-11-11: Step 1 completed on master `51ecc67` (PR #7 already merged).
+  See [FPS_BASELINE.md](FPS_BASELINE.md), `scripts/fps-route.json`, and retained
+  `shots/fps-baseline/` captures/raw timings. Repeat with
+  `TP_BROWSER_OFFLINE=1 npm run check:fps-baseline`. Dry downs route: 400 m horizontal,
+  approximately 401.1 m walked; five eye-level cameras plus distant approach. Coral
+  edge preference deferred. Build/typecheck and both real-browser arrival checks
+  passed; GL error 0. Cold/warm timing limitations are explicit in the report.
+  No visual implementation changed. Next task is step 2 only.
+
+- 2026-11-11: Step 2 authored prototype implemented on master (uncommitted),
+  opt-in `?world=forgotten-shore&prototype=downs-walk`. See FPS_COMPOSITION.md
+  for the layout, eight captured views, measured traversal and limitations.
+  Existing baseline preserved. Layout awaits user visual review; step 3 not started.

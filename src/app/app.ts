@@ -21,6 +21,7 @@ import { Landmarks } from '../render/landmarks';
 import { Scenery } from '../render/scenery';
 import { Ground } from '../core/scenery/ground';
 import { ScenerySource, sceneryEnabled } from '../core/scenery/place';
+import { DownsWalkSource } from '../core/scenery/downsWalk';
 import { SceneryCells } from '../core/scenery/store';
 import { tideAt, tideLevel } from '../core/environment';
 import { classifySurface } from '../core/surfaces';
@@ -98,6 +99,7 @@ export class App {
   sceneryCells: SceneryCells | null = null;
   sceneryBudgetMs = 4;
   sceneryOn = true;
+  downsWalkPrototype = false;
   private pendingView?: string;
   readonly uniforms: Record<string, THREE.IUniform>;
   readonly workers = new WorkerClient();
@@ -749,7 +751,11 @@ export class App {
       surface: (x, z, h, slope) => this.classify(x, z, h, slope),
       water: (x, z) => this.restingWater(x, z),
     }, this.world, this.worldW, this.worldH);
-    this.sceneryCells = new SceneryCells(new ScenerySource(ground, this.world.seed));
+    const source = this.downsWalkPrototype && this.world.seed === 5150
+      ? new DownsWalkSource(ground, this.world.seed, (x, z) =>
+        this.terrain.surfaceHeightAt(x, z, (sx, sz) => this.surfaceAt(sx, sz)))
+      : new ScenerySource(ground, this.world.seed);
+    this.sceneryCells = new SceneryCells(source);
     this.scenery.setCells(this.sceneryCells, this.worldW, this.worldH);
     this.invalidate();
   }

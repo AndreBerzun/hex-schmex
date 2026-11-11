@@ -1,0 +1,14 @@
+{
+  "name": "black-downs-south-400m",
+  "start": [40.83, 45.83],
+  "end": [40.83, 46.23],
+  "acceleration": 60,
+  "cameras": [
+    { "name": "approach", "from": [40.83, 45.43] },
+    { "name": "walk-000m", "from": [40.83, 45.83] },
+    { "name": "walk-100m", "from": [40.83, 45.93] },
+    { "name": "walk-200m", "from": [40.83, 46.03] },
+    { "name": "walk-300m", "from": [40.83, 46.13] },
+    { "name": "walk-400m", "from": [40.83, 46.23] }
+  ]
+}

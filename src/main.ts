@@ -123,7 +123,17 @@ store.subscribe((c) => {
 
 if (params.has('shot')) app.sceneryBudgetMs = 1e9;
 if (params.get('scenery') === '0') app.sceneryOn = false;
+app.downsWalkPrototype = params.get('prototype') === 'downs-walk' && params.get('world') === 'forgotten-shore';
 const ready = app.setWorld(store.world);
+if (app.downsWalkPrototype && !shot) void ready.then(async () => {
+  await app.finishNow();
+  app.setSettings({ exag: 1, timeOfDay: 12, tide: 0, mapMode: false });
+  app.ground.enter();
+  app.camera.position.set(40.83, 0, 45.83);
+  app.ground.placeCamera();
+  app.camera.lookAt(40.83, app.camera.position.y, 46.23);
+  app.invalidate();
+});
 if (params.has('tide')) app.setSettings({ tide: Number(params.get('tide')) });
 app.start();
 
