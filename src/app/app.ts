@@ -19,7 +19,11 @@ import { bakeCanopyLut } from '../render/canopyLut';
 import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
 import { Scenery } from '../render/scenery';
-import { Ground } from '../core/scenery/ground';
+import { Ground, exclusionKm, zoneOf } from '../core/scenery/ground';
+import { DetailMask, buildDetailMask, downsDetail, type DetailSample } from '../core/detail';
+import type { Zone } from '../core/scenery/ground';
+
+const DETAIL_WEIGHT: Record<Zone, number> = { downs: 1, rock: 0.8, ash: 0.6, none: 0, coral: -1, mire: -1, tidal: -1, water: -1 };
 import { ScenerySource, sceneryEnabled } from '../core/scenery/place';
 import { DownsWalkSource } from '../core/scenery/downsWalk';
 import { SceneryCells } from '../core/scenery/store';
@@ -110,6 +114,8 @@ export class App {
   worldH = 1;
   design: Heightfield | null = null;
   heightSrc: HeightSource | null = null;
+  detailMask: DetailMask | null = null;
+  private detailSample: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0 };
   hydro: (HydroOutput & { nx: number; ny: number; kmPerPx: number }) | null = null;
   erosion: Erosion | null = null;
   foundation: Foundation | null = null;
@@ -225,6 +231,9 @@ export class App {
       uDebug: { value: 0 },
       uRiverMinLog: { value: 2.1 },
       uDetailOn: { value: 1 },
+      uDetailMask: { value: placeholder(0) },
+      uDetailMaskInfo: { value: new THREE.Vector3(1, 1, 1e6) },
+      uDetailSeed: { value: 0 },
       uNoise: { value: bakeNoiseLut(this.gc) },
       uCanopy: { value: bakeCanopyLut(this.gc) },
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
@@ -510,7 +519,7 @@ export class App {
     this.world = world;
     this.refreshPaint();
     this.refreshHover();
-    if (this.stage === 'ready') this.refreshScenery();
+    if (this.stage === 'ready') this.refreshScenery(true);
   }
 
   private refreshHover() {
@@ -709,7 +718,7 @@ export class App {
     // river threshold: streams draining > ~120 km² at default; scale is in log10 km²
     this.uniforms.uRiverMinLog.value = 2.1;
     this.refreshLandmarks();
-    this.refreshScenery();
+    this.refreshScenery(true);
     this.setStage('ready', '');
     if (this.pendingView) {
       const v = this.world.meta.views?.[this.pendingView];
@@ -740,20 +749,51 @@ export class App {
     }
   }
 
-  refreshScenery() {
+  private refreshDetail() {
+    const u = this.uniforms;
+    if (!sceneryEnabled(this.world) || !this.hydro) {
+      this.detailMask = null;
+      this.terrain.setDetailCoverage(null);
+      (u.uDetailMaskInfo.value as THREE.Vector3).set(1, 1, 1e6);
+      return;
+    }
+    const exclusions = this.world.features.filter((f) => f.pos).map((f) => ({ x: f.pos![0], z: f.pos![1], r: exclusionKm(f) + 0.3 }));
+    const step = 0.06;
+    const mask = buildDetailMask(this.worldW, this.worldH, this.world.seed, (x, z) => {
+      for (const e of exclusions) if ((x - e.x) ** 2 + (z - e.z) ** 2 < e.r * e.r) return 0;
+      const h = this.heightAt(x, z);
+      const slope = Math.hypot(this.heightAt(x + step, z) - this.heightAt(x - step, z), this.heightAt(x, z + step) - this.heightAt(x, z - step)) / (2000 * step);
+      const s = this.classify(x, z, h, slope);
+      const w = this.restingWater(x, z);
+      return DETAIL_WEIGHT[zoneOf(s.mat, s.water || (w.kind > 0 && w.level - h > 0.3))];
+    });
+    this.detailMask = mask;
+    this.terrain.setDetailCoverage((x, z) => mask.at(x, z));
+    const old = u.uDetailMask.value as THREE.Texture;
+    const tex = new THREE.DataTexture(mask.data, mask.nx, mask.ny, THREE.RedFormat, THREE.FloatType);
+    tex.minFilter = tex.magFilter = THREE.NearestFilter;
+    tex.needsUpdate = true;
+    u.uDetailMask.value = tex;
+    if (old.image.width > 1) old.dispose();
+    (u.uDetailMaskInfo.value as THREE.Vector3).set(mask.nx, mask.ny, mask.cellKm);
+    u.uDetailSeed.value = this.world.seed | 0;
+  }
+
+  refreshScenery(rebuildDetail = false) {
+    if (rebuildDetail) this.refreshDetail();
     if (!sceneryEnabled(this.world) || !this.hydro) {
       this.sceneryCells = null;
       this.scenery.setCells(null, this.worldW, this.worldH);
       return;
     }
     const ground = new Ground({
-      height: (x, z) => this.heightAt(x, z),
+      height: (x, z) => this.groundAt(x, z),
       surface: (x, z, h, slope) => this.classify(x, z, h, slope),
       water: (x, z) => this.restingWater(x, z),
     }, this.world, this.worldW, this.worldH);
     const source = this.downsWalkPrototype && this.world.seed === 5150
       ? new DownsWalkSource(ground, this.world.seed, (x, z) =>
-        this.terrain.surfaceHeightAt(x, z, (sx, sz) => this.surfaceAt(sx, sz)))
+        this.standHeightAt(x, z))
       : new ScenerySource(ground, this.world.seed);
     this.sceneryCells = new SceneryCells(source);
     this.scenery.setCells(this.sceneryCells, this.worldW, this.worldH);
@@ -794,8 +834,23 @@ export class App {
     return (a[k] * (1 - tx) + a[k + 1] * tx) * (1 - tz) + (a[k + s.nx] * (1 - tx) + a[k + s.nx + 1] * tx) * tz;
   }
 
-  surfaceAt(x: number, z: number): number {
-    const h = Math.max(this.heightAt(x, z), tideAt(this.world?.environment, this.settings.tide, x, z));
+  groundAt(x: number, z: number): number {
+    return this.heightAt(x, z) + this.detailAt(x, z);
+  }
+
+  detailAt(x: number, z: number): number {
+    const m = this.detailMask;
+    if (!m) return 0;
+    const w = m.at(x, z);
+    return w > 0 ? downsDetail(x, z, this.terrain.fineQuadM, this.world.seed | 0, this.detailSample).h * w : 0;
+  }
+
+  standHeightAt(x: number, z: number): number {
+    return this.terrain.surfaceHeightAt(x, z, (a, b) => this.surfaceAt(a, b, false), (a, b) => this.detailAt(a, b));
+  }
+
+  surfaceAt(x: number, z: number, withDetail = true): number {
+    const h = Math.max(withDetail ? this.groundAt(x, z) : this.heightAt(x, z), tideAt(this.world?.environment, this.settings.tide, x, z));
     const hy = this.hydro;
     if (!hy) return h;
     x = mirror(x, this.worldW);

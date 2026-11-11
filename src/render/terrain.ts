@@ -11,6 +11,7 @@ import { TERRAIN_FS, TERRAIN_VS } from './terrainShader';
 const GRID_N = 32;
 const MAX_NODES = 1024;
 const MIN_RANGE_K = 3;
+const FINE_QUAD_M = 6;
 
 export interface HeightSource {
   texture: THREE.Texture;
@@ -108,7 +109,10 @@ export class Terrain {
   private oz = 0;
   leafKm = 1;
   private maxLevel = 1;
+  minLevel = 0;
   private bounds: BoundsPyramid | null = null;
+  private detailAt: ((x: number, z: number) => number) | null = null;
+  private leafDetail = new Int8Array(0);
   private frustum = new THREE.Frustum();
   private box = new THREE.Box3();
   private projView = new THREE.Matrix4();
@@ -129,7 +133,7 @@ export class Terrain {
       defines: { SURFACE_DETAIL: 1 },
       vertexShader: TERRAIN_VS,
       fragmentShader: TERRAIN_FS,
-      uniforms: { ...uniforms, uGridN: { value: GRID_N }, uLeafRange: { value: 10 }, uSurfaceFade: { value: 1 } },
+      uniforms: { ...uniforms, uGridN: { value: GRID_N }, uLeafRange: { value: 10 }, uMinLevel: { value: 0 }, uCoarseKm: { value: 1 }, uOrigin: { value: new THREE.Vector2() }, uSurfaceFade: { value: 1 } },
     });
     // Compile fine detail out of the overview path: skipped texture fetches alone
     // still leave register/instruction overhead on integrated Intel graphics.
@@ -153,6 +157,8 @@ export class Terrain {
     this.worldW = worldW;
     this.worldH = worldH;
     this.leafKm = GRID_N * src.kmPerPx;
+    this.minLevel = -Math.max(0, Math.ceil(Math.log2(src.kmPerPx * 1000 / FINE_QUAD_M)));
+    this.material.uniforms.uMinLevel.value = this.minLevel;
     const ext = Math.max(worldW, worldH) * this.surround;
     const span = Math.max(worldW, worldH) + 2 * ext;
     this.maxLevel = Math.max(1, Math.ceil(Math.log2(span / this.leafKm)));
@@ -161,6 +167,9 @@ export class Terrain {
     this.ox = worldW / 2 - root / 2;
     this.oz = worldH / 2 - root / 2;
     this.bounds = new BoundsPyramid(src, worldW, worldH, this.ox, this.oz, this.leafKm, this.maxLevel);
+    this.leafDetail = new Int8Array(1 << (2 * this.maxLevel)).fill(-1);
+    this.material.uniforms.uCoarseKm.value = this.leafKm / GRID_N;
+    (this.material.uniforms.uOrigin.value as THREE.Vector2).set(this.ox, this.oz);
     this.material.uniforms.uLeafRange.value = this.leafKm * this.rangeK;
   }
 
@@ -170,9 +179,39 @@ export class Terrain {
     this.rangeK = Math.max(MIN_RANGE_K, pxAtUnitDistance / (GRID_N * this.pxPerQuad));
   }
 
-  /** Height of the actual near-camera leaf triangles, rather than a bilinear texture sample. */
-  surfaceHeightAt(x: number, z: number, sample: (x:number,z:number)=>number): number {
-    const cell=this.leafKm/GRID_N;
+  setDetailCoverage(detailAt: ((x: number, z: number) => number) | null) {
+    this.detailAt = detailAt;
+    this.leafDetail.fill(-1);
+  }
+
+  private hasDetail(ix: number, iz: number): boolean {
+    if (!this.detailAt) return false;
+    const n = 1 << this.maxLevel;
+    if (ix < 0 || iz < 0 || ix >= n || iz >= n) return false;
+    const k = iz * n + ix;
+    if (this.leafDetail[k] < 0) {
+      let on = 0;
+      const x0 = this.ox + ix * this.leafKm, z0 = this.oz + iz * this.leafKm, S = 14;
+      for (let j = -1; j <= S + 1 && !on; j++) for (let i = -1; i <= S + 1 && !on; i++) {
+        if (this.detailAt(x0 + (i / S) * this.leafKm, z0 + (j / S) * this.leafKm) > 0) on = 1;
+      }
+      this.leafDetail[k] = on;
+    }
+    return this.leafDetail[k] === 1;
+  }
+
+  private fineAt(x: number, z: number): boolean {
+    return this.hasDetail(Math.floor((x - this.ox) / this.leafKm), Math.floor((z - this.oz) / this.leafKm));
+  }
+
+  get fineQuadM(): number { return this.leafKm * 1000 / GRID_N * Math.pow(2, this.minLevel); }
+
+  surfaceHeightAt(x: number, z: number, base: (x:number,z:number)=>number, detail?: (x:number,z:number)=>number): number {
+    const h = this.triangleAt(x, z, this.leafKm / GRID_N, base);
+    return detail && this.fineAt(x, z) ? h + this.triangleAt(x, z, this.fineQuadM / 1000, detail) : h;
+  }
+
+  private triangleAt(x: number, z: number, cell: number, sample: (x:number,z:number)=>number): number {
     const gx=(x-this.ox)/cell,gz=(z-this.oz)/cell;
     const i=Math.floor(gx),j=Math.floor(gz),tx=gx-i,tz=gz-j;
     const x0=this.ox+i*cell,z0=this.oz+j*cell;
@@ -204,8 +243,9 @@ export class Terrain {
       const size = this.leafKm * Math.pow(2, level);
       const x0 = this.ox + ix * size, z0 = this.oz + iz * size;
       if (x0 >= lim.x1 || z0 >= lim.z1 || x0 + size <= lim.x0 || z0 + size <= lim.z0) return;
-      const L = this.bounds!.levels[level];
-      const mn = L.min[iz * L.n + ix], mx = L.max[iz * L.n + ix];
+      const up = Math.max(0, -level);
+      const L = this.bounds!.levels[Math.max(0, level)];
+      const mn = L.min[(iz >> up) * L.n + (ix >> up)], mx = L.max[(iz >> up) * L.n + (ix >> up)];
       this.box.min.set(Math.max(x0, lim.x0), Math.min(mn, 0) * s - slack, Math.max(z0, lim.z0));
       this.box.max.set(Math.min(x0 + size, lim.x1), Math.max(mx, 0) * s + slack, Math.min(z0 + size, lim.z1));
       if (!this.frustum.intersectsBox(this.box)) return;
@@ -215,10 +255,11 @@ export class Terrain {
         this.order[count] = { x0, z0, size, level, d: dx * dx + dz * dz };
         count++;
       };
-      if (level === 0) return add();
+      if (level === this.minLevel) return add();
+      if (level <= 0 && !this.hasDetail(ix >> -level, iz >> -level)) return add();
       const subRange = leafRange * Math.pow(2, level - 1);
       const d = ortho ? Infinity : this.box.distanceToPoint(cam);
-      const wantSplit = ortho ? size / this.leafKm > orthoLeafRatio : d < subRange;
+      const wantSplit = ortho ? level > 0 && size / this.leafKm > orthoLeafRatio : d < subRange;
       if (!wantSplit) return add();
       visit(ix * 2, iz * 2, level - 1);
       visit(ix * 2 + 1, iz * 2, level - 1);

@@ -67,7 +67,7 @@ try {
     console.log(cold ? 'Cold traversal complete' : 'Warm traversal complete');
   }
   const captures: unknown[] = [];
-  const cameras = [...route.cameras, ...(prototype ? [
+  const cameras = [...route.cameras, { name: 'knoll-close', from: [40.89, 45.975] }, ...(prototype ? [
     { name: 'passage-west', from: [40.802, 46.065] },
     { name: 'passage-exit', from: [40.805, 46.105] },
   ] : [])];

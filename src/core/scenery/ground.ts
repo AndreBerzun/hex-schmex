@@ -139,7 +139,7 @@ export function smooth(a: number, b: number, v: number): number {
   return t * t * (3 - 2 * t);
 }
 
-function exclusionKm(f: Feature): number {
+export function exclusionKm(f: Feature): number {
   switch (f.kind) {
     case 'walled-city': return (f.radiusKm ?? 1.15) + 0.12;
     case 'crimson-spire': return (f.radiusKm ?? 0.22) * 2;

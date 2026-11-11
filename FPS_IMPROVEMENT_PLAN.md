@@ -192,3 +192,12 @@ next numbered step in this task."
 - 2026-11-11: GM review of step 2: more interesting, but one walk cannot be
   extrapolated. Steps 3–7 rewritten after reading Tectonic's terrain source (see the
   revision section): detail ground first, objects follow it. Step 3 not started.
+
+- 2026-11-11: Step 3 on branch `feat/fps-downs-walk`: detail ground for the downs,
+  ground cover from it, scenery fill light. Changed: `src/core/detail.ts`,
+  `src/render/terrain.ts`, `src/render/terrainShader.ts`, `src/render/scenery/index.ts`,
+  `src/app/app.ts`, `src/app/groundTravel.ts`, check scripts. Views: `check:fps-baseline`
+  route plus `knoll-close`, retained in `shots/fps-detail/`. Measured: GPU median
+  8.6 → 11.4 ms on the route, no p95 frame drops, cold planning ~115 ms. Limits and
+  dropped attempts in PROGRESS.md. Next single task: step 4, ground material and objects
+  from the detail (rubble below faces, thinner random scatter), plus knoll variety.

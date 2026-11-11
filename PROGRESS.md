@@ -483,3 +483,39 @@ dark tower still look like blockout props on smooth ground. The painted referenc
 integrated banks, material transitions and vegetation remain absent; far LOD loses
 rock silhouette detail. This is a spatial prototype ready for review, not a finished
 biome or final style. Step 3 is deliberately not started.
+
+## 2026-11-11 — FPS step 3: detail ground for the downs
+
+The downs get their own ground detail, after reading Tectonic's terrain source (see
+the revision section in `FPS_IMPROVEMENT_PLAN.md`): rolling hills (230 m / 95 m), warped
+`abs()` gullies (38 m), knolls up to 11 m with lumpy crests, and 14 m bumps. One function
+in `src/core/detail.ts`, written once for the GPU and once for walking, placement and
+picking; a test checks that its slope matches its height. Strength comes from a 250 m map
+(downs 1, rock 0.8, ash 0.6) times a 2.4 km ruggedness noise, and is zero with a margin
+around water, tidal flats, mire, coral and placed features, so shores and tides are as
+before.
+
+The terrain mesh gains finer levels down to ~5.3 m quads, built only over the 2.7 km
+tiles that have detail. Fine tiles take their base shape from the coarse triangles and
+add the detail, so they meet coarse tiles without cracks, and the walker stands on the
+same triangles (`standHeightAt`). Ground cover follows the detail: rock on knoll crests
+and steep knoll sides, rubble aprons, darker pockets in hollows. Scenery reads the
+detailed ground, so tors land on knoll crests by themselves. Scenery objects got a fill
+light so their shaded sides are no longer near-black.
+
+Tried and dropped: terraced knolls (slab faces narrower than the mesh snapped to the grid
+and looked like panels) and shorter fine-mesh ranges (neighbours more than one level
+apart crack; the minimum range of 3 exists for that reason).
+
+Measured once at the end, interleaved with a clean checkout of `00a670a`, same session,
+route from step 1: GPU median 8.6 → 11.4 ms, p95 ~11–15 → 16–17 ms; frame gap p95 stays
+16.8 ms; warm worst gaps 33–50 ms (were 16.8); cold route planning ~50 → ~115 ms (scenery
+cells sample the detailed ground). Captures in `shots/fps-detail/`. Checks: 78 unit
+tests, build, `check:player`, `check:shore` (its dry-downs assertion now compares against
+the detailed ground), `check:scenery`, `npm run shots`.
+
+Looks off: knolls are similar in size and shape and read as "hummocks" from above; rock
+on crests is a colour change, not a form; at noon the relief is faint; objects 150 m+
+away can float or sink up to ~1–2 m because the far mesh drops the finest detail bands;
+knolls are walkable, not blockers; rebuilding the detail map takes ~220 ms after each
+paint edit.
