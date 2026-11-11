@@ -1,5 +1,6 @@
 import { hashString, mulberry32, Simplex2 } from '../noise';
 import { Ground, smooth, type Spot, type Zone } from './ground';
+import type { Cover } from '../detail';
 import { KINDS, TIERS, WALL_HALF_KM, WALL_TEMPLATE_M, type Blocker, type Kind, type Placed, type Tier } from './kit';
 
 export class Fields {
@@ -17,44 +18,46 @@ interface Rule {
   spacingKm: number;
   sizeM: [number, number];
   skew?: number;
-  weight: (s: Spot, f: Fields, x: number, z: number) => number;
+  weight: (s: Spot, f: Fields, x: number, z: number, c: Cover | null) => number;
   variants?: (s: Spot) => number[];
   lean?: number;
   tilt?: number;
   sink?: number;
   water?: 'dry' | 'shallow' | 'standing';
   standsInWater?: [number, number];
+  shape?: { sx: [number, number]; sy: [number, number]; contour?: boolean };
 }
 
 const dry = (s: Spot) => s.zone !== 'water' && s.depth < 0.3;
 const core = (s: Spot) => smooth(0.35, 0.95, s.core);
 const gentle = (s: Spot, max = 0.35) => 1 - smooth(max * 0.6, max, s.slope);
 const by = (s: Spot, w: Partial<Record<Zone, number>>) => w[s.zone] ?? 0;
+const covered = (s: Spot) => s.zone === 'downs' || s.zone === 'ash' || s.zone === 'rock';
 
 const RULES: Record<Tier, Rule[]> = {
   near: [
     { kind: 'slab', spacingKm: 0.009, sizeM: [0.7, 1.5], tilt: 1, sink: 0.4, water: 'shallow',
       weight: (s, f, x, z) => s.zone === 'tidal' || (s.zone === 'water' && s.depth < 1.2) ? (s.mat === 'tidal channel' || s.zone === 'water' ? 0.6 : 0.03 + 0.4 * s.bank) * smooth(-0.3, 0.1, f.at('slabs', x, z, 0.07)) : 0 },
     { kind: 'stone', spacingKm: 0.012, sizeM: [0.25, 1.7], skew: 2.2, tilt: 0.7, sink: 0.3,
-      weight: (s) => by(s, { rock: 0.4, ash: 0.06, tidal: 0.1, mire: 0.04, downs: 0.05 + 0.3 * s.ridge, coral: 0.06 }) + 0.3 * s.foot },
+      weight: (s, _f, _x, _z, c) => by(s, { rock: 0.4, ash: 0.06, tidal: 0.1, mire: 0.04, downs: 0.015, coral: 0.06 }) + (s.zone === 'downs' ? 0.08 * s.foot : 0.3 * s.foot) + (c ? 0.55 * c.apron + 0.3 * c.rock : 0) },
     { kind: 'coral-clump', spacingKm: 0.0085, sizeM: [0.7, 2.6], lean: 0.12,
-      weight: (s, f, x, z) => s.zone === 'coral' ? core(s) * (0.5 + 0.5 * smooth(-0.6, 0.4, f.at('clumps', x, z, 0.11))) * gentle(s, 0.6) : by(s, { tidal: 0.07 + 0.15 * s.bank * s.core, downs: 0.02 }) },
+      weight: (s, f, x, z) => s.zone === 'coral' ? core(s) * (0.5 + 0.5 * smooth(-0.6, 0.4, f.at('clumps', x, z, 0.11))) * gentle(s, 0.6) : by(s, { tidal: 0.07 + 0.15 * s.bank * s.core, downs: 0.002 }) },
     { kind: 'tussock', spacingKm: 0.01, sizeM: [0.5, 1.3], tilt: 0.5,
-      weight: (s, f, x, z) => by(s, { downs: 0.3 * (0.4 + 0.6 * smooth(-0.5, 0.5, f.at('grass', x, z, 0.18))), mire: 0.4, tidal: 0.12 * s.bank, ash: 0.03 }) },
-    { kind: 'bone', spacingKm: 0.022, sizeM: [0.5, 2], tilt: 1, sink: 0.25, weight: (s) => by(s, { ash: 0.03, downs: 0.012, mire: 0.012 }) },
+      weight: (s, f, x, z, c) => by(s, { downs: c ? 0.02 + 0.55 * c.grass * (0.45 + 0.55 * smooth(-0.5, 0.5, f.at('grass', x, z, 0.04))) : 0.12, mire: 0.4, tidal: 0.12 * s.bank, ash: 0.03 }) },
+    { kind: 'bone', spacingKm: 0.022, sizeM: [0.5, 2], tilt: 1, sink: 0.25, weight: (s) => by(s, { ash: 0.03, downs: 0.004, mire: 0.012 }) },
   ],
   mid: [
     { kind: 'wreck', spacingKm: 0.32, sizeM: [7, 13], tilt: 1, lean: 0.22, sink: 0.25, water: 'shallow',
       weight: (s) => (s.zone === 'tidal' || (s.zone === 'water' && s.depth < 3)) ? 0.32 * gentle(s, 0.12) : 0 },
     { kind: 'ruin-wall', spacingKm: 0.32, sizeM: [5, 12], sink: 0.1, weight: (s) => dry(s) && s.zone !== 'rock' && s.zone !== 'none' ? 0.03 * gentle(s, 0.25) : 0 },
     { kind: 'tor', spacingKm: 0.11, sizeM: [6, 22], skew: 1.6, sink: 0.12,
-      weight: (s) => by(s, { downs: 0.03 + 0.55 * s.ridge, ash: 0.015 + 0.2 * s.ridge, rock: 0.06 * s.ridge }) * gentle(s, 0.6) },
+      weight: (s) => by(s, { downs: 0.002, ash: 0.015 + 0.2 * s.ridge, rock: 0.06 * s.ridge }) * gentle(s, 0.6) },
     { kind: 'spiral-shell', spacingKm: 0.08, sizeM: [3, 16], skew: 1.8, sink: 0.32, lean: 0.55,
       weight: (s) => by(s, { ash: 0.08 + 0.12 * s.foot, downs: 0.004, tidal: 0.006 }) * gentle(s, 0.4) },
     { kind: 'skull', spacingKm: 0.12, sizeM: [2.5, 8], sink: 0.22, lean: 0.3, weight: (s) => by(s, { ash: 0.025, downs: 0.004 }) },
     { kind: 'ribs', spacingKm: 0.09, sizeM: [5, 13], sink: 0.18, weight: (s) => by(s, { mire: 0.035, ash: 0.03, tidal: 0.015 }) },
     { kind: 'fallen-block', spacingKm: 0.06, sizeM: [3, 14], skew: 1.7, tilt: 0.8, lean: 0.3, sink: 0.2,
-      weight: (s) => by(s, { rock: 0.12 + 0.45 * s.foot, ash: 0.15 * s.foot, downs: 0.22 * s.foot, coral: 0.05 * s.foot }) },
+      weight: (s, _f, _x, _z, c) => by(s, { rock: 0.12 + 0.45 * s.foot, ash: 0.15 * s.foot, downs: 0.06 * s.foot + 0.12 * (c?.apron ?? 0), coral: 0.05 * s.foot }) },
     { kind: 'coral-tree', spacingKm: 0.036, sizeM: [9, 22], lean: 0.12,
       variants: (s) => (s.zone === 'coral' || s.zone === 'tidal' ? [0, 1, 2] : [3]),
       weight: (s, f, x, z) => s.zone === 'coral' ? 0.75 * core(s) * smooth(-0.2, 0.35, f.at('stands', x, z, 0.42)) * gentle(s, 0.55)
@@ -65,9 +68,9 @@ const RULES: Record<Tier, Rule[]> = {
     { kind: 'dead-trunk', spacingKm: 0.04, sizeM: [5, 13], lean: 0.28, water: 'shallow',
       weight: (s) => by(s, { mire: 0.06 + 0.18 * s.bank, downs: 0.006, tidal: 0.012 }) },
     { kind: 'boulder', spacingKm: 0.035, sizeM: [1.8, 7], skew: 1.8, tilt: 0.7, sink: 0.25,
-      weight: (s, f, x, z) => {
+      weight: (s, f, x, z, c) => {
         const field = smooth(0, 0.5, f.at('boulders', x, z, 0.5));
-        return by(s, { rock: 0.08 + 0.4 * field * (0.4 + s.foot), tidal: 0.04 + 0.12 * field, downs: 0.02 + 0.25 * s.ridge * field + 0.4 * s.foot * (0.3 + field), coral: 0.04, ash: 0.03 + 0.3 * s.foot, mire: 0.02 });
+        return by(s, { rock: 0.08 + 0.4 * field * (0.4 + s.foot), tidal: 0.04 + 0.12 * field, downs: 0.008 + 0.1 * s.foot * (0.3 + field) + 0.3 * (c?.apron ?? 0) * (0.4 + field), coral: 0.04, ash: 0.03 + 0.3 * s.foot, mire: 0.02 });
       } },
     { kind: 'fan-coral', spacingKm: 0.024, sizeM: [2.5, 7], lean: 0.15,
       weight: (s) => s.zone === 'coral' ? 0.28 * core(s) * gentle(s, 0.6) : by(s, { tidal: 0.04 }) },
@@ -75,6 +78,8 @@ const RULES: Record<Tier, Rule[]> = {
       weight: (s) => s.zone === 'coral' ? 0.12 * core(s) : by(s, { tidal: 0.06 }) },
     { kind: 'reed-bed', spacingKm: 0.045, sizeM: [0.7, 1.4], tilt: 1, sink: -0.08, water: 'shallow',
       weight: (s) => (s.zone === 'mire' ? 0.5 : s.zone === 'water' && s.depth < 1 ? 0.3 : by(s, { tidal: 0.08 * s.bank })) * gentle(s, 0.1) },
+    { kind: 'boulder', spacingKm: 0.011, sizeM: [2.5, 7.5], skew: 1.4, tilt: 0.5, sink: 0.45, shape: { sx: [1.1, 1.7], sy: [0.5, 0.75], contour: true },
+      weight: (s, _f, _x, _z, c) => c && covered(s) ? 0.85 * c.rock : 0 },
   ],
   far: [
     { kind: 'leaning-tower', spacingKm: 1.28, sizeM: [30, 75], lean: 0.2, sink: 0.08,
@@ -139,7 +144,8 @@ export class ScenerySource {
       const x = x0 + (i + rx) * step, z = z0 + (j + rz) * step;
       const p = probeAt(x, z);
       if (p.excluded) continue;
-      const w = rule.weight(p, this.fields, x, z);
+      const c = covered(p) ? this.ground.sampler.cover?.(x, z) ?? null : null;
+      const w = rule.weight(p, this.fields, x, z, c);
       if (roll >= w) continue;
       const h = this.ground.sampler.height(x, z);
       const water = this.ground.sampler.water(x, z);
@@ -164,8 +170,12 @@ export class ScenerySource {
         leanX += Math.cos(a) * m; leanZ += Math.sin(a) * m;
       }
       const s = heightM / meta.nominalM;
-      const sink = (rule.sink ?? 0.04) * above + 0.15;
-      out.objects.push({ kind: rule.kind, variant, x, z, y: h - sink, yaw: ry * Math.PI * 2, sx: s, sy: s, sz: s, leanX, leanZ, tint: 0.85 + rt * 0.3, heightM });
+      const sh = rule.shape;
+      const fx = sh ? sh.sx[0] + (sh.sx[1] - sh.sx[0]) * ((rs * 7.31) % 1) : 1;
+      const fy = sh ? sh.sy[0] + (sh.sy[1] - sh.sy[0]) * ((rt * 5.17) % 1) : 1;
+      const yaw = sh?.contour && c ? -Math.atan2(c.gx, -c.gz) + (ry - 0.5) * 0.6 : ry * Math.PI * 2;
+      const sink = (rule.sink ?? 0.04) * above * fy + 0.15;
+      out.objects.push({ kind: rule.kind, variant, x, z, y: h - sink, yaw, sx: s * fx, sy: s * fy, sz: s, leanX, leanZ, tint: 0.85 + rt * 0.3, heightM });
       if (checkOverlap) taken.push({ x, z, r });
       if (meta.blockRatio > 0) out.blockers.push({ x, z, r: meta.blockRatio * heightM / 1000 });
     }

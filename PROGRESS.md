@@ -519,3 +519,41 @@ on crests is a colour change, not a form; at noon the relief is faint; objects 1
 away can float or sink up to ~1–2 m because the far mesh drops the finest detail bands;
 knolls are walkable, not blockers; rebuilding the detail map takes ~220 ms after each
 paint edit.
+
+## 2026-11-11 — FPS step 4: ground cover and objects from the detail
+
+One reading of the ground, written once for the GPU and once for placement
+(`src/core/detail.ts`): rock where a knoll crest rises, gravel on the lower knoll flanks,
+hollows, and golden grass patches by noise threshold. The GPU evaluates it per vertex (about
+every 5 m near the player, no per-pixel noise), the fragment shader only breaks up the edges.
+Placement evaluates it at each object's own spot (the cell probes are up to 64 m apart).
+
+In the Shore palette the downs are now dark soil with golden grass in patches, olive in
+hollows, light gravel on knoll flanks and slate rock on crests. Soil and grass belong to the
+grassland everywhere; rock, gravel and hollows come only from the detail relief. Rounded
+outcrop boulders, squashed, stretched along the contour and sunk, sit on rock cover;
+boulders, fallen blocks and stones moved to the gravel; tussocks to the grass; tors, bones
+and coral clumps are rare in the downs. Knolls vary by a 600 m noise: 7–16 m tall, broad
+clusters in some stretches, calm ground in others. The regional cliff-rock and scree rules
+now use the regional slope only, so knoll flanks no longer paint as cliffs.
+
+Comparison: `npm run shots:biomes` captures one fixed eye-level spot per biome; iterations in
+`shots/biomes/` (`00-before` to `07-final`, `compare-00-before-vs-07-final.jpg`). Route views
+from step 1 in `shots/fps-ground-cover/`.
+
+Found on the way and fixed first (hex-schmex#9): the GPU stretched the eroded height grid to the
+map width while the CPU read it at true cell positions, so the drawn ground sat up to 4.6 m
+above the walker on eastern slopes (the tablelands view was underground). Now within 2 cm.
+
+Measured once at the end, interleaved with a clean copy of `101e77e`, route from step 1:
+GPU median 10.9 → 12.0 ms, p95 ~16 → 17–18.6 ms, views +0.8 to +1.2 ms; frame gap p95 stays
+16.8 ms (one cold run 33 ms); warm worst gap 16.8 → 33.4 ms; cold route planning ~110 →
+~148 ms (cover per placement candidate). Triangles unchanged, visible objects +15–30%.
+Checks: 81 unit tests (cover and placement tests added), build, `check:player`,
+`check:shore`, `check:scenery`, `npm run shots`.
+
+Looks off: gravel patches on distant knolls still show straight edges where the mesh is coarse;
+grass along gullies can stripe far slopes; outcrop boulders carry the boulder kit's yellow-green
+lichen tops; the ash gained a small grassy mound at its edge; the lowest mountain slopes get turf
+patches; up close the ground is soft, not textured like the references.
+

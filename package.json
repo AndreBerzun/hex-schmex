@@ -21,7 +21,8 @@
     "gallery": "tsx scripts/gallery.ts",
     "check:scenery": "tsx scripts/scenery-check.ts",
     "probe:scenery": "tsx scripts/scenery-probe.ts",
-    "check:fps-baseline": "tsx scripts/fps-baseline.ts"
+    "check:fps-baseline": "tsx scripts/fps-baseline.ts",
+    "shots:biomes": "tsx scripts/biome-shots.ts"
   },
   "dependencies": {
     "three": "0.170.0"

@@ -1,3 +1,4 @@
+import type { Cover } from '../detail';
 import type { Feature, World } from '../types';
 
 export type Zone = 'coral' | 'tidal' | 'mire' | 'downs' | 'ash' | 'rock' | 'water' | 'none';
@@ -21,6 +22,7 @@ export interface GroundSampler {
   height(x: number, z: number): number;
   surface(x: number, z: number, h: number, slope: number): { mat: string; water: boolean; moisture: number };
   water(x: number, z: number): { kind: number; level: number };
+  cover?(x: number, z: number): Cover | null;
 }
 
 export interface Spot {

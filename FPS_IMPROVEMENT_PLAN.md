@@ -201,3 +201,13 @@ next numbered step in this task."
   8.6 → 11.4 ms on the route, no p95 frame drops, cold planning ~115 ms. Limits and
   dropped attempts in PROGRESS.md. Next single task: step 4, ground material and objects
   from the detail (rubble below faces, thinner random scatter), plus knoll variety.
+
+- 2026-11-11: Step 4 on branch `feat/fps-ground-cover`: shared ground cover (rock, gravel,
+  hollow, grass) from the detail, downs palette, objects placed by cover, knoll variety.
+  Changed: `src/core/detail.ts`, `src/core/scenery/place.ts`, `src/core/scenery/ground.ts`,
+  `src/render/terrainShader.ts`, `src/app/app.ts`, tests, `scripts/biome-shots.ts`.
+  New fixed per-biome comparison: `npm run shots:biomes`, `shots/biomes/00-before` vs
+  `07-final`. Route views in `shots/fps-ground-cover/`. Measured: GPU median 10.9 → 12.0 ms
+  on the route, frame gap p95 16.8 ms, cold planning ~148 ms. Limits in PROGRESS.md. Next
+  single task: step 5, ash landform (dunes, wind-scoured hollows).
+

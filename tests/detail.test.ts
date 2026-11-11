@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { buildDetailMask, downsDetail } from '../src/core/detail';
+import { buildDetailMask, coverFields, coverFrom, downsDetail } from '../src/core/detail';
 
 it('reports the slope of the height it returns', () => {
   const e = 0.0001;
@@ -38,4 +38,37 @@ it('keeps detail off ground that is not downs, with a margin', () => {
   expect(mask.at(2, 5)).toBeGreaterThan(0);
   expect(mask.at(4.9, 5)).toBe(0);
   expect(mask.at(7, 5)).toBe(0);
+});
+
+const cover = (x: number, z: number, mask = 1) => {
+  const d = downsDetail(x, z, 5.3, 5150);
+  return { d, c: coverFrom(coverFields(x, z, 5.3, 5150, d, mask, { rock: 0, apron: 0, hollow: 0, grass: 0 }), mask, d.gx, d.gz) };
+};
+const grid = (f: (x: number, z: number) => void) => {
+  for (let j = 0; j < 80; j++) for (let i = 0; i < 80; i++) f(40.6 + i * 0.01, 45.9 + j * 0.01);
+};
+
+it('turns knoll crests to rock and their lower flanks to gravel, nothing else', () => {
+  let rock = 0, apron = 0;
+  grid((x, z) => {
+    const { d, c } = cover(x, z);
+    if (c.rock > 0.5) { rock++; expect(d.knoll).toBeGreaterThan(0.45); }
+    if (c.apron > 0.5) { apron++; expect(d.knoll).toBeGreaterThan(0.03); expect(d.knoll).toBeLessThan(0.6); }
+  });
+  expect(rock).toBeGreaterThan(20);
+  expect(apron).toBeGreaterThan(20);
+});
+
+it('grows grass in patches with or without detail relief, but no rock or gravel without it', () => {
+  for (const mask of [1, 0]) {
+    let grass = 0, n = 0;
+    grid((x, z) => {
+      n++;
+      const { c } = cover(x, z, mask);
+      if (c.grass > 0.5) grass++;
+      if (!mask) expect(c.rock + c.apron + c.hollow).toBe(0);
+    });
+    expect(grass / n).toBeGreaterThan(0.3);
+    expect(grass / n).toBeLessThan(0.9);
+  }
 });

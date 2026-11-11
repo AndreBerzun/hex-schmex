@@ -1,0 +1,37 @@
+[
+  {
+    "name": "downs",
+    "zone": "downs",
+    "mat": "black earth"
+  },
+  {
+    "name": "tablelands",
+    "zone": "downs",
+    "mat": "black earth"
+  },
+  {
+    "name": "ash",
+    "zone": "ash",
+    "mat": "ash"
+  },
+  {
+    "name": "coral",
+    "zone": "coral",
+    "mat": "crimson coral"
+  },
+  {
+    "name": "mire",
+    "zone": "mire",
+    "mat": "silt mire"
+  },
+  {
+    "name": "tidal",
+    "zone": "tidal",
+    "mat": "tidal flats"
+  },
+  {
+    "name": "mountains",
+    "zone": "rock",
+    "mat": "mineral rock"
+  }
+]
