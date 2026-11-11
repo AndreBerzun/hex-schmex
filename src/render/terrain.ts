@@ -11,7 +11,7 @@ import { TERRAIN_FS, TERRAIN_VS } from './terrainShader';
 const GRID_N = 32;
 const MAX_NODES = 1024;
 const MIN_RANGE_K = 3;
-const FINE_QUAD_M = 6;
+const FINE_QUAD_M = 1;
 
 export interface HeightSource {
   texture: THREE.Texture;
@@ -125,6 +125,7 @@ export class Terrain {
   /** how far the surround extends beyond the map, as a fraction of the larger map side */
   surround = 0.7;
   nodeCount = 0;
+  private nearest: number[] = [];
   private order: { x0: number; z0: number; size: number; level: number; d: number }[] = [];
 
   constructor(uniforms: Record<string, THREE.IUniform>) {
@@ -133,7 +134,7 @@ export class Terrain {
       defines: { SURFACE_DETAIL: 1 },
       vertexShader: TERRAIN_VS,
       fragmentShader: TERRAIN_FS,
-      uniforms: { ...uniforms, uGridN: { value: GRID_N }, uLeafRange: { value: 10 }, uMinLevel: { value: 0 }, uCoarseKm: { value: 1 }, uOrigin: { value: new THREE.Vector2() }, uSurfaceFade: { value: 1 } },
+      uniforms: { ...uniforms, uGridN: { value: GRID_N }, uLeafRange: { value: 10 }, uMinLevel: { value: 0 }, uCoarseKm: { value: 1 }, uOrigin: { value: new THREE.Vector2() }, uSurfaceFade: { value: 1 }, uMorphEye: { value: new THREE.Vector3() }, uCoverPass: { value: 0 } },
     });
     // Compile fine detail out of the overview path: skipped texture fetches alone
     // still leave register/instruction overhead on integrated Intel graphics.
@@ -204,6 +205,13 @@ export class Terrain {
     return this.hasDetail(Math.floor((x - this.ox) / this.leafKm), Math.floor((z - this.oz) / this.leafKm));
   }
 
+  nodesWithin(radiusKm: number): number {
+    const r2 = radiusKm * radiusKm;
+    let n = 0;
+    while (n < this.nearest.length && this.nearest[n] <= r2) n++;
+    return n;
+  }
+
   get fineQuadM(): number { return this.leafKm * 1000 / GRID_N * Math.pow(2, this.minLevel); }
 
   surfaceHeightAt(x: number, z: number, base: (x:number,z:number)=>number, detail?: (x:number,z:number)=>number): number {
@@ -222,6 +230,7 @@ export class Terrain {
 
   update(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera, showSurround = true, viewportWidthPx = 1500) {
     if (!this.bounds) return;
+    (this.material.uniforms.uMorphEye.value as THREE.Vector3).copy(camera.position);
     this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.projView);
     const arr = (this.geom.getAttribute('aNode') as THREE.InstancedBufferAttribute).array as Float32Array;
@@ -256,7 +265,6 @@ export class Terrain {
         count++;
       };
       if (level === this.minLevel) return add();
-      if (level <= 0 && !this.hasDetail(ix >> -level, iz >> -level)) return add();
       const subRange = leafRange * Math.pow(2, level - 1);
       const d = ortho ? Infinity : this.box.distanceToPoint(cam);
       const wantSplit = ortho ? level > 0 && size / this.leafKm > orthoLeafRatio : d < subRange;
@@ -274,6 +282,7 @@ export class Terrain {
     }
     (this.geom.getAttribute('aNode') as THREE.InstancedBufferAttribute).needsUpdate = true;
     this.geom.instanceCount = count;
+    this.nearest = visible.map((n) => n.d);
     this.nodeCount = count;
   }
 }

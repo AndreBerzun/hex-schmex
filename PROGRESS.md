@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current focus (2026-11-11): **the eye-level ground scene**, one biome at a time against its Midjourney reference. The coral is first (painted textures, sun shadows, painterly finish), then ink shadows after Mignola and the painted downs ground (see the last two sections). Earlier: the middle layer, see below and [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
+Current focus (2026-11-11): **the eye-level ground scene**, one biome at a time against its Midjourney reference. The coral is first (painted textures, sun shadows, painterly finish), then ink shadows after Mignola, the painted downs ground, relief and ground cover near the player (see the last three sections). Earlier: the middle layer, see below and [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
 
 | # | State | Notes |
 |---|---|---|
@@ -629,3 +629,39 @@ about +0.5 ms. Checks: 81 unit tests, build, `build:single` (3.5 MB), `check:sce
 Looks off: at noon there is little black on the ground, the look depends on the time of day;
 the painted grass reads as fine grain only, golden on golden at a grazing angle, without tufts
 standing up; backlit objects become full silhouettes with no rim of colour; hatching swims.
+
+
+## 2026-11-11 — Near-ground scene: relief and ground cover; hatching dropped
+
+The GM found the cross-hatching read as glitches; shadows are now solid ink shapes only.
+
+- Relief near the player in every biome: the terrain refines to 1 m quads near the camera
+  everywhere (before: 6 m in the downs only, about 60 m elsewhere, which is why the coral floor
+  was flat). A relief layer of 12 m swells (0.85 m) and 4 m hummocks (0.3 m) displaces the mesh,
+  off under water, with a CPU twin in the ground height so the player and objects stand on it. It
+  changes lighting only: land classification (marsh, tidal flats) ignores it; a first version
+  fed it into the slope and erased the mire water and the tidal flats.
+- Terrain vertices are computed from an exact integer grid, so tiles of different levels share
+  bit-identical corners; without it the new level boundaries showed pinholes that the ink outline
+  turned into dotted rings.
+- Ground cover: the terrain material renders a 64 m top-down cover map around the player (ground
+  height, coral turf, grass, stone, wet ground) from the same rules that paint the ground, so
+  cover matches the drawn patches exactly. Two instance rings follow the player (0.32 m cells to
+  11 m, 0.75 m cells to 28 m), placed by an integer hash of the world cell: coral sprigs on turf,
+  golden grass tufts on the downs grass, pebbles on stony ground. Their colour is the blurred
+  ground painting under them; blades are lit like the ground, so only cast shadows ink them. The
+  terrain morph now follows the player camera in every pass (`uMorphEye`).
+
+Comparison: `shots/biomes/compare-10-downs-paint-vs-12-cover-vs-12-cover-16.5.jpg`,
+`compare-coral-10-ink-vs-coral-12-cover-vs-coral-12-cover-16.5.jpg`.
+
+Measured once, 1920×1080 GPU median, noisy (±5 ms between runs): downs 37.3 ms, tablelands
+39.5, coral 48.5, mire 35.8; the cover is about 3 ms of that, the finer ground mesh about 8–10 ms
+over `e547db1` (249 terrain tiles instead of 191). A first cut cost 5–11 ms for the cover; the
+pebble mesh, its grid and the cover map drawing every tile were the cause. Checks: 81 unit tests,
+build, `build:single`, `check:scenery`, `check:player`, `check:shore`.
+
+Looks off: the finer mesh is the next performance target (the intermediate levels in biomes
+without the detail layer add tiles that carry nothing); grass in shadow patches stays lit;
+pebbles read as pale specks; sand carries no shells yet; the remaining biomes (mountains, tidal,
+ash, mire) have no textures of their own.

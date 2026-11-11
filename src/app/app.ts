@@ -20,7 +20,7 @@ import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
 import { Scenery } from '../render/scenery';
 import { Ground, exclusionKm, zoneOf } from '../core/scenery/ground';
-import { DetailMask, buildDetailMask, coverFields, coverFrom, downsDetail, type Cover, type CoverFields, type DetailSample } from '../core/detail';
+import { DetailMask, buildDetailMask, coverFields, coverFrom, downsDetail, nearRelief, type Cover, type CoverFields, type DetailSample } from '../core/detail';
 import type { Zone } from '../core/scenery/ground';
 
 const DETAIL_WEIGHT: Record<Zone, number> = { downs: 1, rock: 0.8, ash: 0.6, none: 0, coral: -1, mire: -1, tidal: -1, water: -1 };
@@ -39,6 +39,7 @@ import { loadGroundTextures } from '../render/groundTextures';
 import { SunShadow } from '../render/sunShadow';
 import { PaintPass } from '../render/paintPass';
 import { inkUniforms } from '../render/inkStyle';
+import { GroundCover } from '../render/groundCover';
 
 export type Stage = 'idle' | 'evaluating' | 'draining' | 'eroding' | 'hydrology' | 'ready' | 'error';
 
@@ -86,6 +87,7 @@ export { DEBUG_NAMES };
 
 const SUN_SHADOW_MAX_AGL_M = 400;
 const PAINT_MAX_AGL_M = 1500;
+const COVER_MAX_AGL_M = 60;
 
 export class App {
   readonly renderer: THREE.WebGLRenderer;
@@ -118,6 +120,8 @@ export class App {
   readonly paintPass = new PaintPass();
   paintOn = true;
   inkOn = true;
+  coverOn = true;
+  groundCover!: GroundCover;
   sunShadowOn = true;
   readonly workers = new WorkerClient();
 
@@ -282,6 +286,8 @@ export class App {
     this.scene.add(this.landmarks.group);
     this.scenery = new Scenery(this.uniforms);
     this.scene.add(this.scenery.group);
+    this.groundCover = new GroundCover(this.uniforms);
+    this.scene.add(this.groundCover.group);
     this.scene.add(this.sky.mesh, this.terrain.mesh, this.labels.mesh);
     this.applySettings();
     this.installPointer(canvas);
@@ -861,7 +867,7 @@ export class App {
   }
 
   groundAt(x: number, z: number): number {
-    return this.heightAt(x, z) + this.detailAt(x, z);
+    return this.heightAt(x, z) + this.detailAt(x, z) + this.reliefAt(x, z);
   }
 
   detailAt(x: number, z: number): number {
@@ -879,8 +885,13 @@ export class App {
     return coverFrom(coverFields(x, z, q, seed, d, w, this.coverTmp), w, d.gx * w, d.gz * w);
   }
 
+  reliefAt(x: number, z: number): number {
+    return nearRelief(x, z, this.terrain.fineQuadM, (this.world?.seed ?? 0) | 0);
+  }
+
   standHeightAt(x: number, z: number): number {
-    return this.terrain.surfaceHeightAt(x, z, (a, b) => this.surfaceAt(a, b, false), (a, b) => this.detailAt(a, b));
+    const h = this.terrain.surfaceHeightAt(x, z, (a, b) => this.surfaceAt(a, b, false), (a, b) => this.detailAt(a, b));
+    return this.surfaceAt(x, z, false) - this.heightAt(x, z) > 0.25 ? h : h + this.reliefAt(x, z);
   }
 
   surfaceAt(x: number, z: number, withDetail = true): number {
@@ -1217,6 +1228,7 @@ export class App {
     this.skirt.mesh.visible = !this.settings.mapMode;
     this.timer.begin();
     this.sunShadow.update(this.renderer, this.scenery, this.camera.position, this.sunDir, this.sunShadowOn && !this.settings.mapMode && this.sceneryOn && aglM < SUN_SHADOW_MAX_AGL_M);
+    this.groundCover.update(this.renderer, this.terrain.mesh, this.terrain.material, this.terrain.nodesWithin(0.05), this.camera.position, this.coverOn && !this.settings.mapMode && aglM < COVER_MAX_AGL_M && this.terrain.mesh.material === this.terrain.material);
     this.renderer.setRenderTarget(null);
     const painted = this.paintOn && !this.settings.mapMode && aglM < PAINT_MAX_AGL_M;
     this.uniforms.uInkOn.value = painted && this.inkOn ? 1 : 0;

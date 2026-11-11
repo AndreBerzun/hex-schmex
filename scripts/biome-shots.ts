@@ -31,6 +31,7 @@ async function capture(name: string) {
     a.setSettings({ exag: 1, timeOfDay: ${Number(process.env.TP_TIME ?? 12)}, tide: 0, mapMode: false });
     a.ground.enter();
     if (${Number(process.env.TP_DEBUG ?? 0)}) a.uniforms.uDebug.value = ${Number(process.env.TP_DEBUG ?? 0)};
+    ${process.env.TP_SETUP ?? ''};
   })()`);
   await page.evaluate('window.__tp.finish()');
   const spotsSeen: unknown[] = [];

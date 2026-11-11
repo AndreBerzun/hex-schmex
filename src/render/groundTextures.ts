@@ -22,6 +22,7 @@ export const GROUND_GLSL = /* glsl */ `
 uniform highp sampler2DArray uGround;
 ${LAYERS.map(([name], i) => `const float L_${name} = ${i.toFixed(1)};`).join('\n')}
 vec3 groundTex(float layer, vec2 uv) { return texture(uGround, vec3(uv, layer)).rgb; }
+vec3 groundTexLod(float layer, vec2 uv, float lod) { return textureLod(uGround, vec3(uv, layer), lod).rgb; }
 `;
 
 export interface GroundTextures {

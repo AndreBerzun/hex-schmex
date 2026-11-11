@@ -23,11 +23,13 @@ uniform vec2 uOrigin;
 uniform float uExag;
 uniform float uDetailOn;
 uniform vec2 uTexOrigin;
+uniform vec3 uMorphEye;
 varying vec3 vWorld;
 varying vec2 vUv;
 varying float vLevel;
 varying float vOut;
 varying vec4 vDetail;
+varying vec3 vRelief;
 varying float vKnoll;
 varying vec4 vCover;
 varying vec2 vTexM;
@@ -59,15 +61,19 @@ void main() {
   float range = uLeafRange * exp2(level);
   float prev = level > uMinLevel + 0.5 ? range * 0.5 : 0.0;
   float mStart = mix(prev, range, 0.6);
-  float k = clamp((distance(cameraPosition, wp) - mStart) / max(1e-4, range - mStart), 0.0, 1.0);
+  float k = clamp((distance(uMorphEye, wp) - mStart) / max(1e-4, range - mStart), 0.0, 1.0);
   vec2 gm = g - fract(g * 0.5) * 2.0 * k;
-  xz = aNode.xy + gm / uGridN * size;
+  float qMin = uCoarseKm * exp2(uMinLevel);
+  xz = uOrigin + (floor((aNode.xy - uOrigin) / qMin + 0.5) + gm * exp2(level - uMinLevel)) * qMin;
   uv = gridUv(xz);
-  vDetail = groundDetail(xz, size * 1000.0 / uGridN * (1.0 + k));
+  float quadM = size * 1000.0 / uGridN * (1.0 + k);
+  vDetail = groundDetail(xz, quadM);
+  float waterAbove = max(texture2D(uWaterTex, uv).r, tideAt(uv * uGridKm)) - texture2D(uHeight, uv).r * uHeightScale;
+  vRelief = nearRelief(xz, quadM) * (1.0 - smoothstep(-0.6, 0.0, waterAbove));
   vKnoll = dKnoll * vDetail.w;
   vCover = dCover;
   float base = level < -0.5 ? coarseSurf(xz) : surf(uv);
-  wp = vec3(xz.x, (base + vDetail.x) * 0.001 * uExag, xz.y);
+  wp = vec3(xz.x, (base + vDetail.x + vRelief.x) * 0.001 * uExag, xz.y);
   vWorld = wp;
   vTexM = (xz - uTexOrigin) * 1000.0;
   vUv = uv;
@@ -102,6 +108,7 @@ uniform float uTidal;
 uniform float uHasHydro;
 uniform sampler2D uCanopy;
 uniform int uDebug;
+uniform float uCoverPass;
 uniform float uRiverMinLog;   // log10 km² where streams start to show
 // hex overlay
 uniform float uHexOn;
@@ -119,6 +126,7 @@ varying vec2 vUv;
 varying float vLevel;
 varying float vOut;
 varying vec4 vDetail;
+varying vec3 vRelief;
 varying float vKnoll;
 varying vec4 vCover;
 varying vec2 vTexM;
@@ -196,6 +204,7 @@ vec3 paintTex(float t, vec2 m, float tileM, float blend) {
 }
 #endif
 
+float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0;
 const float PAINT_ALBEDO = 0.55;
 const vec3 CORAL_TINT = vec3(0.8, 0.62, 0.78);
 const vec3 SAND_TINT = vec3(0.74, 0.7, 0.66);
@@ -216,6 +225,8 @@ vec3 coralGround(vec2 xz, vec2 m, float stands, float fw) {
   float rockW = smoothstep(0.62, 0.62 + edge * 2.0, rockField) * (1.0 - turfW);
   vec3 c = mix(sand, turf, turfW);
   if (rockW > 0.001) c = mix(c, paintTex(L_CORAL_ROCK, m, 2.0, blend), rockW);
+  gCoverTurf = turfW;
+  gCoralStone = max(rockW, smoothstep(0.3, 0.62, rockField) * 0.35) * (1.0 - turfW);
 #else
   vec3 sand = srgb(vec3(0.91, 0.83, 0.72)) * SAND_TINT;
   vec3 turf = srgb(vec3(0.73, 0.22, 0.17)) * CORAL_TINT;
@@ -377,6 +388,8 @@ void main() {
     vec3 cGold = mix(srgb(vec3(0.43, 0.37, 0.23)), srgb(vec3(0.31, 0.31, 0.19)), hollow * 0.8) * (0.85 + 0.3 * tuft);
 #endif
     col = mix(col, cGold, grass * (0.6 + 0.4 * tuft));
+    gCoverGrass = grass * (0.6 + 0.4 * tuft);
+    gCoverStone = max(apron, outcrop * 0.3);
 #ifdef SURFACE_DETAIL
     vec3 cPebble = rockTex * 0.112 * (0.72 + 0.4 * (e * 0.5 + 0.5));
 #else
@@ -396,6 +409,9 @@ void main() {
   if (rockAmt > 0.5) id = 2.0;
   float coralW = coralZone * (1.0 - rockAmt);
   if (coralW > 0.001) col = mix(col, coralGround(xz, vTexM, stands, fw), coralW);
+  gCoverTurf *= coralW;
+  gCoverGrass *= 1.0 - coralW;
+  gCoverStone = mix(gCoverStone, gCoralStone, coralW);
 
   // scree / talus: deposition on moderate slopes at altitude, and at the foot of cliffs
   float scree = smoothstep(2.0, 12.0, dep) * smoothstep(0.12, 0.35, gR) * (1.0 - smoothstep(0.75, 1.0, gR)) * smoothstep(tl - 400.0, tl + 200.0, elev);
@@ -432,7 +448,7 @@ void main() {
   col *= 1.0 - clamp(lap * 2.5, 0.0, 0.25) * (1.0 - snow * 0.7);
 
   // Surface relief affects lighting, not geography, classification or picking.
-  vec2 surfaceGrad = grad + dgrad;
+  vec2 surfaceGrad = grad + dgrad + vRelief.yz;
   float canopyAO = 1.0;
   #ifdef SURFACE_DETAIL
   float canopyWeight = forest * (1.0 - coralZone) * (1.0 - rockAmt) * (1.0 - snow);
@@ -474,6 +490,7 @@ void main() {
   c += uSunColor * pow(max(dot(n, Hh), 0.0), 40.0) * 0.15 * snow * shadow;
 
   // ---- water: sea and lakes (depth-tinted), rivers (shader-painted channels)
+  float coverWet = 0.0;
   bool isWater = depth > 0.0;
   if (isWater || river > 0.01) {
     float d = isWater ? depth : 4.0;
@@ -495,10 +512,16 @@ void main() {
     wc = mix(wc, vec3(0.85), foam * 0.35);
     float wa = isWater ? smoothstep(0.0, 0.4, depth) : river;
     c = mix(c, wc, wa);
+    coverWet = wa;
     ink *= 1.0 - wa;
     if (wa > 0.5) id = 8.0;
   }
 
+  if (uCoverPass > 0.5) {
+    float keep = (1.0 - snow) * (1.0 - scree) * (1.0 - tidal) * (1.0 - playa) * (1.0 - coverWet);
+    gl_FragColor = vec4(vWorld.y, gCoverTurf * keep, gCoverGrass * keep, keep > 0.5 ? 1.0 + gCoverStone * keep : 0.5);
+    return;
+  }
   // ---- debug views
   if (uDebug == 1) c = srgb(vec3(clamp(h / uMaxElev, 0.0, 1.0)));
   else if (uDebug == 2) c = srgb(vec3(clamp(g, 0.0, 1.5) / 1.5));
