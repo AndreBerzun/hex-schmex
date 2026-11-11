@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current focus (2026-11-11): **the eye-level ground scene**, one biome at a time against its Midjourney reference. The coral is first (painted textures, sun shadows, painterly finish; see the last section). Earlier: the middle layer, see below and [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
+Current focus (2026-11-11): **the eye-level ground scene**, one biome at a time against its Midjourney reference. The coral is first (painted textures, sun shadows, painterly finish), then ink shadows after Mignola and the painted downs ground (see the last two sections). Earlier: the middle layer, see below and [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
 
 | # | State | Notes |
 |---|---|---|
@@ -593,3 +593,39 @@ Looks off: the ground is flat (no dunes, no foreground stones or shells); the co
 flat carpet at your feet, with no clumps that stand up; trees are rounded umbrellas, not the
 gnarled trees of the reference; the purple fan coral carries a blotchy rock tone; the other six
 biomes only got the sky and the painterly finish.
+
+
+## 2026-11-11 — Ink shadows after Mignola, painted downs ground
+
+Where the gain came from (ablation on the three coral views, flat mean colours instead of the
+textures, paint pass and shadows off one at a time): about half from the new ground layout and
+sky, half from the painted textures; the painterly pass and the object shadows changed little.
+So the textures stay the main lever per biome.
+
+- Ink shadows, after the GM's Mike Mignola / Darkest Dungeon reference: in the eye-level view
+  the sun term is flattened (lit areas nearly flat colour) and terrain and objects write an ink
+  amount into the alpha channel: shadowed or turned away from the sun, with ragged edges from
+  world-anchored noise so they stay put when walking. The composite turns it into near-black
+  with a hint of the local colour, a short diagonal hatch where light turns to shadow and a
+  cross-hatch next to the black. Fades out between 1.2 and 5 km. Hatching is in screen space,
+  so it swims slightly while moving. A trial that turned the darkest pixels black was dropped:
+  it blacked out the mire water.
+- Ground textures moved into one texture array (one sampler for all layers; separate textures
+  would exceed WebGL2's guaranteed 16 per shader once a second biome came in).
+- Downs and tablelands: golden grass, packed earth and pale limestone from Midjourney 8.2 replace
+  the flat grass, earth, pebble and slab colours, scaled to the old brightness so the balance
+  holds; the earth is half desaturated to stay near the ashen palette.
+- `npm run shots:biomes` takes `TP_TIME=16.5` for an afternoon set; the ink look needs a lower
+  sun to show big shadow shapes.
+
+Comparison: `shots/biomes/compare-08-coral-scene-vs-10-downs-paint-vs-10-downs-paint-16.5.jpg`
+and `compare-coral-08-scene-vs-coral-10-ink-vs-coral-10-ink-16.5.jpg`.
+
+Measured once, 1920×1080, GPU median, against `230904a`: downs 23.0 → 26.6 ms, tablelands
+24.2 → 28.0 ms (the grass textures, about +3 ms), coral 36.5 → 37.1 ms; the ink style alone
+about +0.5 ms. Checks: 81 unit tests, build, `build:single` (3.5 MB), `check:scenery`,
+`check:player`, `check:shore`.
+
+Looks off: at noon there is little black on the ground, the look depends on the time of day;
+the painted grass reads as fine grain only, golden on golden at a grazing angle, without tufts
+standing up; backlit objects become full silhouettes with no rim of colour; hatching swims.

@@ -38,6 +38,7 @@ import { WorkerClient } from './workerClient';
 import { loadGroundTextures } from '../render/groundTextures';
 import { SunShadow } from '../render/sunShadow';
 import { PaintPass } from '../render/paintPass';
+import { inkUniforms } from '../render/inkStyle';
 
 export type Stage = 'idle' | 'evaluating' | 'draining' | 'eroding' | 'hydrology' | 'ready' | 'error';
 
@@ -116,6 +117,7 @@ export class App {
   readonly sunShadow = new SunShadow();
   readonly paintPass = new PaintPass();
   paintOn = true;
+  inkOn = true;
   sunShadowOn = true;
   readonly workers = new WorkerClient();
 
@@ -216,6 +218,7 @@ export class App {
     this.uniforms = {
       ...this.groundTextures.uniforms,
       ...this.sunShadow.uniforms,
+      ...inkUniforms(),
       uDaylight: { value: 1 },
       uSpire: { value: new THREE.Vector4() },
       uSpireRadius: { value: 0 },
@@ -1215,7 +1218,9 @@ export class App {
     this.timer.begin();
     this.sunShadow.update(this.renderer, this.scenery, this.camera.position, this.sunDir, this.sunShadowOn && !this.settings.mapMode && this.sceneryOn && aglM < SUN_SHADOW_MAX_AGL_M);
     this.renderer.setRenderTarget(null);
-    if (this.paintOn && !this.settings.mapMode && aglM < PAINT_MAX_AGL_M) this.paintPass.render(this.renderer, this.scene, cam);
+    const painted = this.paintOn && !this.settings.mapMode && aglM < PAINT_MAX_AGL_M;
+    this.uniforms.uInkOn.value = painted && this.inkOn ? 1 : 0;
+    if (painted) this.paintPass.render(this.renderer, this.scene, cam);
     else this.renderer.render(this.scene, cam);
     this.timer.end();
     this.renderedFrames++;

@@ -2,8 +2,27 @@ import * as THREE from 'three';
 import coralSandUrl from './textures/coral-sand.jpg';
 import coralTurfUrl from './textures/coral-turf.jpg';
 import coralRockUrl from './textures/coral-rock.jpg';
+import downsGrassUrl from './textures/downs-grass.jpg';
+import downsEarthUrl from './textures/downs-earth.jpg';
+import downsRockUrl from './textures/downs-rock.jpg';
 
 export const TEXTURE_ANCHOR_KM = 1;
+const SIZE = 1024;
+
+const LAYERS = [
+  ['CORAL_SAND', coralSandUrl],
+  ['CORAL_TURF', coralTurfUrl],
+  ['CORAL_ROCK', coralRockUrl],
+  ['DOWNS_GRASS', downsGrassUrl],
+  ['DOWNS_EARTH', downsEarthUrl],
+  ['DOWNS_ROCK', downsRockUrl],
+] as const;
+
+export const GROUND_GLSL = /* glsl */ `
+uniform highp sampler2DArray uGround;
+${LAYERS.map(([name], i) => `const float L_${name} = ${i.toFixed(1)};`).join('\n')}
+vec3 groundTex(float layer, vec2 uv) { return texture(uGround, vec3(uv, layer)).rgb; }
+`;
 
 export interface GroundTextures {
   uniforms: Record<string, THREE.IUniform>;
@@ -12,36 +31,32 @@ export interface GroundTextures {
   follow(camera: THREE.Vector3): void;
 }
 
+async function decode(url: string): Promise<Uint8ClampedArray> {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = SIZE;
+  const g = canvas.getContext('2d', { willReadFrequently: true })!;
+  g.drawImage(img, 0, 0, SIZE, SIZE);
+  return g.getImageData(0, 0, SIZE, SIZE).data;
+}
+
 export function loadGroundTextures(): GroundTextures {
-  const loader = new THREE.TextureLoader();
-  const textures: THREE.Texture[] = [];
-  const loads: Promise<void>[] = [];
-  const paint = (url: string) => {
-    const texture = new THREE.Texture();
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.minFilter = THREE.LinearMipmapLinearFilter;
-    textures.push(texture);
-    loads.push(new Promise((resolve, reject) => loader.load(url, (loaded) => {
-      texture.image = loaded.image;
-      texture.needsUpdate = true;
-      resolve();
-    }, undefined, reject)));
-    return texture;
-  };
+  const data = new Uint8Array(SIZE * SIZE * 4 * LAYERS.length);
+  const texture = new THREE.DataArrayTexture(data, SIZE, SIZE, LAYERS.length);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  const ready = Promise.all(LAYERS.map(async ([, url], i) => data.set(await decode(url), i * SIZE * SIZE * 4)))
+    .then(() => { texture.needsUpdate = true; });
   const origin = new THREE.Vector2();
-  const uniforms = {
-    uCoralSand: { value: paint(coralSandUrl) },
-    uCoralTurf: { value: paint(coralTurfUrl) },
-    uCoralRock: { value: paint(coralRockUrl) },
-    uTexOrigin: { value: origin },
-  };
   return {
-    uniforms,
-    ready: Promise.all(loads).then(() => undefined),
-    setAnisotropy(level: number) {
-      for (const t of textures) { t.anisotropy = level; t.needsUpdate = true; }
-    },
+    uniforms: { uGround: { value: texture }, uTexOrigin: { value: origin } },
+    ready,
+    setAnisotropy(level: number) { texture.anisotropy = level; texture.needsUpdate = true; },
     follow(camera: THREE.Vector3) {
       origin.set(Math.floor(camera.x / TEXTURE_ANCHOR_KM) * TEXTURE_ANCHOR_KM, Math.floor(camera.z / TEXTURE_ANCHOR_KM) * TEXTURE_ANCHOR_KM);
     },

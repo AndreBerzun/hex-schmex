@@ -4,6 +4,8 @@ import type { SceneryCells } from '../../core/scenery/store';
 import { ATMOS, LANDMARK_SHADOW } from '../glsl';
 import { buildKind, type Lod } from './kit';
 import { SUN_SHADOW_GLSL, type ShadowCaster } from '../sunShadow';
+import { INK_GLSL } from '../inkStyle';
+import { GROUND_GLSL } from '../groundTextures';
 
 const VS = /* glsl */ `
 attribute vec4 aA;
@@ -55,21 +57,20 @@ void main() {
   gl_FragColor = vec4(1.0);
 }`;
 
-const FS = ATMOS + LANDMARK_SHADOW + SUN_SHADOW_GLSL + /* glsl */ `
+const FS = ATMOS + LANDMARK_SHADOW + SUN_SHADOW_GLSL + INK_GLSL + /* glsl */ `
 uniform sampler2D uShadowTex;
 uniform vec2 uGridKm;
-uniform sampler2D uCoralTurf;
-uniform sampler2D uCoralRock;
+${GROUND_GLSL}
 varying vec3 vWorld;
 varying vec3 vNormal;
 varying vec3 vColor;
 varying float vVis;
 varying vec3 vTexP;
 const vec3 LUMA = vec3(0.3, 0.55, 0.15);
-float paintedTone(sampler2D t, vec3 p, vec3 n, float tileM, float meanLuma) {
+float paintedTone(float t, vec3 p, vec3 n, float tileM, float meanLuma) {
   vec3 w = pow(abs(n), vec3(4.0));
   w /= dot(w, vec3(1.0));
-  vec3 c = texture2D(t, p.zy / tileM).rgb * w.x + texture2D(t, p.xz / tileM).rgb * w.y + texture2D(t, p.xy / tileM).rgb * w.z;
+  vec3 c = groundTex(t, p.zy / tileM) * w.x + groundTex(t, p.xz / tileM) * w.y + groundTex(t, p.xy / tileM) * w.z;
   return clamp(dot(c, LUMA) / meanLuma, 0.25, 2.2);
 }
 void main() {
@@ -85,10 +86,12 @@ void main() {
   vec3 fillDir = normalize(vec3(-uSunDir.x, 0.35, -uSunDir.z) + vec3(0.0001, 0.0, 0.0));
   float fill = max(dot(n, fillDir), 0.0) * 0.45 + (1.0 - abs(n.y)) * 0.35 + max(-n.y, 0.0) * 0.3;
   float coral = smoothstep(0.25, 0.55, (vColor.r - max(vColor.g, vColor.b)) / max(vColor.r, 1e-4));
-  float tone = coral > 0.01 ? paintedTone(uCoralTurf, vTexP, n, 1.6, 0.19) : 1.0;
-  if (coral < 0.99) tone = mix(paintedTone(uCoralRock, vTexP, n, 2.0, 0.33), tone, coral);
-  vec3 col = vColor * tone * (uSunColor * (ndl * shadow * 3.1 + fill) + skyAmb * 0.66);
-  gl_FragColor = vec4(toDisplay(applyAtmosphere(col, vWorld, cameraPosition)), 1.0);
+  float tone = coral > 0.01 ? paintedTone(L_CORAL_TURF, vTexP, n, 1.6, 0.19) : 1.0;
+  if (coral < 0.99) tone = mix(paintedTone(L_CORAL_ROCK, vTexP, n, 2.0, 0.33), tone, coral);
+  vec2 inkM = vec2(vTexP.x + vTexP.y * 0.6, vTexP.z - vTexP.y * 0.4);
+  vec2 inked = inkLight(ndl, ndl * shadow, inkM, distance(vWorld, cameraPosition), length(fwidth(vTexP)));
+  vec3 col = vColor * tone * (uSunColor * (inked.x * 3.1 + fill * (1.0 - 0.5 * uInkOn)) + skyAmb * 0.66);
+  gl_FragColor = vec4(toDisplay(applyAtmosphere(col, vWorld, cameraPosition)), 1.0 - inked.y);
 }`;
 
 const MAX_RANGE: Partial<Record<Kind, number>> = {

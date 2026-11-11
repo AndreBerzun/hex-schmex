@@ -42,8 +42,13 @@ uniform vec2 uTexel;
 uniform float uInk;
 uniform float uNear;
 uniform float uFar;
+uniform float uHatchScale;
 varying vec2 vUv;
 const vec3 LUMA = vec3(0.3, 0.55, 0.15);
+float hatchLine(float u, float spacing, float width) {
+  float d = abs(fract(u / spacing) - 0.5) * spacing;
+  return (1.0 - smoothstep(width * 0.5 - 0.45, width * 0.5 + 0.45, d)) * smoothstep(0.15, 0.6, width);
+}
 float viewDepth(vec2 uv) {
   float d = texture2D(uDepth, uv).r;
   return uNear * uFar / (uFar - d * (uFar - uNear));
@@ -55,6 +60,14 @@ void main() {
   float shade = 1.0 - smoothstep(0.0, 0.55, l);
   c = mix(c, c * vec3(0.82, 0.88, 1.18), shade * 0.55);
   c = mix(c, c * vec3(1.04, 1.0, 0.92), smoothstep(0.55, 0.95, l) * 0.6);
+  float ink = 1.0 - texture2D(uScene, vUv).a;
+  vec2 px = gl_FragCoord.xy * uHatchScale;
+  float solid = smoothstep(0.52, 0.6, ink);
+  float wobble = sin(px.y * 0.043 + px.x * 0.011) * 1.3;
+  float h1 = hatchLine(px.x + px.y + wobble, 9.0, smoothstep(0.18, 0.5, ink) * 2.4);
+  float h2 = hatchLine(px.x - px.y * 0.7 - wobble, 10.0, smoothstep(0.42, 0.56, ink) * 2.0);
+  vec3 black = c * vec3(0.16, 0.13, 0.22) + vec3(0.012, 0.01, 0.02);
+  c = mix(c, black, max(solid, max(h1, h2) * (1.0 - solid)));
   float z = viewDepth(vUv);
   float jump = max(max(viewDepth(vUv + vec2(1.5, 0.0) * uTexel), viewDepth(vUv - vec2(1.5, 0.0) * uTexel)),
                    max(viewDepth(vUv + vec2(0.0, 1.5) * uTexel), viewDepth(vUv - vec2(0.0, 1.5) * uTexel)));
@@ -80,7 +93,7 @@ export class PaintPass {
       vertexShader: VS, fragmentShader: KUWAHARA_FS, depthTest: false, depthWrite: false,
     });
     this.composite = new THREE.ShaderMaterial({
-      uniforms: { uPainted: { value: this.painted.texture }, uScene: { value: this.scene.texture }, uDetail: { value: 0.3 }, uDepth: { value: this.scene.depthTexture }, uTexel: { value: new THREE.Vector2() }, uInk: { value: 0.45 }, uNear: { value: 0.1 }, uFar: { value: 1000 } },
+      uniforms: { uPainted: { value: this.painted.texture }, uScene: { value: this.scene.texture }, uDetail: { value: 0.3 }, uDepth: { value: this.scene.depthTexture }, uTexel: { value: new THREE.Vector2() }, uInk: { value: 0.45 }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uHatchScale: { value: 1 } },
       vertexShader: VS, fragmentShader: COMPOSITE_FS, depthTest: false, depthWrite: false,
     });
     const g = new THREE.BufferGeometry();
@@ -98,6 +111,7 @@ export class PaintPass {
     }
     (this.kuwahara.uniforms.uStep.value as THREE.Vector2).set(2 / w, 2 / h);
     (this.composite.uniforms.uTexel.value as THREE.Vector2).set(1 / w, 1 / h);
+    this.composite.uniforms.uHatchScale.value = 1080 / h;
     this.composite.uniforms.uNear.value = camera.near;
     this.composite.uniforms.uFar.value = camera.far;
     renderer.setRenderTarget(this.scene);

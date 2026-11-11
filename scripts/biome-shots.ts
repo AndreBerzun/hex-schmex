@@ -28,7 +28,7 @@ async function capture(name: string) {
   await page.evaluate('window.__tp.finish()');
   await page.evaluate(`(() => {
     const a = window.__tp.app; a.running = false; a.autoTide = false;
-    a.setSettings({ exag: 1, timeOfDay: 12, tide: 0, mapMode: false });
+    a.setSettings({ exag: 1, timeOfDay: ${Number(process.env.TP_TIME ?? 12)}, tide: 0, mapMode: false });
     a.ground.enter();
     if (${Number(process.env.TP_DEBUG ?? 0)}) a.uniforms.uDebug.value = ${Number(process.env.TP_DEBUG ?? 0)};
   })()`);

@@ -5,6 +5,8 @@ import { NOISE_LUT } from './noiseLut';
 import { CANOPY_TILE_KM } from './canopyLut';
 import { DETAIL_GLSL } from '../core/detail';
 import { SUN_SHADOW_GLSL } from './sunShadow';
+import { INK_GLSL } from './inkStyle';
+import { GROUND_GLSL } from './groundTextures';
 
 export const TERRAIN_VS = TIDE + /* glsl */ `
 attribute vec4 aNode; // x0, z0 (km), size (km), level
@@ -75,7 +77,7 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 
-export const TERRAIN_FS = ATMOS + LANDMARK_SHADOW + SUN_SHADOW_GLSL + TIDE + NOISE_LUT + /* glsl */ `
+export const TERRAIN_FS = ATMOS + LANDMARK_SHADOW + SUN_SHADOW_GLSL + INK_GLSL + TIDE + NOISE_LUT + /* glsl */ `
 uniform sampler2D uHeight;
 uniform float uHeightScale;
 uniform sampler2D uSurf;      // rg slope, b curvature (>0 concave), a mean slope magnitude
@@ -184,14 +186,12 @@ vec3 groundDetail(vec2 xz, float wavelength) {
 #endif
 
 #ifdef SURFACE_DETAIL
-uniform sampler2D uCoralSand;
-uniform sampler2D uCoralTurf;
-uniform sampler2D uCoralRock;
-vec3 paintTex(sampler2D t, vec2 m, float tileM, float blend) {
+${GROUND_GLSL}
+vec3 paintTex(float t, vec2 m, float tileM, float blend) {
   float far = smoothstep(0.004, 0.03, gFw * 1000.0 / tileM);
-  vec3 b = texture2D(t, m / (tileM * 2.5) + vec2(0.37, 0.61)).rgb;
-  vec3 nearMix = far < 1.0 ? mix(texture2D(t, m / tileM).rgb, b, blend) : b;
-  vec3 farMix = far > 0.0 ? mix(b, texture2D(t, m / (tileM * 6.25) + vec2(0.71, 0.13)).rgb, blend) : b;
+  vec3 b = groundTex(t, m / (tileM * 2.5) + vec2(0.37, 0.61));
+  vec3 nearMix = far < 1.0 ? mix(groundTex(t, m / tileM), b, blend) : b;
+  vec3 farMix = far > 0.0 ? mix(b, groundTex(t, m / (tileM * 6.25) + vec2(0.71, 0.13)), blend) : b;
   return mix(nearMix, farMix, far);
 }
 #endif
@@ -209,13 +209,13 @@ vec3 coralGround(vec2 xz, vec2 m, float stands, float fw) {
   float edge = 0.03 + fw * 40.0;
 #ifdef SURFACE_DETAIL
   float margin = edge + 0.12;
-  vec3 sand = turfField < margin ? paintTex(uCoralSand, m, 1.0, blend) * SAND_TINT : vec3(0.0);
-  vec3 turf = turfField > -margin ? paintTex(uCoralTurf, m, 1.25, blend) * CORAL_TINT : vec3(0.0);
+  vec3 sand = turfField < margin ? paintTex(L_CORAL_SAND, m, 1.0, blend) * SAND_TINT : vec3(0.0);
+  vec3 turf = turfField > -margin ? paintTex(L_CORAL_TURF, m, 1.25, blend) * CORAL_TINT : vec3(0.0);
   float turfTone = dot(turf, vec3(0.3, 0.5, 0.2));
   float turfW = turfField >= margin ? 1.0 : turfField <= -margin ? 0.0 : smoothstep(-edge, edge, turfField + (turfTone - 0.12) * 0.8);
   float rockW = smoothstep(0.62, 0.62 + edge * 2.0, rockField) * (1.0 - turfW);
   vec3 c = mix(sand, turf, turfW);
-  if (rockW > 0.001) c = mix(c, paintTex(uCoralRock, m, 2.0, blend), rockW);
+  if (rockW > 0.001) c = mix(c, paintTex(L_CORAL_ROCK, m, 2.0, blend), rockW);
 #else
   vec3 sand = srgb(vec3(0.91, 0.83, 0.72)) * SAND_TINT;
   vec3 turf = srgb(vec3(0.73, 0.22, 0.17)) * CORAL_TINT;
@@ -361,15 +361,35 @@ void main() {
     float apron = smoothstep(0.35, 0.75, vCover.y + e * 0.35 + gt * 0.4) * (1.0 - outcrop) * coverOn;
     float hollow = vCover.z * (1.0 - outcrop) * coverOn;
     float grass = smoothstep(-0.06, 0.09, vCover.w + e * 0.12 + gt * 0.06) * (1.0 - outcrop) * (1.0 - apron) * coverOn;
+#ifdef SURFACE_DETAIL
+    float dBlend = clamp(0.5 + 0.7 * noiseAt(xz + 1.9, 0.03), 0.0, 1.0);
+    vec3 earthTex = coverOn > 0.001 && grass < 0.999 ? paintTex(L_DOWNS_EARTH, vTexM, 1.5, dBlend) : vec3(0.2);
+    vec3 cEarth = mix(vec3(dot(earthTex, vec3(0.3, 0.55, 0.15))), earthTex, 0.55) * 0.14 * (0.86 + 0.28 * (gt * 0.5 + 0.5));
+    vec3 grassTex = grass > 0.001 ? paintTex(L_DOWNS_GRASS, vTexM, 1.25, dBlend) * 0.38 : vec3(0.0);
+    vec3 rockTex = apron + outcrop > 0.001 ? paintTex(L_DOWNS_ROCK, vTexM, 2.0, dBlend) : vec3(0.0);
+#else
     vec3 cEarth = srgb(mix(vec3(0.3, 0.25, 0.18), vec3(0.215, 0.19, 0.165), uAshen)) * (0.86 + 0.28 * (gt * 0.5 + 0.5));
+#endif
     col = mix(col, cEarth * (1.0 - 0.22 * hollow) * (1.0 - 0.3 * smoothstep(0.0, 0.4, n1)) * (1.0 + 0.3 * smoothstep(0.15, 0.5, -n2)), coverOn * 0.85);
+#ifdef SURFACE_DETAIL
+    vec3 cGold = grassTex * mix(vec3(1.0), vec3(0.62, 0.78, 0.72), hollow * 0.8) * (0.85 + 0.3 * tuft);
+#else
     vec3 cGold = mix(srgb(vec3(0.43, 0.37, 0.23)), srgb(vec3(0.31, 0.31, 0.19)), hollow * 0.8) * (0.85 + 0.3 * tuft);
+#endif
     col = mix(col, cGold, grass * (0.6 + 0.4 * tuft));
+#ifdef SURFACE_DETAIL
+    vec3 cPebble = rockTex * 0.112 * (0.72 + 0.4 * (e * 0.5 + 0.5));
+#else
     vec3 cPebble = srgb(mix(vec3(0.55, 0.53, 0.5), vec3(0.32, 0.315, 0.3), uAshen)) * (0.72 + 0.4 * (e * 0.5 + 0.5));
+#endif
     col = mix(col, cPebble, apron * 0.6);
     col *= 1.0 - grass * smoothstep(-0.05, 0.35, n2) * 0.35;
     col *= 1.0 - apron * smoothstep(0.0, 0.4, n1) * 0.35;
+#ifdef SURFACE_DETAIL
+    vec3 slab = rockTex * mix(0.11, 0.035, 0.45 + 0.3 * sin(h * 1.3 + gt * 2.0)) * (0.8 + 0.4 * smoothstep(-0.2, 0.8, n2));
+#else
     vec3 slab = mix(cRock, cRockDark, 0.45 + 0.3 * sin(h * 1.3 + gt * 2.0)) * (0.8 + 0.4 * smoothstep(-0.2, 0.8, n2));
+#endif
     col = mix(col, slab, outcrop);
   }
   rockAmt = max(rockAmt, outcrop);
@@ -445,7 +465,9 @@ void main() {
   float ndl = max(dot(n, uSunDir), 0.0);
   shadow = mix(shadow, 1.0, outside * 0.7);
   vec3 skyAmb = mix(srgb(vec3(0.3, 0.29, 0.24)), uSkyZenith * 1.15, n.y * 0.5 + 0.5);
-  vec3 light = uSunColor * ndl * shadow * 3.1 + skyAmb * (0.2 + 0.8 * ao) * 0.62;
+  vec2 inked = inkLight(ndl, ndl * shadow, vTexM, dist, fw * 1000.0);
+  float ink = inked.y;
+  vec3 light = uSunColor * inked.x * 3.1 + skyAmb * (0.2 + 0.8 * ao) * 0.62;
   vec3 c = col * light;
   // snow and wet surfaces: a bit of specular
   vec3 Hh = normalize(uSunDir + V);
@@ -473,6 +495,7 @@ void main() {
     wc = mix(wc, vec3(0.85), foam * 0.35);
     float wa = isWater ? smoothstep(0.0, 0.4, depth) : river;
     c = mix(c, wc, wa);
+    ink *= 1.0 - wa;
     if (wa > 0.5) id = 8.0;
   }
 
@@ -521,5 +544,5 @@ void main() {
     c = mix(c, bc, (1.0 - smoothstep(uBrushCore, uBrush.z, bd)) * 0.07);
     c = mix(c, bc, max(ring, inner) * 0.9);
   }
-  gl_FragColor = vec4(toDisplay(c), 1.0);
+  gl_FragColor = vec4(toDisplay(c), 1.0 - ink);
 }`;
