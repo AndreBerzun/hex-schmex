@@ -665,3 +665,32 @@ Looks off: the finer mesh is the next performance target (the intermediate level
 without the detail layer add tiles that carry nothing); grass in shadow patches stays lit;
 pebbles read as pale specks; sand carries no shells yet; the remaining biomes (mountains, tidal,
 ash, mire) have no textures of their own.
+
+### Next session (handoff, 2026-11-11)
+
+State: hex-schmex#11 open on `feat/coral-ground-scene` (worktree
+`.claude/worktrees/coral-ground-scene`), not merged; the GM has not said "merge" yet.
+`npm run check:layers` has not run on the last commit (the GM stopped it mid-run).
+
+1. Textures for the four remaining biomes are in `~/Downloads` (23 files, Midjourney 8.2, file
+   names start `Lianto_hand-painted_tileable_texture_of_`): mountains (`grey_granite_rock_fac`,
+   `loose_grey_scree_and_`, `old_wind-packed_snow_`), tidal (`wet_grey-brown_tidal_`,
+   `dark_tidal_mud_with_s`, `strands_of_dark_seawe`), ash (`pale_grey_volcanic_as`,
+   `cracked_grey_cinder_c`, `charred_black_rock_wi`), mire (`dark_wet_peat_with_mo`,
+   `a_dense_reed_bed_seen`, `murky_shallow_bog_wat`). Pick one per prompt after a 2×2 tiling
+   check (`convert f -resize 256x256 \( +clone \) +append \( +clone \) -append`), save as
+   1024² JPEG q88 to `src/render/textures/<biome>-<what>.jpg`, add a layer in
+   `groundTextures.ts`, and replace that biome's flat colours in `terrainShader.ts` the way the
+   downs did: texture × (old colour luminance ÷ texture mean luminance), means from
+   `convert f -colorspace RGB -resize 1x1! -format '%[fx:r] %[fx:g] %[fx:b]' info:`.
+   One biome end to end, judged against the fixed spots, noon and `TP_TIME=16.5`.
+2. Ground cover per biome after its textures: shells on sand and tidal flats, reeds in the mire,
+   scree stones in the mountains (new kinds in `groundCover.ts`, weights from the cover map).
+3. Performance: the 1 m ground mesh near the player costs about 8–10 ms (249 tiles vs 191); in
+   biomes without the detail layer the intermediate levels carry nothing. Measure once per step
+   with an interleaved on/off GPU timer run (`app.timer.poll()`, 1920×1080, real GPU); single
+   runs drift ±5 ms.
+
+Tools: `npm run shots:biomes -- [--spots scripts/coral-spots.json] <label>`, `-- --compare a,b`;
+`TP_TIME=<hour>` sets the time of day, `TP_SETUP='<js on a>'` runs setup code (e.g. switch
+`a.inkOn`, `a.coverOn`, `a.paintOn`, `a.sunShadowOn` off for an ablation).
