@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current focus (2026-11-10): **the middle layer** on the Forgotten Shore has a first pass (objects 1–150 m tall per biome, see below). Its look pass, then the agreed new Shore geography, are next; both are in [NEXT_STEPS.md](NEXT_STEPS.md). M1–M6 are done; M4 visual gaps remain.
+Current focus (2026-11-11): **the eye-level scene** on the Forgotten Shore, one biome at a time against its Midjourney reference; coral and downs are in hex-schmex#11. Open ideas and visual gaps are in [IDEAS.md](IDEAS.md). M1–M6 are done.
 
 | # | State | Notes |
 |---|---|---|
@@ -82,16 +82,6 @@ Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, wi
 - **Map file overwritten after loading another world.** New, Open and Examples now unlink the map file first.
 - `npm run check:bake` covers the first two in a real browser; it fails with the half-bake put back. No CI exists, so run it by hand after touching the bake.
 
-## What looks off (honest, as of the last shots)
-- Region oblique: forest/meadow transitions were softened and greens muted in the material experiment below. Broad vegetation patches remain visible.
-- Alpine Valley after the 10 × 10 redraw: Mirror Lake is broken into several pools around 0307, with stray pools further north, and a few salt flats remain around 0804–0904.
-- Badlands: the Red Gorge floor reads as a white salt-flat band and the mesas as thin rings. Coastal Marches: the saltmarsh has a hard edge. All three were already in the 20 × 16 shots.
-- Valley-low: new small-scale colour and normal detail breaks up the uniform lawn near the camera; distant flats still lack physical vegetation. The river is a soft blurry line rather than a channel.
-- Badlands: flat-looking and washed out; the banding doesn't read.
-- Close-ups stay soft near the ground: 95 m/px carries the shapes, and the shader detail only adds a little.
-- Coastal-marches hex-closeup: tributaries read as beaded blobs instead of a continuous channel (pre-existing, same on master).
-- Perf: op evaluate is ~1.3–1.9 s for the examples vs the 300 ms target.
-
 ## Deviations from the brief
 - **Default map is 10 × 10 hexes instead of 20 × 16 (GM's call, 2026-11-06).** About 96 × 111 km at 6-mile hexes. Whether 6 miles is the right hex size is still open. The default resolution dropped to 640 design and 1280 eroded, so detail per kilometre stays at about 87 m/px and the erosion area drops to 36%. The drainage stage now scales with the design resolution for the same reason. The three examples were redrawn for the smaller map; map files keep the grid they were saved with.
 - Erosion is two-stage: a CPU stream-power pass (priority-flood routing) for the large drainage network, then the GPU pipe model for gullies/fans. The pipe model alone did not form drainage at ~95 m/px.
@@ -99,10 +89,6 @@ Tooling: `npm run shots` and `npm run perf` drive headless Chromium over CDP, wi
 - Past the map edge the terrain is mirrored and fades into haze instead of ending in a skirt.
 - `hills` takes `wavelengthKm` instead of `frequency`.
 - BRIEF §11's Playwright + SwiftShader shots were replaced by a dependency-free CDP driver on the real GPU.
-
-## Open questions / risks
-- The pipe model alone tends to look smooth at ~80–160 m/px; if gullies don't read, add a stream-power/droplet pass.
-
 
 ## Forgotten Shore spatial experiment (2026-11-07)
 
@@ -227,10 +213,6 @@ visible near the surface in daylight; forest work is visible in Alpine Valley
 and Coastal Marches. The visual improvement remains modest, as documented in
 MATERIALS.md.
 
-Handoff: [NEXT_STEPS.md](NEXT_STEPS.md) records the next rendering candidates,
-deferred GM features, current verification and the user's local-only network
-constraint for the next conversation.
-
 ## Forgotten Shore geography (2026-11-09)
 
 Replaced the Shore map with a new layout: seven biomes after the Shadowdark hex terrain
@@ -253,8 +235,8 @@ city-centred trial is parked on the local branch `archive/codex-shore-wip`.
 
 What looks off: from above and from the castle the regions read clearly; at eye level the
 lowlands are open surfaces with nothing standing on them, coral is a red ground with canopy
-bumps, the ash is pale and soft. Mountains lack erosion detail. Middle-layer objects are
-the next step (`NEXT_STEPS.md`).
+bumps, the ash is pale and soft. Mountains lack erosion detail. Middle-layer objects were
+the next step.
 
 Validation: 44 unit tests, both builds, `check:shore`, `check:player`, `check:flight`,
 `check:bake`, `check:materials` pass. GPU 4–18 ms across 20 Shore views at 1280×720,
@@ -350,7 +332,7 @@ What looks off:
 
 ## Middle layer, first pass (2026-11-10)
 
-From the handover in `NEXT_STEPS.md`. The Shore had nothing between the ground texture and
+The Shore had nothing between the ground texture and
 the landforms; at eye level every biome was an empty surface.
 
 **What stands where.** 30 procedural object kinds, all generated locally, each in three
@@ -454,7 +436,8 @@ it; the live file link's watcher misses the write in a fresh worktree (symlinked
 
 Added `npm run check:fps-baseline`, a fixed 400 m downs route with five eye-level
 views and an approach view, raw cold/warm traversal records and retained screenshots.
-See `FPS_BASELINE.md` for reproduction, measured costs and scope limits. This uses
+Reproduce with `TP_BROWSER_OFFLINE=1 npm run check:fps-baseline` (route in
+`scripts/fps-route.json`, retained captures and raw timings in `shots/fps-baseline/`). This uses
 the merged middle-layer implementation on master; no product rendering changed.
 
 Both traversals arrived, WebGL error was zero and `npm run build` passed. Cold
@@ -473,7 +456,9 @@ a ruined-tower reveal. Scenery is replaced only within the local stage; normal
 world files and procedural rules are unchanged. Authored supports sample rendered
 terrain triangles, fixing a mismatch noticed during visual review.
 
-See FPS_COMPOSITION.md for launch/reproduction instructions and matching screenshots.
+Open it with `?world=forgotten-shore&prototype=downs-walk`; compare with
+`npm run check:fps-baseline -- shots/_tmp/fps-composition --prototype` (retained in
+`shots/fps-composition/`).
 Cold and warm browser traversals arrived. Build, existing 72 tests, two new routing/
 isolation tests, and the standard perf harness passed. Final route measurements
 and GL health are retained in shots/fps-composition/results.json.
@@ -486,8 +471,9 @@ biome or final style. Step 3 is deliberately not started.
 
 ## 2026-11-11 — FPS step 3: detail ground for the downs
 
-The downs get their own ground detail, after reading Tectonic's terrain source (see
-the revision section in `FPS_IMPROVEMENT_PLAN.md`): rolling hills (230 m / 95 m), warped
+The downs get their own ground detail, after reading Tectonic's terrain source (ground
+every few metres near the player, most rocks are ground, ruggedness that varies by place,
+slope-shifted ridge noise for gullies): rolling hills (230 m / 95 m), warped
 `abs()` gullies (38 m), knolls up to 11 m with lumpy crests, and 14 m bumps. One function
 in `src/core/detail.ts`, written once for the GPU and once for walking, placement and
 picking; a test checks that its slope matches its height. Strength comes from a 250 m map

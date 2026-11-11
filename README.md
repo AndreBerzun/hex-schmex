@@ -4,11 +4,10 @@ Browser-based terrain generator for a Shadowdark westmarches hexcrawl: prompt an
 
 - `BRIEF.md`: full project spec
 - `CLAUDE.md`: working rules for the coding agent
-- `KICKOFF.md`: the first prompt for a coding session, plus follow-ups
 - `reference/`: visual targets (02–04) and the anti-target (01)
 
 - `TERRAIN_AGENT.md`: how a Claude Code session edits a map with the terrain CLI
-- `NEXT_STEPS.md`: current handoff, candidate rendering improvements and local-only workflow
+- `IDEAS.md`: the one list of open improvement ideas and visual gaps
 - `MATERIALS.md`: material experiment with before/after images and measured costs
 
 Current focus: the Forgotten Shore. Run the app and open `?world=forgotten-shore` (or choose it in Examples). Click the landscape for free flight: WASD, Space up, C down, Shift faster, Esc to release the mouse. Use **Visit…** for the saved views, **Sun** for the Spire shadow, and **Sea** for the night tide. Choose **Player** for ground-level click-to-march travel with an advancing clock and day/night tide. See `FORGOTTEN_SHORE.md` for the layout and `PROGRESS.md` for status.
@@ -27,6 +26,8 @@ npm run check:shore                 # landmark, flood and camera browser checks
 npm run check:materials -- review   # fixed material views + GPU timings in shots/_tmp/materials-review/
 npm run check:bake                  # edits and scripted bakes run erosion to the end
 npm run check:layers                # sculpt, paint and brushes skip erosion; reopening uses the saved bake
+npm run shots:biomes -- <label>     # one fixed eye-level spot per biome into shots/biomes/<label>/
+npm run check:fps-baseline          # fixed 400 m downs walk with cold/warm frame timings
 npm run build:single                # one self-contained HTML file in dist-single/
 ```
 
