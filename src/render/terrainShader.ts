@@ -301,23 +301,27 @@ void main() {
   rockAmt = mix(rockAmt, pB.r, pCov);
   rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
   col = mix(col, rcol, rockAmt);
-  float coverOn = step(0.001, vDetail.w) * (1.0 - desert) * (1.0 - marsh) * (1.0 - rockAmt) * (1.0 - smoothstep(uSnowline - 700.0, uSnowline - 300.0, elev));
-  float e = noiseAt(xz + 5.3, 0.004) * 0.7 + noiseAt(xz + 2.9, 0.0016) * 0.3;
-  float outcrop = smoothstep(0.85, 0.91, vCover.x + e * 0.07) * step(0.001, vDetail.w);
-  float apron = smoothstep(0.42, 0.58, vCover.y + e * 0.25 + gt * 0.25) * (1.0 - outcrop) * coverOn;
-  float hollow = vCover.z * (1.0 - outcrop) * coverOn;
-  float grass = smoothstep(-0.06, 0.09, vCover.w + e * 0.12 + gt * 0.06) * (1.0 - outcrop) * (1.0 - apron) * coverOn;
-  vec3 cEarth = srgb(mix(vec3(0.3, 0.25, 0.18), vec3(0.215, 0.19, 0.165), uAshen)) * (0.86 + 0.28 * (gt * 0.5 + 0.5));
-  col = mix(col, cEarth * (1.0 - 0.22 * hollow) * (1.0 - 0.3 * smoothstep(0.0, 0.4, noiseAt(xz + 6.1, 0.0009))) * (1.0 + 0.3 * smoothstep(0.15, 0.5, noiseAt(xz + 8.3, 0.0006))), coverOn * 0.85);
-  float tuft = noiseAt(xz + 7.7, 0.012) * 0.5 + 0.5;
-  vec3 cGold = mix(srgb(vec3(0.43, 0.37, 0.23)), srgb(vec3(0.31, 0.31, 0.19)), hollow * 0.8) * (0.85 + 0.3 * tuft);
-  col = mix(col, cGold, grass * (0.6 + 0.4 * tuft));
-  vec3 cPebble = srgb(mix(vec3(0.55, 0.53, 0.5), vec3(0.32, 0.315, 0.3), uAshen)) * (0.72 + 0.4 * (e * 0.5 + 0.5));
-  col = mix(col, cPebble, apron * 0.75);
-  col *= 1.0 - grass * smoothstep(-0.05, 0.35, noiseAt(xz + 1.1, 0.0022)) * 0.35;
-  col *= 1.0 - apron * smoothstep(0.0, 0.4, noiseAt(xz + 4.4, 0.0011)) * 0.35;
-  vec3 slab = mix(cRock, cRockDark, 0.45 + 0.3 * sin(h * 1.3 + noiseAt(xz, 0.02) * 2.0)) * (0.8 + 0.4 * smoothstep(-0.2, 0.8, noiseAt(xz + 3.7, 0.0018)));
-  col = mix(col, slab, outcrop);
+  float outcrop = 0.0;
+  if (uAshen > 0.5) {
+    float coverOn = (1.0 - desert) * (1.0 - marsh) * (1.0 - smoothstep(0.05, 0.3, forest)) * (1.0 - rockAmt) * (1.0 - smoothstep(0.5, 0.75, drySide + nBig * 0.15)) * (1.0 - smoothstep(uSnowline - 700.0, uSnowline - 300.0, elev));
+    float n4 = noiseAt(xz + 5.3, 0.004), n2 = noiseAt(xz + 1.1, 0.0016), n1 = noiseAt(xz + 6.1, 0.0008);
+    float tuft = noiseAt(xz + 7.7, 0.012) * 0.5 + 0.5;
+    float e = n4 * 0.7 + n2 * 0.3;
+    outcrop = smoothstep(0.85, 0.91, vCover.x + e * 0.07);
+    float apron = smoothstep(0.35, 0.75, vCover.y + e * 0.35 + gt * 0.4) * (1.0 - outcrop) * coverOn;
+    float hollow = vCover.z * (1.0 - outcrop) * coverOn;
+    float grass = smoothstep(-0.06, 0.09, vCover.w + e * 0.12 + gt * 0.06) * (1.0 - outcrop) * (1.0 - apron) * coverOn;
+    vec3 cEarth = srgb(mix(vec3(0.3, 0.25, 0.18), vec3(0.215, 0.19, 0.165), uAshen)) * (0.86 + 0.28 * (gt * 0.5 + 0.5));
+    col = mix(col, cEarth * (1.0 - 0.22 * hollow) * (1.0 - 0.3 * smoothstep(0.0, 0.4, n1)) * (1.0 + 0.3 * smoothstep(0.15, 0.5, -n2)), coverOn * 0.85);
+    vec3 cGold = mix(srgb(vec3(0.43, 0.37, 0.23)), srgb(vec3(0.31, 0.31, 0.19)), hollow * 0.8) * (0.85 + 0.3 * tuft);
+    col = mix(col, cGold, grass * (0.6 + 0.4 * tuft));
+    vec3 cPebble = srgb(mix(vec3(0.55, 0.53, 0.5), vec3(0.32, 0.315, 0.3), uAshen)) * (0.72 + 0.4 * (e * 0.5 + 0.5));
+    col = mix(col, cPebble, apron * 0.6);
+    col *= 1.0 - grass * smoothstep(-0.05, 0.35, n2) * 0.35;
+    col *= 1.0 - apron * smoothstep(0.0, 0.4, n1) * 0.35;
+    vec3 slab = mix(cRock, cRockDark, 0.45 + 0.3 * sin(h * 1.3 + gt * 2.0)) * (0.8 + 0.4 * smoothstep(-0.2, 0.8, n2));
+    col = mix(col, slab, outcrop);
+  }
   rockAmt = max(rockAmt, outcrop);
   if (rockAmt > 0.5) id = 2.0;
 

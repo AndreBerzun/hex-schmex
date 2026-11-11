@@ -80,7 +80,7 @@ last few hundred metres of a biome, so biomes fade into each other on foot.
 | silt mire | golden reed islands, tube-sponge chimneys, dead trunks along the banks, ribs in the silt |
 | mudflats (tidal flats and mire) | fields of horn-shaped spires up to 100 m, leaning towers |
 | shallow water | flat coral plateaus standing in it; sea stacks and arches off steep shores |
-| black earth | tors on the crests, golden grass, boulders at the foot of slopes, a lone dead coral tree, scattered bones |
+| black earth | golden grass in patches on dark soil, rock outcrops on knoll crests, gravel and boulders on their lower flanks, tussocks in the grass, a rare tor, a lone dead coral tree, the odd bone |
 | ash | half-buried giant spiral shells, bleached coral skeletons, giant skulls, buttes |
 | Hollow Mountains and rock | boulder fields and fallen blocks at the foot of the faces, rock needles |
 | anywhere, rare | half-collapsed towers and ruined walls |

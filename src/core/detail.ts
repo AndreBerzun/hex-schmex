@@ -93,20 +93,24 @@ export function coverFields(xKm: number, zKm: number, quadM: number, seed: numbe
   const x = xKm * 1000, z = zKm * 1000;
   const k = d.knoll, slope = Math.hypot(d.gx, d.gz) * mask, on = Math.min(1, mask * 1.6);
   const n1 = noise(x / 30, z / 30, seed + 21)[0] * band(30, quadM);
-  const g1 = noise(x / 26, z / 26, seed + 22)[0] * band(26, quadM);
-  const g2 = noise(x / 9, z / 9, seed + 23)[0] * band(9, quadM);
   const hollow = smooth(-0.8, -3, d.h * mask);
   into.rock = (k + n1 * 0.25 + k * smooth(0.35, 0.7, slope) * 0.5) * on;
   into.apron = smooth(0.04, 0.14, k) * (1 - smooth(0.4, 0.6, k)) * (0.75 + 0.5 * n1) * on;
   into.hollow = hollow;
-  into.grass = mix(0.02, g1 + 0.5 * g2 + hollow * 0.5 + 0.08, band(26, quadM)) * mask;
+  into.grass = grassField(x, z, quadM, seed, hollow);
   return into;
+}
+
+export function grassField(x: number, z: number, quadM: number, seed: number, hollow: number): number {
+  const g1 = noise(x / 26, z / 26, seed + 22)[0] * band(26, quadM);
+  const g2 = noise(x / 9, z / 9, seed + 23)[0] * band(9, quadM);
+  return mix(0.02, g1 + 0.5 * g2 + hollow * 0.3 + 0.08, band(26, quadM));
 }
 
 export function coverFrom(f: CoverFields, mask: number, gx: number, gz: number): Cover {
   const rock = smooth(0.84, 0.92, f.rock);
   const apron = smooth(0.4, 0.6, f.apron) * (1 - rock);
-  const grass = smooth(-0.03, 0.06, f.grass) * (1 - rock) * (1 - apron) * (mask > 0 ? 1 : 0);
+  const grass = smooth(-0.03, 0.06, f.grass) * (1 - rock) * (1 - apron);
   return { rock, apron, hollow: f.hollow * (1 - rock), grass, mask, gx, gz };
 }
 
@@ -200,24 +204,29 @@ float detailMask(vec2 xzKm) {
   float c = texelFetch(uDetailMask, i + ivec2(0, 1), 0).r, d = texelFetch(uDetailMask, i + ivec2(1, 1), 0).r;
   return (a * (1.0 - t.x) + b * t.x) * (1.0 - t.y) + (c * (1.0 - t.x) + d * t.x) * t.y;
 }
+float grassField(vec2 p, float q, float hollow) {
+  float g1 = dNoise(p / 26.0, uDetailSeed + 22).x * dBand(26.0, q);
+  float g2 = dNoise(p / 9.0, uDetailSeed + 23).x * dBand(9.0, q);
+  return mix(0.02, g1 + 0.5 * g2 + hollow * 0.3 + 0.08, dBand(26.0, q));
+}
 vec4 coverFields(vec2 p, float q, vec3 d, float m) {
   float k = dKnoll, slope = length(d.yz) * m, on = min(1.0, m * 1.6);
   float n1 = dNoise(p / 30.0, uDetailSeed + 21).x * dBand(30.0, q);
-  float g1 = dNoise(p / 26.0, uDetailSeed + 22).x * dBand(26.0, q);
-  float g2 = dNoise(p / 9.0, uDetailSeed + 23).x * dBand(9.0, q);
   float hollow = 1.0 - smoothstep(-3.0, -0.8, d.x * m);
   float rock = (k + n1 * 0.25 + k * smoothstep(0.35, 0.7, slope) * 0.5) * on;
   float apron = smoothstep(0.04, 0.14, k) * (1.0 - smoothstep(0.4, 0.6, k)) * (0.75 + 0.5 * n1) * on;
-  float grass = mix(0.02, g1 + 0.5 * g2 + hollow * 0.5 + 0.08, dBand(26.0, q)) * m;
-  return vec4(rock, apron, hollow, grass);
+  return vec4(rock, apron, hollow, grassField(p, q, hollow));
 }
 vec4 groundDetail(vec2 xzKm, float q) {
   float m = detailMask(xzKm);
   dKnoll = 0.0;
-  dCover = vec4(0.0);
-  if (m <= 0.0) return vec4(0.0);
-  vec3 d = downsDetail(xzKm * 1000.0, q);
-  dCover = coverFields(xzKm * 1000.0, q, d, m);
+  vec2 p = xzKm * 1000.0;
+  if (m <= 0.0) {
+    dCover = vec4(0.0, 0.0, 0.0, grassField(p, q, 0.0));
+    return vec4(0.0);
+  }
+  vec3 d = downsDetail(p, q);
+  dCover = coverFields(p, q, d, m);
   return vec4(d * m, m);
 }
 `;

@@ -117,6 +117,7 @@ export class App {
   detailMask: DetailMask | null = null;
   private detailSample: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0, field: -1 };
   private coverSample: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0, field: -1 };
+  private readonly flatSample: DetailSample = { h: 0, gx: 0, gz: 0, knoll: 0, field: -1 };
   private coverTmp: CoverFields = { rock: 0, apron: 0, hollow: 0, grass: 0 };
   hydro: (HydroOutput & { nx: number; ny: number; kmPerPx: number }) | null = null;
   erosion: Erosion | null = null;
@@ -852,12 +853,11 @@ export class App {
     return w > 0 ? downsDetail(x, z, this.terrain.fineQuadM, this.world.seed | 0, this.detailSample).h * w : 0;
   }
 
-  coverAt(x: number, z: number): Cover | null {
+  coverAt(x: number, z: number): Cover {
     const m = this.detailMask;
-    const w = m ? m.at(x, z) : 0;
-    if (w <= 0) return null;
+    const w = m ? Math.max(0, m.at(x, z)) : 0;
     const q = this.terrain.fineQuadM, seed = this.world.seed | 0;
-    const d = downsDetail(x, z, q, seed, this.coverSample);
+    const d = w > 0 ? downsDetail(x, z, q, seed, this.coverSample) : this.flatSample;
     return coverFrom(coverFields(x, z, q, seed, d, w, this.coverTmp), w, d.gx * w, d.gz * w);
   }
 

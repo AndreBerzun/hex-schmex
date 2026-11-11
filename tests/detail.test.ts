@@ -59,9 +59,16 @@ it('turns knoll crests to rock and their lower flanks to gravel, nothing else', 
   expect(apron).toBeGreaterThan(20);
 });
 
-it('grows grass in patches only where the detail ground is', () => {
-  let grass = 0, n = 0;
-  grid((x, z) => { n++; if (cover(x, z).c.grass > 0.5) grass++; expect(cover(x, z, 0).c.grass).toBe(0); });
-  expect(grass / n).toBeGreaterThan(0.3);
-  expect(grass / n).toBeLessThan(0.9);
+it('grows grass in patches with or without detail relief, but no rock or gravel without it', () => {
+  for (const mask of [1, 0]) {
+    let grass = 0, n = 0;
+    grid((x, z) => {
+      n++;
+      const { c } = cover(x, z, mask);
+      if (c.grass > 0.5) grass++;
+      if (!mask) expect(c.rock + c.apron + c.hollow).toBe(0);
+    });
+    expect(grass / n).toBeGreaterThan(0.3);
+    expect(grass / n).toBeLessThan(0.9);
+  }
 });
