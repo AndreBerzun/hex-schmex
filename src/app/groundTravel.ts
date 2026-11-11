@@ -87,7 +87,7 @@ export class GroundTravel {
   }
   placeCamera() {
     const p=this.app.camera.position;
-    const ground=this.app.terrain.surfaceHeightAt(p.x,p.z,(x,z)=>this.app.surfaceAt(x,z));
+    const ground=this.app.standHeightAt(p.x,p.z);
     p.y=(ground+EYE_M)*0.001*this.app.settings.exag;
   }
   update(dt:number):number {
@@ -108,7 +108,7 @@ export class GroundTravel {
       }
       let step=Math.min(remaining,d,0.005),x=p.x+dx/d*step,z=p.z+dz/d*step;
       let h=this.app.heightAt(x,z);const old=this.app.heightAt(p.x,p.z);
-      if(this.app.surfaceAt(x,z)-h>0.3){this.stop('Water ahead — marching stopped.');break;}
+      if(this.app.surfaceAt(x,z)-this.app.groundAt(x,z)>0.3){this.stop('Water ahead — marching stopped.');break;}
       if(Math.abs(h-old)/(step*1000)>0.84){this.stop('Too steep — choose another approach.');break;}
       if(this.app.sceneryBlocked(x,z)&&!this.app.sceneryBlocked(p.x,p.z)){
         if(!this.planLeg()||this.app.sceneryBlocked(this.waypoints[0][0],this.waypoints[0][1])){this.stop('Blocked — choose another approach.');break;}

@@ -46,8 +46,7 @@ try {
         a.controls.maxPolarAngle = Math.PI;
         ${spec ? `a.setView(${JSON.stringify(spec)});` : `window.__tp.setView(${JSON.stringify(name)});`}
         ${spec ? `a.camera.near = ${Math.max(0.0002, Math.min(2, (spec.fromAglM ?? 3000) / 4000))};
-        a.camera.position.y = (a.terrain.surfaceHeightAt(a.camera.position.x, a.camera.position.z,
-          (x,z) => a.surfaceAt(x,z)) + ${spec.fromAglM ?? 3000}) * 0.001;
+        a.camera.position.y = (a.standHeightAt(a.camera.position.x, a.camera.position.z) + ${spec.fromAglM ?? 3000}) * 0.001;
         a.camera.lookAt(a.controls.target);
         a.camera.updateProjectionMatrix();` : 'a.keepAboveGround();'}
         a.controls.enabled = false;

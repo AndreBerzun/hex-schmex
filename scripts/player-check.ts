@@ -21,7 +21,7 @@ try {
     }
     const p=a.camera.position;
     return {distance:a.ground.distanceKm,seconds:a.ground.elapsedSeconds,hour:a.settings.timeOfDay,
-      eye:p.y*1000-a.terrain.surfaceHeightAt(p.x,p.z,(x,z)=>a.surfaceAt(x,z))};
+      eye:p.y*1000-a.standHeightAt(p.x,p.z)};
   })()`);
   assert(journey.distance>=.049 && journey.distance<.06);
   assert(Math.abs(journey.seconds-journey.distance/4*3600)<1e-7);

@@ -3,6 +3,7 @@
 import { ATMOS, LANDMARK_SHADOW, TIDE } from './glsl';
 import { NOISE_LUT } from './noiseLut';
 import { CANOPY_TILE_KM } from './canopyLut';
+import { DETAIL_GLSL } from '../core/detail';
 
 export const TERRAIN_VS = TIDE + /* glsl */ `
 attribute vec4 aNode; // x0, z0 (km), size (km), level
@@ -12,19 +13,33 @@ uniform sampler2D uWaterTex;
 uniform vec2 uWorldKm;
 uniform float uGridN;
 uniform float uLeafRange;
+uniform float uMinLevel;
+uniform float uCoarseKm;
+uniform vec2 uOrigin;
 uniform float uExag;
 uniform float uDetailOn;
 varying vec3 vWorld;
 varying vec2 vUv;
 varying float vLevel;
 varying float vOut;
-
+varying vec4 vDetail;
+varying float vKnoll;
+` + DETAIL_GLSL + /* glsl */ `
 vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
 
 float surf(vec2 uv) {
   float h = texture2D(uHeight, uv).r * uHeightScale;
   float w = max(texture2D(uWaterTex, uv).r, tideAt(uv * uWorldKm));
   return w - h > 0.25 ? w : h;
+}
+float surfAt(vec2 xz) { return surf(mirrorUv(xz / uWorldKm)); }
+float coarseSurf(vec2 xz) {
+  vec2 g = (xz - uOrigin) / uCoarseKm;
+  vec2 i = floor(g), t = g - i;
+  vec2 o = uOrigin + i * uCoarseKm;
+  float a = surfAt(o), b = surfAt(o + vec2(uCoarseKm, 0.0)), c = surfAt(o + vec2(0.0, uCoarseKm)), d = surfAt(o + vec2(uCoarseKm));
+  if (mod(i.x + i.y, 2.0) > 0.5) return t.x + t.y <= 1.0 ? a + (b - a) * t.x + (c - a) * t.y : d + (c - d) * (1.0 - t.x) + (b - d) * (1.0 - t.y);
+  return t.x >= t.y ? a + (b - a) * t.x + (d - b) * t.y : a + (d - c) * t.x + (c - a) * t.y;
 }
 
 void main() {
@@ -35,13 +50,16 @@ void main() {
   vec2 uv = mirrorUv(xz / uWorldKm);
   vec3 wp = vec3(xz.x, surf(uv) * 0.001 * uExag, xz.y);
   float range = uLeafRange * exp2(level);
-  float prev = level > 0.5 ? range * 0.5 : 0.0;
+  float prev = level > uMinLevel + 0.5 ? range * 0.5 : 0.0;
   float mStart = mix(prev, range, 0.6);
   float k = clamp((distance(cameraPosition, wp) - mStart) / max(1e-4, range - mStart), 0.0, 1.0);
   vec2 gm = g - fract(g * 0.5) * 2.0 * k;
   xz = aNode.xy + gm / uGridN * size;
   uv = mirrorUv(xz / uWorldKm);
-  wp = vec3(xz.x, surf(uv) * 0.001 * uExag, xz.y);
+  vDetail = groundDetail(xz, size * 1000.0 / uGridN * (1.0 + k));
+  vKnoll = dKnoll * vDetail.w;
+  float base = level < -0.5 ? coarseSurf(xz) : surf(uv);
+  wp = vec3(xz.x, (base + vDetail.x) * 0.001 * uExag, xz.y);
   vWorld = wp;
   vUv = uv;
   vec2 o = max(-xz, xz - uWorldKm);
@@ -90,6 +108,8 @@ varying vec3 vWorld;
 varying vec2 vUv;
 varying float vLevel;
 varying float vOut;
+varying vec4 vDetail;
+varying float vKnoll;
 
 float H(vec2 uv) { return texture2D(uHeight, uv).r * uHeightScale; }
 vec2 mirrorUv(vec2 u) { return 1.0 - abs(mod(u, 2.0) - 1.0); }
@@ -163,14 +183,14 @@ void main() {
   float fw = max(length(fwidth(xz)), 1e-5); // km per pixel here
   gFw = fw;
 
-  float h = H(uv);
+  float h = H(uv) + vDetail.x;
   float outside = 1.0 - exp(-max(vOut, 0.0) / 30.0);
   vec4 surf = texture2D(uSurf, uv);
-  vec2 grad = surf.rg * sign(1.0 - mod(xz / uWorldKm, 2.0));
+  vec2 grad = surf.rg * sign(1.0 - mod(xz / uWorldKm, 2.0)) + vDetail.yz;
   float lap = surf.b;
 
   // close-up procedural detail: ridged micro-relief on slopes, fading where it would alias
-  float detailFade = uDetailOn * (1.0 - smoothstep(0.004, 0.03, fw));
+  float detailFade = uDetailOn * (1.0 - smoothstep(0.004, 0.03, fw)) * (1.0 - vDetail.w);
   vec2 dgrad = vec2(0.0);
   if (detailFade > 0.0) {
     float ws = 0.18; // km
@@ -276,6 +296,16 @@ void main() {
   rockAmt = mix(rockAmt, pB.r, pCov);
   rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
   col = mix(col, rcol, rockAmt);
+  float dSlope = length(vDetail.yz);
+  float crest = smoothstep(0.62, 0.9, vKnoll + noiseAt(xz + 4.1, 0.03) * 0.25 + nFine * 0.1);
+  float outcrop = clamp(crest + vKnoll * smoothstep(0.35, 0.7, dSlope) * 0.6, 0.0, 1.0);
+  float apron = smoothstep(0.0, 0.08, vKnoll) * (1.0 - smoothstep(0.25, 0.55, vKnoll)) * (1.0 - outcrop);
+  float hollow = smoothstep(-0.8, -3.0, vDetail.x) * vDetail.w * (1.0 - outcrop);
+  col = mix(col, srgb(mix(vec3(0.3, 0.32, 0.2), vec3(0.17, 0.17, 0.13), uAshen)) * (0.9 + 0.2 * nFine), hollow * 0.7);
+  col = mix(col, cScree * (0.8 + 0.3 * nFine), apron * 0.6);
+  vec3 slab = mix(cRock, cRockDark, 0.3 + 0.3 * sin(h * 1.3 + noiseAt(xz, 0.02) * 2.0)) * 1.2 * (0.85 + 0.3 * (nFine * 0.5 + 0.5));
+  col = mix(col, slab, outcrop);
+  rockAmt = max(rockAmt, outcrop);
   if (rockAmt > 0.5) id = 2.0;
 
   // scree / talus: deposition on moderate slopes at altitude, and at the foot of cliffs

@@ -30,7 +30,7 @@ try {
     const a = window.__tp.app;
     a.setSettings({ tide: 1 });
     return { floor: a.heightAt(74.83,114.83), water: a.surfaceAt(74.83,114.83), city: a.surfaceAt(64.83,65.63),
-      downs: a.surfaceAt(44.83,42.83)-a.heightAt(44.83,42.83), shaderWater: a.uniforms.uTide.value.w };
+      downs: a.surfaceAt(44.83,42.83)-a.groundAt(44.83,42.83), shaderWater: a.uniforms.uTide.value.w };
   })()`);
   assert(high.floor < 120 && high.water === 120 && high.shaderWater === 120 && high.city > 300, JSON.stringify(high));
   assert.equal(high.downs, 0);

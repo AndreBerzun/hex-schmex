@@ -60,7 +60,9 @@ void main() {
   float shadow = texture2D(uShadowTex, clamp(vWorld.xz / uWorldKm, 0.0, 1.0)).r * landmarkShadow(vWorld);
   vec3 skyAmb = mix(srgb(vec3(0.3, 0.29, 0.24)), uSkyZenith * 1.15, n.y * 0.5 + 0.5);
   float ndl = max(dot(n, uSunDir), 0.0);
-  vec3 col = vColor * (uSunColor * ndl * shadow * 3.1 + skyAmb * 0.66);
+  vec3 fillDir = normalize(vec3(-uSunDir.x, 0.35, -uSunDir.z) + vec3(0.0001, 0.0, 0.0));
+  float fill = max(dot(n, fillDir), 0.0) * 0.45 + (1.0 - abs(n.y)) * 0.35 + max(-n.y, 0.0) * 0.3;
+  vec3 col = vColor * (uSunColor * (ndl * shadow * 3.1 + fill) + skyAmb * 0.66);
   gl_FragColor = vec4(toDisplay(applyAtmosphere(col, vWorld, cameraPosition)), 1.0);
 }`;
 
