@@ -322,7 +322,8 @@ function deadTrunk(b: MeshBuilder, rng: () => number, lod: Lod, variant: number)
 }
 
 function reedBed(b: MeshBuilder, rng: () => number, lod: Lod, variant: number) {
-  const g = variant === 1 ? mixC(P.gold, [0.6, 0.58, 0.32], 0.45) : variant === 2 ? mixC(P.gold, P.ochre, 0.4) : P.gold;
+  const moss = mixC(P.gold, [0.4, 0.34, 0.18], 0.6);
+  const g = variant === 1 ? mixC(moss, [0.45, 0.44, 0.26], 0.45) : variant === 2 ? mixC(moss, P.ochre, 0.35) : moss;
   const soil: C = [0.2, 0.17, 0.13];
   const R = 15.4;
   b.prism([0, 0, 0], R, lod === 2 ? 6 : 12, [{ y: -0.5, s: 1.03 }, { y: 0.25, s: 1 }, { y: 0.4, s: 0.9 }], (_p, _n, t) => mixC(soil, mixC(P.goldDark, g, 0.55), Math.min(1, t * 1.6)), { jitter: 0.35, seed: variant * 3 + 1, stretch: [1, 0.75] });

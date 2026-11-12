@@ -666,7 +666,7 @@ without the detail layer add tiles that carry nothing); grass in shadow patches 
 pebbles read as pale specks; sand carries no shells yet; the remaining biomes (mountains, tidal,
 ash, mire) have no textures of their own.
 
-### Next session (handoff, 2026-11-11)
+### Handoff, 2026-11-11 (items 1 and 2 done on 2026-11-12, see below)
 
 State: hex-schmex#11 open on `feat/coral-ground-scene` (worktree
 `.claude/worktrees/coral-ground-scene`), not merged; the GM has not said "merge" yet.
@@ -757,3 +757,41 @@ Comparison: `shots/biomes/compare-ash-00-before-vs-ash-04-vs-ash-00-before-16.5-
 
 Looks off: at 16:30 the ink shadows vanish on the dark crust; the ash has no dune shapes, which is
 geometry; the charred ridge still shows the texture's cobble pattern.
+
+
+## 2026-11-12 — Mire: peat, reed beds, channels and pools, standing reeds
+
+- The mire was near-black marsh ground everywhere (no water). Three Midjourney textures: dark
+  wet peat with moss (warmed towards ochre), a reed bed seen from above (golden patches), murky
+  bog water for the wet margins.
+- Winding channels (a ridged noise band) and round pools mirror the sky like the tidal pools, with
+  a bog-water margin around them; pools avoid the reed patches.
+- Standing reeds as a fifth cover class (alpha 9 + density): tall thin blades, 0.9–1.7 m, on the
+  reed patches and thicker at the water's edge. Pebbles stay off the mire.
+- The reed-bed islands of the middle layer moved from bright gold to olive-gold so they sit with
+  the new ground (the wetland reference's moss islands).
+- `scripts/mire-spots.json`: the fixed view, back, to the side.
+
+Comparison: `shots/biomes/compare-mire-00-before-vs-mire-02-vs-mire-00-before-16.5-vs-mire-02-16.5.jpg`;
+all seven spots: `compare-12-cover-vs-14-biomes-vs-12-cover-16.5-vs-14-biomes-16.5.jpg` (downs,
+tablelands and coral unchanged).
+
+Checks: 81 unit tests, build, `build:single` (7.8 MB, was 3.5 MB: twelve more textures),
+`check:scenery`, `check:player`, `check:shore`, `check:layers`. Performance not measured yet.
+
+Looks off: the reed-bed islands are still faceted lumps with spike cones; water covers much of the
+foreground; reeds have no shadow ink of their own.
+
+### Next session (handoff, 2026-11-12)
+
+State: hex-schmex#11 on `feat/coral-ground-scene`, not merged. All seven biomes now have painted
+ground. The branch is one docs commit behind master (`IDEAS.md`); merge or rebase before the PR.
+
+1. Performance: 21 texture layers now, face projection with up to two planes × two ladder levels
+   per material. Measure once, interleaved against `88792ca`, on the fixed spots.
+2. Geometry is the next lever for mountains and ash: the faces are smooth cones and the ash has
+   no dunes; textures cannot carry cliff walls or dune crests.
+3. Middle-layer objects per biome (reed-bed islands, ash buttes) to match their new ground.
+
+Tools as before, plus `scripts/{mountain,tidal,ash,mire}-spots.json`; the shot log now prints
+each spot's height above sea.

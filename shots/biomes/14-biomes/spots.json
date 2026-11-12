@@ -1,0 +1,44 @@
+[
+  {
+    "name": "downs",
+    "zone": "downs",
+    "mat": "black earth",
+    "elevM": 618
+  },
+  {
+    "name": "tablelands",
+    "zone": "downs",
+    "mat": "black earth",
+    "elevM": 211
+  },
+  {
+    "name": "ash",
+    "zone": "ash",
+    "mat": "ash",
+    "elevM": 244
+  },
+  {
+    "name": "coral",
+    "zone": "coral",
+    "mat": "crimson coral",
+    "elevM": 173
+  },
+  {
+    "name": "mire",
+    "zone": "mire",
+    "mat": "silt mire",
+    "elevM": 56
+  },
+  {
+    "name": "tidal",
+    "zone": "tidal",
+    "mat": "tidal flats",
+    "elevM": 51
+  },
+  {
+    "name": "mountains",
+    "zone": "rock",
+    "mat": "mineral rock",
+    "elevM": 1756
+  }
+]

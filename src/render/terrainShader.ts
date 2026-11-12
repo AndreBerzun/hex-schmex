@@ -233,7 +233,7 @@ vec3 faceTex(float t, vec3 n, vec3 mean) {
 }
 #endif
 
-float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0, gRubble = 0.0, gShells = 0.0, gTidalPool = 0.0, gTidalWet = 0.0, gClinker = 0.0, gAshGround = 0.0;
+float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0, gRubble = 0.0, gShells = 0.0, gPool = 0.0, gWet = 0.0, gReeds = 0.0, gMire = 0.0, gClinker = 0.0, gAshGround = 0.0;
 const float PAINT_ALBEDO = 0.55;
 const vec3 LUMA = vec3(0.3, 0.55, 0.15);
 const float ROCK_MEAN_LUMA = 0.1259;
@@ -245,6 +245,9 @@ const float SNOW_MEAN_LUMA = 0.579;
 const vec3 ASH_MEAN = vec3(0.658, 0.635, 0.591);
 const vec3 CINDER_MEAN = vec3(0.100, 0.109, 0.147);
 const vec3 CHARRED_MEAN = vec3(0.039, 0.037, 0.042);
+const vec3 PEAT_MEAN = vec3(0.088, 0.067, 0.023);
+const vec3 REED_MEAN = vec3(0.544, 0.286, 0.083);
+const vec3 BOG_MEAN = vec3(0.215, 0.149, 0.034);
 const vec3 TIDAL_SAND_MEAN = vec3(0.277, 0.207, 0.138);
 const vec3 TIDAL_MUD_MEAN = vec3(0.039, 0.025, 0.017);
 const vec3 TIDAL_WEED_MEAN = vec3(0.177, 0.101, 0.035);
@@ -407,7 +410,28 @@ void main() {
   // marsh: flat, wet, low
   float marsh = smoothstep(0.72, 0.85, moist + nMid * 0.08) * (1.0 - smoothstep(0.015, 0.05, g)) * (1.0 - smoothstep(250.0, 500.0, elev));
   marsh = mix(marsh, pA.g, pCov);
-  col = mix(col, mix(cMarsh, cMarshWet, smoothstep(0.2, 0.6, nFine) * 0.5), marsh);
+  vec3 marshCol = mix(cMarsh, cMarshWet, smoothstep(0.2, 0.6, nFine) * 0.5);
+  float mSmall = noiseAt(xz + 3.9, 0.01);
+  float reedW = smoothstep(0.0, 0.3, noiseAt(xz + 6.4, 0.05) + mSmall * 0.3);
+  float chanN = abs(noiseAt(xz + 2.6, 0.12) + mSmall * 0.04);
+  float blobN = noiseAt(xz + 7.9, 0.03) + mSmall * 0.2;
+  float mPool = max(1.0 - smoothstep(0.015, 0.04, chanN), smoothstep(0.26, 0.33, blobN)) * (1.0 - reedW * 0.6);
+  float mWet = max(1.0 - smoothstep(0.05, 0.12, chanN), smoothstep(0.1, 0.22, blobN)) * (1.0 - mPool);
+  float mireOn = marsh * uAshen * (1.0 - smoothstep(0.02, 0.06, g));
+#ifdef SURFACE_DETAIL
+  if (marsh > 0.001 && uAshen > 0.5) {
+    vec3 peat = faceTex(L_MIRE_PEAT, n, PEAT_MEAN) * vec3(1.2, 1.0, 0.75) * 0.75;
+    marshCol = reedW > 0.001 ? mix(peat, faceTex(L_MIRE_REED, n, REED_MEAN) * 0.3, reedW) : peat;
+    if (mWet + mPool > 0.001) marshCol = mix(marshCol, faceTex(L_MIRE_BOG, n, BOG_MEAN) * 0.3, min(mWet + mPool, 1.0));
+  }
+#else
+  marshCol = mix(marshCol, mix(mix(PEAT_MEAN * vec3(0.9, 0.75, 0.56), REED_MEAN * 0.3, reedW), BOG_MEAN * 0.3, min(mWet + mPool, 1.0)), uAshen);
+#endif
+  col = mix(col, marshCol, marsh);
+  gPool = mPool * mireOn;
+  gWet = mWet * mireOn;
+  gReeds = reedW * (1.0 - mPool) * (0.5 + 0.5 * mWet);
+  gMire = mireOn;
   if (marsh > 0.5) id = 6.0;
 
   // forest canopy: below the treeline, moist enough, not too steep, clumped
@@ -553,8 +577,8 @@ void main() {
   vec3 tidalCol = mix(TIDAL_SAND_MEAN * (0.095 / dot(TIDAL_SAND_MEAN, LUMA)), TIDAL_MUD_MEAN * (0.03 / dot(TIDAL_MUD_MEAN, LUMA)), mud);
 #endif
   col = mix(col, tidalCol * tidalLight, tidal);
-  gTidalPool = pool * tidal * (1.0 - smoothstep(0.03, 0.1, g));
-  gTidalWet = tidal * mud * (1.0 - pool);
+  gPool = max(gPool, pool * tidal * (1.0 - smoothstep(0.03, 0.1, g)));
+  gWet = max(gWet, tidal * mud * (1.0 - pool));
   gShells = tidal * (1.0 - mud) * (0.35 + 0.5 * smoothstep(0.0, 0.5, noiseAt(xz + 5.9, 0.012)));
   if (tidal > 0.5) id = 9.0;
 
@@ -605,13 +629,13 @@ void main() {
   float ink = inked.y;
   vec3 light = uSunColor * inked.x * 3.1 + skyAmb * (0.2 + 0.8 * ao) * 0.62;
   vec3 c = col * light;
-  if (gTidalPool + gTidalWet > 0.001) {
+  if (gPool + gWet > 0.001) {
     vec2 pr = noiseGradAt(xz, 0.02) * 0.004;
     vec3 pn = normalize(vec3(pr.x, 1.0, pr.y));
     float pf = 0.04 + 0.96 * pow(1.0 - max(dot(pn, V), 0.0), 5.0);
-    vec3 pc = mix(c * 0.5, skyColor(reflect(-V, pn)) * 0.85, pf);
-    c = mix(mix(c, skyColor(reflect(-V, pn)) * 0.85, pf * gTidalWet * 0.4), pc, gTidalPool);
-    ink *= 1.0 - gTidalPool;
+    vec3 pc = mix(c * 0.45, skyColor(reflect(-V, pn)) * 0.7, pf);
+    c = mix(mix(c, skyColor(reflect(-V, pn)) * 0.85, pf * gWet * 0.4), pc, gPool);
+    ink *= 1.0 - gPool;
   }
   // snow and wet surfaces: a bit of specular
   vec3 Hh = normalize(uSunDir + V);
@@ -646,10 +670,10 @@ void main() {
   }
 
   if (uCoverPass > 0.5) {
-    float ground = (1.0 - snow) * (1.0 - playa) * (1.0 - coverWet) * (1.0 - gTidalPool);
+    float ground = (1.0 - snow) * (1.0 - playa) * (1.0 - coverWet) * (1.0 - gPool);
     float keep = ground * (1.0 - scree) * (1.0 - smoothstep(0.15, 0.45, tidal));
     float rubble = max(gRubble * (1.0 - coralW), scree) * ground;
-    float kind = tidal > 0.5 ? 5.0 + gShells : gAshGround > 0.5 ? 7.0 + gClinker * gAshGround : rubble > 0.3 ? 3.0 + rubble : 1.0 + gCoverStone * keep;
+    float kind = gMire > 0.5 ? 9.0 + gReeds : tidal > 0.5 ? 5.0 + gShells : gAshGround > 0.5 ? 7.0 + gClinker * gAshGround : rubble > 0.3 ? 3.0 + rubble : 1.0 + gCoverStone * keep;
     gl_FragColor = vec4(vWorld.y, gCoverTurf * keep, gCoverGrass * keep, ground > 0.5 ? kind : 0.5);
     return;
   }

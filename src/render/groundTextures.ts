@@ -14,6 +14,9 @@ import tidalWeedUrl from './textures/tidal-weed.jpg';
 import ashDustUrl from './textures/ash-dust.jpg';
 import ashCinderUrl from './textures/ash-cinder.jpg';
 import ashCharredUrl from './textures/ash-charred.jpg';
+import mirePeatUrl from './textures/mire-peat.jpg';
+import mireReedUrl from './textures/mire-reed.jpg';
+import mireBogUrl from './textures/mire-bog.jpg';
 
 export const TEXTURE_ANCHOR_KM = 1;
 const SIZE = 1024;
@@ -34,6 +37,9 @@ const LAYERS = [
   ['ASH_DUST', ashDustUrl],
   ['ASH_CINDER', ashCinderUrl],
   ['ASH_CHARRED', ashCharredUrl],
+  ['MIRE_PEAT', mirePeatUrl],
+  ['MIRE_REED', mireReedUrl],
+  ['MIRE_BOG', mireBogUrl],
 ] as const;
 
 export const GROUND_GLSL = /* glsl */ `

@@ -42,7 +42,7 @@ vec4 coverAt(vec2 xz) {
   vec4 c = texelFetch(uCoverMap, i + ivec2(0, 1), 0), d = texelFetch(uCoverMap, i + ivec2(1, 1), 0);
   if (min(min(a.w, b.w), min(c.w, d.w)) < 0.75) return vec4(0.0);
   vec4 w4 = vec4(a.w, b.w, c.w, d.w);
-  vec4 cls = step(vec4(2.5), w4) + step(vec4(4.5), w4) + step(vec4(6.5), w4);
+  vec4 cls = step(vec4(2.5), w4) + step(vec4(4.5), w4) + step(vec4(6.5), w4) + step(vec4(8.5), w4);
   if (any(notEqual(cls, cls.xxxx))) return vec4(0.0);
   return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
 }
@@ -63,17 +63,18 @@ void main() {
   vec4 m = coverAt(xz);
   float r = coverRand(ci, 3u);
   float coral = m.y * 0.9, grass = m.z * 0.95;
-  float kind = r < coral ? 1.0 : r < coral + grass ? 2.0 : 0.0;
+  bool mire = m.w > 8.5;
+  float kind = mire ? (r < (m.w - 9.0) * 0.85 ? 7.0 : 0.0) : r < coral ? 1.0 : r < coral + grass ? 2.0 : 0.0;
   float fade = ringFade(xz);
   if (kind < 0.5 || fade <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   float s = coverRand(ci, 4u);
-  float heightM = (kind > 1.5 ? mix(0.3, 0.62, s) * (0.65 + 0.5 * grass) : mix(0.12, 0.3, s)) * uRingScale * fade;
-  float spread = kind > 1.5 ? 0.16 : 0.1;
-  float width = kind > 1.5 ? 0.035 : 0.03;
+  float heightM = (kind > 6.5 ? mix(0.9, 1.7, s) : kind > 1.5 ? mix(0.3, 0.62, s) * (0.65 + 0.5 * grass) : mix(0.12, 0.3, s)) * uRingScale * fade;
+  float spread = kind > 6.5 ? 0.12 : kind > 1.5 ? 0.16 : 0.1;
+  float width = kind > 6.5 ? 0.022 : kind > 1.5 ? 0.035 : 0.03;
   float blade = aBlade.x;
   float a = (blade + coverRand(ci, 5u + uint(blade))) * ${(Math.PI * 2 / BLADES).toFixed(5)} + s * 6.2831;
   vec2 dir = vec2(cos(a), sin(a));
-  float lean = mix(0.2, 0.75, coverRand(ci, 13u + uint(blade))) * (kind > 1.5 ? 1.0 : 0.35);
+  float lean = mix(0.2, 0.75, coverRand(ci, 13u + uint(blade))) * (kind > 6.5 ? 0.3 : kind > 1.5 ? 1.0 : 0.35);
   float bh = heightM * mix(0.65, 1.0, coverRand(ci, 21u + uint(blade)));
   float tip = aBlade.z;
   vec2 side = vec2(-dir.y, dir.x) * aBlade.y * width * uRingScale * (1.0 - tip);
@@ -95,6 +96,7 @@ void main() {
   vec2 jitter = vec2(coverRand(ci, 31u), coverRand(ci, 32u));
   vec2 xz = (vec2(ci) + jitter) * uCellKm;
   vec4 m = coverAt(xz);
+  if (m.w > 8.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   bool clinker = m.w > 6.5;
   bool shells = !clinker && m.w > 4.5;
   bool rubble = !clinker && !shells && m.w > 2.5;
@@ -128,17 +130,19 @@ varying float vTip;
 varying float vKind;
 void main() {
   vec3 albedo;
-  if (vKind > 5.5) albedo = groundTexLod(L_ASH_CHARRED, vTexM / 0.8, 3.0) * 1.3 * (0.7 + 0.5 * vTip);
+  bool blade = vKind < 2.5 || vKind > 6.5;
+  if (vKind > 6.5) albedo = groundTexLod(L_MIRE_REED, vTexM / 1.5, 5.0) * vec3(0.85, 0.95, 1.15) * 0.3 * (0.55 + 0.65 * vTip);
+  else if (vKind > 5.5) albedo = groundTexLod(L_ASH_CHARRED, vTexM / 0.8, 3.0) * 1.3 * (0.7 + 0.5 * vTip);
   else if (vKind > 4.5) albedo = vec3(0.4, 0.38, 0.35) * (0.7 + 0.5 * vTip);
   else if (vKind > 3.5) albedo = groundTexLod(L_MOUNTAIN_ROCK, vTexM / 0.8, 3.0) * vec3(1.1, 1.0, 0.88) * 0.5 * (0.7 + 0.4 * vTip);
   else if (vKind > 2.5) albedo = groundTexLod(L_CORAL_ROCK, vTexM / 0.6, 4.0) * 0.75 * (0.8 + 0.3 * vTip);
   else if (vKind > 1.5) albedo = groundTexLod(L_DOWNS_GRASS, vTexM / 1.25, 6.0) * 0.38 * (0.75 + 0.55 * vTip);
   else albedo = groundTexLod(L_CORAL_TURF, vTexM / 1.25, 6.0) * vec3(0.8, 0.62, 0.78) * 0.6 * (0.8 + 0.5 * vTip);
   vec3 n = normalize(vNormal);
-  if (!gl_FrontFacing && vKind < 2.5) n = normalize(vec3(-n.x, n.y, -n.z));
+  if (!gl_FrontFacing && blade) n = normalize(vec3(-n.x, n.y, -n.z));
   float shadow = texture2D(uShadowTex, clamp(vWorld.xz / uGridKm, 0.0, 1.0)).r * sunShadow(vWorld);
   float ndl = max(dot(n, uSunDir), 0.0);
-  if (vKind < 2.5) ndl = max(ndl, 0.6) * step(0.0, uSunDir.y);
+  if (blade) ndl = max(ndl, 0.6) * step(0.0, uSunDir.y);
   vec3 skyAmb = mix(srgb(vec3(0.3, 0.29, 0.24)), uSkyZenith * 1.15, n.y * 0.5 + 0.5);
   float dist = distance(vWorld, cameraPosition);
   vec2 inked = inkLight(ndl, ndl * shadow, vTexM, dist, length(fwidth(vTexM)));

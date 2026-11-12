@@ -1,0 +1,20 @@
+[
+  {
+    "name": "mire",
+    "zone": "mire",
+    "mat": "silt mire",
+    "elevM": 56
+  },
+  {
+    "name": "mire-back",
+    "zone": "mire",
+    "mat": "silt mire",
+    "elevM": 56
+  },
+  {
+    "name": "mire-side",
+    "zone": "mire",
+    "mat": "silt mire",
+    "elevM": 56
+  }
+]
