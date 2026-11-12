@@ -41,7 +41,8 @@ vec4 coverAt(vec2 xz) {
   vec4 a = texelFetch(uCoverMap, i, 0), b = texelFetch(uCoverMap, i + ivec2(1, 0), 0);
   vec4 c = texelFetch(uCoverMap, i + ivec2(0, 1), 0), d = texelFetch(uCoverMap, i + ivec2(1, 1), 0);
   if (min(min(a.w, b.w), min(c.w, d.w)) < 0.75) return vec4(0.0);
-  vec4 cls = step(vec4(2.5), vec4(a.w, b.w, c.w, d.w)) + step(vec4(4.5), vec4(a.w, b.w, c.w, d.w));
+  vec4 w4 = vec4(a.w, b.w, c.w, d.w);
+  vec4 cls = step(vec4(2.5), w4) + step(vec4(4.5), w4) + step(vec4(6.5), w4);
   if (any(notEqual(cls, cls.xxxx))) return vec4(0.0);
   return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
 }
@@ -94,14 +95,15 @@ void main() {
   vec2 jitter = vec2(coverRand(ci, 31u), coverRand(ci, 32u));
   vec2 xz = (vec2(ci) + jitter) * uCellKm;
   vec4 m = coverAt(xz);
-  bool shells = m.w > 4.5;
-  bool rubble = !shells && m.w > 2.5;
-  float stone = shells ? m.w - 5.0 : rubble ? m.w - 3.0 : clamp(m.w - 1.0, 0.0, 1.0);
+  bool clinker = m.w > 6.5;
+  bool shells = !clinker && m.w > 4.5;
+  bool rubble = !clinker && !shells && m.w > 2.5;
+  float stone = clinker ? m.w - 7.0 : shells ? m.w - 5.0 : rubble ? m.w - 3.0 : clamp(m.w - 1.0, 0.0, 1.0);
   float fade = ringFade(xz);
-  float density = shells ? stone * 0.9 + 0.1 : rubble ? stone * 0.9 + 0.2 : stone * 1.6 + 0.1;
+  float density = clinker ? stone * 0.8 + 0.05 : shells ? stone * 0.9 + 0.1 : rubble ? stone * 0.9 + 0.2 : stone * 1.6 + 0.1;
   if (m.w < 0.75 || coverRand(ci, 33u) > min(1.0, density) || fade <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   float s = coverRand(ci, 34u);
-  float size = (shells ? mix(0.05, 0.14, s) : rubble ? mix(0.07, 0.42, s * s * s) * (0.7 + 0.6 * stone) : mix(0.05, 0.16, s * s) * (1.0 + stone)) * uRingScale * fade;
+  float size = (clinker ? mix(0.04, 0.3, s * s * s) : shells ? mix(0.05, 0.14, s) : rubble ? mix(0.07, 0.42, s * s * s) * (0.7 + 0.6 * stone) : mix(0.05, 0.16, s * s) * (1.0 + stone)) * uRingScale * fade;
   float yaw = coverRand(ci, 35u) * 6.2831;
   vec3 p = position * (shells ? vec3(1.0, 0.3, 0.75) : vec3(1.0, 0.55, 0.8));
   p = vec3(p.x * cos(yaw) - p.z * sin(yaw), p.y, p.x * sin(yaw) + p.z * cos(yaw));
@@ -112,7 +114,7 @@ void main() {
   vNormal = normalize(n);
   vTexM = (xz - uTexOrigin) * 1000.0 + p.xz * size;
   vTip = 0.5 + 0.5 * p.y;
-  vKind = shells ? 5.0 : rubble ? 4.0 : 3.0;
+  vKind = clinker ? 6.0 : shells ? 5.0 : rubble ? 4.0 : 3.0;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 
@@ -126,7 +128,8 @@ varying float vTip;
 varying float vKind;
 void main() {
   vec3 albedo;
-  if (vKind > 4.5) albedo = vec3(0.4, 0.38, 0.35) * (0.7 + 0.5 * vTip);
+  if (vKind > 5.5) albedo = groundTexLod(L_ASH_CHARRED, vTexM / 0.8, 3.0) * 1.3 * (0.7 + 0.5 * vTip);
+  else if (vKind > 4.5) albedo = vec3(0.4, 0.38, 0.35) * (0.7 + 0.5 * vTip);
   else if (vKind > 3.5) albedo = groundTexLod(L_MOUNTAIN_ROCK, vTexM / 0.8, 3.0) * vec3(1.1, 1.0, 0.88) * 0.5 * (0.7 + 0.4 * vTip);
   else if (vKind > 2.5) albedo = groundTexLod(L_CORAL_ROCK, vTexM / 0.6, 4.0) * 0.75 * (0.8 + 0.3 * vTip);
   else if (vKind > 1.5) albedo = groundTexLod(L_DOWNS_GRASS, vTexM / 1.25, 6.0) * 0.38 * (0.75 + 0.55 * vTip);

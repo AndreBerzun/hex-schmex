@@ -233,7 +233,7 @@ vec3 faceTex(float t, vec3 n, vec3 mean) {
 }
 #endif
 
-float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0, gRubble = 0.0, gShells = 0.0, gTidalPool = 0.0, gTidalWet = 0.0;
+float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0, gRubble = 0.0, gShells = 0.0, gTidalPool = 0.0, gTidalWet = 0.0, gClinker = 0.0, gAshGround = 0.0;
 const float PAINT_ALBEDO = 0.55;
 const vec3 LUMA = vec3(0.3, 0.55, 0.15);
 const float ROCK_MEAN_LUMA = 0.1259;
@@ -242,6 +242,9 @@ const vec3 ROCK_WARM = vec3(1.1, 1.0, 0.88);
 const float SCREE_MEAN_LUMA = 0.0778;
 const vec3 SCREE_HUE = vec3(0.064, 0.083, 0.085) / 0.0778;
 const float SNOW_MEAN_LUMA = 0.579;
+const vec3 ASH_MEAN = vec3(0.658, 0.635, 0.591);
+const vec3 CINDER_MEAN = vec3(0.100, 0.109, 0.147);
+const vec3 CHARRED_MEAN = vec3(0.039, 0.037, 0.042);
 const vec3 TIDAL_SAND_MEAN = vec3(0.277, 0.207, 0.138);
 const vec3 TIDAL_MUD_MEAN = vec3(0.039, 0.025, 0.017);
 const vec3 TIDAL_WEED_MEAN = vec3(0.177, 0.101, 0.035);
@@ -371,10 +374,33 @@ void main() {
   // desert sands and badlands where very dry
   float desert = smoothstep(0.78, 0.92, drySide + nBig * 0.1) * (1.0 - smoothstep(0.25, 0.5, g));
   desert = mix(desert, pA.b, pCov);
-  col = mix(col, cSand * (0.92 + 0.12 * nMid), desert);
+  vec3 ashCol = cSand * (0.92 + 0.12 * nMid);
+  float tAshFine = noiseAt(xz + 5.1, 0.02);
+  float crust = smoothstep(-0.12, 0.12, noiseAt(xz + 6.2, 0.04) + noiseAt(xz + 1.4, 0.009) * 0.35 + smoothstep(0.08, 0.25, g) * 0.3) * uAshen;
+#ifdef SURFACE_DETAIL
+  if (desert > 0.001 && uAshen > 0.5) {
+    float ashL = dot(ashCol, LUMA);
+    ashCol = faceTex(L_ASH_DUST, n, ASH_MEAN) * (ashL / dot(ASH_MEAN, LUMA));
+    ashCol *= mix(vec3(0.74, 0.78, 0.86), vec3(1.0), smoothstep(-0.45, 0.25, noiseAt(xz + 3.3, 0.12) + tAshFine * 0.3 - lap * 3.0));
+    if (crust > 0.001) ashCol = mix(ashCol, faceTex(L_ASH_CINDER, n, CINDER_MEAN) * vec3(1.08, 1.0, 0.86) * (ashL * 0.2 / dot(CINDER_MEAN, LUMA)), crust);
+  }
+#else
+  ashCol = mix(ashCol, ashCol * 0.2 * vec3(1.08, 1.0, 0.86) * CINDER_MEAN / dot(CINDER_MEAN, LUMA), crust);
+#endif
+  col = mix(col, ashCol, desert);
+  gAshGround = desert * uAshen;
+  gClinker = 0.15 + crust * 0.75;
   float bad = smoothstep(0.7, 0.85, drySide) * smoothstep(0.18, 0.4, g);
   bad = mix(bad, pA.a, pCov);
   vec3 badCol = mix(cBad, cBad * mix(vec3(1.2, 1.05, 0.9), vec3(0.8, 0.79, 0.8), uAshen), 0.5 + 0.5 * sin(h / 18.0 + nMid * 2.0));
+#ifdef SURFACE_DETAIL
+  if (bad > 0.001 && uAshen > 0.5) {
+    vec3 ch = faceTex(L_ASH_CHARRED, n, CHARRED_MEAN);
+    ch = CHARRED_MEAN + (min(ch, CHARRED_MEAN * 1.6) - CHARRED_MEAN) * 0.8;
+    float rust = smoothstep(-0.1, 0.45, noiseAt(xz + 8.8, 0.06) + nMid * 0.3);
+    badCol = ch * (dot(badCol, LUMA) * 0.22 / dot(CHARRED_MEAN, LUMA)) * mix(vec3(1.0), vec3(1.6, 0.95, 0.6), rust * 0.6);
+  }
+#endif
   col = mix(col, badCol, bad);
   float id = desert > 0.5 ? 5.0 : bad > 0.5 ? 7.0 : 0.0;
 
@@ -623,7 +649,7 @@ void main() {
     float ground = (1.0 - snow) * (1.0 - playa) * (1.0 - coverWet) * (1.0 - gTidalPool);
     float keep = ground * (1.0 - scree) * (1.0 - smoothstep(0.15, 0.45, tidal));
     float rubble = max(gRubble * (1.0 - coralW), scree) * ground;
-    float kind = tidal > 0.5 ? 5.0 + gShells : rubble > 0.3 ? 3.0 + rubble : 1.0 + gCoverStone * keep;
+    float kind = tidal > 0.5 ? 5.0 + gShells : gAshGround > 0.5 ? 7.0 + gClinker * gAshGround : rubble > 0.3 ? 3.0 + rubble : 1.0 + gCoverStone * keep;
     gl_FragColor = vec4(vWorld.y, gCoverTurf * keep, gCoverGrass * keep, ground > 0.5 ? kind : 0.5);
     return;
   }

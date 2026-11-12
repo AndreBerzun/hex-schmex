@@ -11,6 +11,9 @@ import mountainSnowUrl from './textures/mountain-snow.jpg';
 import tidalSandUrl from './textures/tidal-sand.jpg';
 import tidalMudUrl from './textures/tidal-mud.jpg';
 import tidalWeedUrl from './textures/tidal-weed.jpg';
+import ashDustUrl from './textures/ash-dust.jpg';
+import ashCinderUrl from './textures/ash-cinder.jpg';
+import ashCharredUrl from './textures/ash-charred.jpg';
 
 export const TEXTURE_ANCHOR_KM = 1;
 const SIZE = 1024;
@@ -28,6 +31,9 @@ const LAYERS = [
   ['TIDAL_SAND', tidalSandUrl],
   ['TIDAL_MUD', tidalMudUrl],
   ['TIDAL_WEED', tidalWeedUrl],
+  ['ASH_DUST', ashDustUrl],
+  ['ASH_CINDER', ashCinderUrl],
+  ['ASH_CHARRED', ashCharredUrl],
 ] as const;
 
 export const GROUND_GLSL = /* glsl */ `

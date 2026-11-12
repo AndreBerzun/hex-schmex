@@ -740,3 +740,20 @@ Comparison: `shots/biomes/compare-tid-00-before-vs-tid-03-vs-tid-00-before-16.5-
 
 Looks off: the wet sheen also covers dry-looking mud lumps; shells are small specks beyond a few
 metres; wrack shows only where its patches meet the camera.
+
+
+## 2026-11-12 — Ash: pale ash, cinder crust, charred badlands, clinkers
+
+- Three Midjourney textures: pale volcanic ash on the ash plains (the desert branch in the ashen
+  world), cracked cinder crust in large dark patches and on steeper ground, charred black rock on
+  the badland slopes with rust patches. Ash gets bluish-grey drifts in hollows. Crust at 20% and
+  charred rock at 22% of the old brightness; at the old 42–55% they read as dried mud and a
+  dry-stone wall instead of the reference's dark flats and buttes.
+- Clinkers as a fourth cover class (alpha 7 + amount): dark charred stones up to 30 cm, more on
+  the crust.
+- `scripts/ash-spots.json`: the fixed view, back towards the charred ridge, to the side.
+
+Comparison: `shots/biomes/compare-ash-00-before-vs-ash-04-vs-ash-00-before-16.5-vs-ash-04-16.5.jpg`.
+
+Looks off: at 16:30 the ink shadows vanish on the dark crust; the ash has no dune shapes, which is
+geometry; the charred ridge still shows the texture's cobble pattern.
