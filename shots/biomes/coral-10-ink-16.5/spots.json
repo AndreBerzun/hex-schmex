@@ -1,0 +1,17 @@
+[
+  {
+    "name": "coral",
+    "zone": "coral",
+    "mat": "crimson coral"
+  },
+  {
+    "name": "coral-back",
+    "zone": "coral",
+    "mat": "crimson coral"
+  },
+  {
+    "name": "coral-side",
+    "zone": "coral",
+    "mat": "crimson coral"
+  }
+]

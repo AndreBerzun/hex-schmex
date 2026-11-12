@@ -1,0 +1,6 @@
+[
+  { "name": "mountains", "from": [47.33, 31.83], "to": [47.33, 20.0] },
+  { "name": "mountains-foot", "from": [47.33, 29.6], "to": [47.33, 20.0] },
+  { "name": "mountains-slope", "from": [47.33, 28.2], "to": [44.0, 24.0] },
+  { "name": "mountains-high", "from": [48.5, 26.5], "to": [47.33, 20.0] }
+]

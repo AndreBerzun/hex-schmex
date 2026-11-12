@@ -20,7 +20,7 @@ import { Terrain, mirror, type HeightSource } from '../render/terrain';
 import { Landmarks } from '../render/landmarks';
 import { Scenery } from '../render/scenery';
 import { Ground, exclusionKm, zoneOf } from '../core/scenery/ground';
-import { DetailMask, buildDetailMask, coverFields, coverFrom, downsDetail, type Cover, type CoverFields, type DetailSample } from '../core/detail';
+import { DetailMask, buildDetailMask, coverFields, coverFrom, downsDetail, nearRelief, type Cover, type CoverFields, type DetailSample } from '../core/detail';
 import type { Zone } from '../core/scenery/ground';
 
 const DETAIL_WEIGHT: Record<Zone, number> = { downs: 1, rock: 0.8, ash: 0.6, none: 0, coral: -1, mire: -1, tidal: -1, water: -1 };
@@ -35,6 +35,11 @@ import { GroundTravel } from './groundTravel';
 import { advanceClock, clockTide } from '../core/travel';
 import { FreeFlight } from './freeFlight';
 import { WorkerClient } from './workerClient';
+import { loadGroundTextures } from '../render/groundTextures';
+import { SunShadow } from '../render/sunShadow';
+import { PaintPass } from '../render/paintPass';
+import { inkUniforms } from '../render/inkStyle';
+import { GroundCover } from '../render/groundCover';
 
 export type Stage = 'idle' | 'evaluating' | 'draining' | 'eroding' | 'hydrology' | 'ready' | 'error';
 
@@ -80,6 +85,10 @@ const ERODE_UNWATCHED_FACTOR = 20;
 const DEBUG_NAMES = ['shaded', 'height', 'slope', 'flow', 'moisture', 'materials', 'light', 'erosion'];
 export { DEBUG_NAMES };
 
+const SUN_SHADOW_MAX_AGL_M = 400;
+const PAINT_MAX_AGL_M = 1500;
+const COVER_MAX_AGL_M = 60;
+
 export class App {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -106,6 +115,14 @@ export class App {
   downsWalkPrototype = false;
   private pendingView?: string;
   readonly uniforms: Record<string, THREE.IUniform>;
+  readonly groundTextures = loadGroundTextures();
+  readonly sunShadow = new SunShadow();
+  readonly paintPass = new PaintPass();
+  paintOn = true;
+  inkOn = true;
+  coverOn = true;
+  groundCover!: GroundCover;
+  sunShadowOn = true;
   readonly workers = new WorkerClient();
 
   world!: World;
@@ -203,6 +220,9 @@ export class App {
     blank.needsUpdate = true;
 
     this.uniforms = {
+      ...this.groundTextures.uniforms,
+      ...this.sunShadow.uniforms,
+      ...inkUniforms(),
       uDaylight: { value: 1 },
       uSpire: { value: new THREE.Vector4() },
       uSpireRadius: { value: 0 },
@@ -257,6 +277,8 @@ export class App {
       uHexSel: { value: new THREE.Vector2() },
     };
     this.terrain = new Terrain(this.uniforms);
+    this.groundTextures.setAnisotropy(Math.min(4, this.renderer.capabilities.getMaxAnisotropy()));
+    void this.groundTextures.ready.then(() => this.invalidate());
     this.sky = new Sky(this.uniforms);
     this.skirt = new Skirt(this.uniforms);
     this.labels = new HexLabels();
@@ -264,6 +286,8 @@ export class App {
     this.scene.add(this.landmarks.group);
     this.scenery = new Scenery(this.uniforms);
     this.scene.add(this.scenery.group);
+    this.groundCover = new GroundCover(this.uniforms);
+    this.scene.add(this.groundCover.group);
     this.scene.add(this.sky.mesh, this.terrain.mesh, this.labels.mesh);
     this.applySettings();
     this.installPointer(canvas);
@@ -295,8 +319,8 @@ export class App {
     u.uDaylight.value=daylight;
     const low = 1 - Math.max(0, Math.min(1, elev / 0.6));
     (u.uSunColor.value as THREE.Color).setRGB(1.0, 0.93 - 0.25 * low, 0.82 - 0.45 * low).multiplyScalar(daylight);
-    (u.uSkyZenith.value as THREE.Color).setRGB(0.16, 0.32, 0.62).multiplyScalar(0.9 + 0.2 * (1 - low));
-    (u.uSkyHorizon.value as THREE.Color).setRGB(0.62 + 0.15 * low, 0.72 + 0.03 * low, 0.86 - 0.12 * low);
+    (u.uSkyZenith.value as THREE.Color).setRGB(0.06, 0.2, 0.62).multiplyScalar(0.9 + 0.2 * (1 - low));
+    (u.uSkyHorizon.value as THREE.Color).setRGB(0.5 + 0.2 * low, 0.66 + 0.05 * low, 0.88 - 0.12 * low);
     (u.uSkyZenith.value as THREE.Color).lerp(new THREE.Color(0.001,0.002,0.009),1-daylight);
     (u.uSkyHorizon.value as THREE.Color).lerp(new THREE.Color(0.006,0.009,0.022),1-daylight);
     this.invalidate();
@@ -843,7 +867,7 @@ export class App {
   }
 
   groundAt(x: number, z: number): number {
-    return this.heightAt(x, z) + this.detailAt(x, z);
+    return this.heightAt(x, z) + this.detailAt(x, z) + this.reliefAt(x, z);
   }
 
   detailAt(x: number, z: number): number {
@@ -861,8 +885,13 @@ export class App {
     return coverFrom(coverFields(x, z, q, seed, d, w, this.coverTmp), w, d.gx * w, d.gz * w);
   }
 
+  reliefAt(x: number, z: number): number {
+    return nearRelief(x, z, this.terrain.fineQuadM, (this.world?.seed ?? 0) | 0);
+  }
+
   standHeightAt(x: number, z: number): number {
-    return this.terrain.surfaceHeightAt(x, z, (a, b) => this.surfaceAt(a, b, false), (a, b) => this.detailAt(a, b));
+    const h = this.terrain.surfaceHeightAt(x, z, (a, b) => this.surfaceAt(a, b, false), (a, b) => this.detailAt(a, b));
+    return this.surfaceAt(x, z, false) - this.heightAt(x, z) > 0.25 ? h : h + this.reliefAt(x, z);
   }
 
   surfaceAt(x: number, z: number, withDetail = true): number {
@@ -1158,6 +1187,7 @@ export class App {
 
   /** Wait for the running bake on the same paced route the app uses, then finish the lighting (headless shots). */
   async finishNow() {
+    await this.groundTextures.ready;
     while (this.stage !== 'ready' && this.stage !== 'error') await new Promise((r) => setTimeout(r, 20));
     if (this.stage === 'error') throw new Error(`bake failed: ${this.stageInfo}`);
     this.refreshLighting('full');
@@ -1190,14 +1220,20 @@ export class App {
     this.terrain.setSurfaceDetail(cam.position.y / (0.001 * this.settings.exag) - this.surfaceAt(cam.position.x, cam.position.z), this.settings.mapMode);
     if (this.settings.mapMode) this.terrain.material.uniforms.uLeafRange.value = 1e9;
     else this.terrain.material.uniforms.uLeafRange.value = this.terrain.leafKm * this.terrain.rangeK;
+    this.groundTextures.follow(cam.position);
     this.terrain.update(cam, !this.settings.mapMode, this.renderer.domElement.width);
     this.sky.update(cam);
     const aglM = cam.position.y / (0.001 * this.settings.exag) - this.surfaceAt(cam.position.x, cam.position.z);
     if (this.scenery.update(this.camera, aglM, this.renderer.domElement.height, this.sceneryBudgetMs, this.settings.mapMode || !this.sceneryOn)) this.invalidate();
     this.skirt.mesh.visible = !this.settings.mapMode;
-    this.renderer.setRenderTarget(null);
     this.timer.begin();
-    this.renderer.render(this.scene, cam);
+    this.sunShadow.update(this.renderer, this.scenery, this.camera.position, this.sunDir, this.sunShadowOn && !this.settings.mapMode && this.sceneryOn && aglM < SUN_SHADOW_MAX_AGL_M);
+    this.groundCover.update(this.renderer, this.terrain.mesh, this.terrain.material, this.terrain.nodesWithin(0.05), this.camera.position, this.coverOn && !this.settings.mapMode && aglM < COVER_MAX_AGL_M && this.terrain.mesh.material === this.terrain.material);
+    this.renderer.setRenderTarget(null);
+    const painted = this.paintOn && !this.settings.mapMode && aglM < PAINT_MAX_AGL_M;
+    this.uniforms.uInkOn.value = painted && this.inkOn ? 1 : 0;
+    if (painted) this.paintPass.render(this.renderer, this.scene, cam);
+    else this.renderer.render(this.scene, cam);
     this.timer.end();
     this.renderedFrames++;
   }

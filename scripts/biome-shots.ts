@@ -28,9 +28,10 @@ async function capture(name: string) {
   await page.evaluate('window.__tp.finish()');
   await page.evaluate(`(() => {
     const a = window.__tp.app; a.running = false; a.autoTide = false;
-    a.setSettings({ exag: 1, timeOfDay: 12, tide: 0, mapMode: false });
+    a.setSettings({ exag: 1, timeOfDay: ${Number(process.env.TP_TIME ?? 12)}, tide: 0, mapMode: false });
     a.ground.enter();
     if (${Number(process.env.TP_DEBUG ?? 0)}) a.uniforms.uDebug.value = ${Number(process.env.TP_DEBUG ?? 0)};
+    ${process.env.TP_SETUP ?? ''};
   })()`);
   await page.evaluate('window.__tp.finish()');
   const spotsSeen: unknown[] = [];
@@ -52,7 +53,8 @@ async function capture(name: string) {
       };
       stand(); await settle(); stand(); await settle();
       const spot = a.sceneryCells.source.ground.describe(from[0], from[1]);
-      return { spot: { zone: spot.zone, mat: spot.mat }, img: a.renderer.domElement.toDataURL('image/jpeg', 0.9) };
+      const elevM = Math.round(a.camera.position.y * 1000 / a.uniforms.uExag.value - a.uniforms.uSea.value);
+      return { spot: { zone: spot.zone, mat: spot.mat, elevM }, img: a.renderer.domElement.toDataURL('image/jpeg', 0.9) };
     })()`);
     writeFileSync(`${out}/${s.name}.jpg`, Buffer.from(shot.img.split(',')[1], 'base64'));
     spotsSeen.push({ name: s.name, ...(shot.spot as object) });

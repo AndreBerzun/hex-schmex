@@ -101,6 +101,18 @@ export function coverFields(xKm: number, zKm: number, quadM: number, seed: numbe
   return into;
 }
 
+const RELIEF: readonly (readonly [number, number, number])[] = [[12, 0.85, 30], [4, 0.3, 31]];
+
+export function nearRelief(xKm: number, zKm: number, quadM: number, seed: number): number {
+  const x = xKm * 1000, z = zKm * 1000;
+  let h = 0;
+  for (const [lambda, amp, s] of RELIEF) {
+    const w = band(lambda, quadM) * amp;
+    if (w > 0) h += noise(x / lambda, z / lambda, seed + s)[0] * w;
+  }
+  return h;
+}
+
 export function grassField(x: number, z: number, quadM: number, seed: number, hollow: number): number {
   const g1 = noise(x / 26, z / 26, seed + 22)[0] * band(26, quadM);
   const g2 = noise(x / 9, z / 9, seed + 23)[0] * band(9, quadM);
@@ -216,6 +228,10 @@ vec4 coverFields(vec2 p, float q, vec3 d, float m) {
   float rock = (k + n1 * 0.25 + k * smoothstep(0.35, 0.7, slope) * 0.5) * on;
   float apron = smoothstep(0.04, 0.14, k) * (1.0 - smoothstep(0.4, 0.6, k)) * (0.75 + 0.5 * n1) * on;
   return vec4(rock, apron, hollow, grassField(p, q, hollow));
+}
+vec3 nearRelief(vec2 xzKm, float q) {
+  vec2 p = xzKm * 1000.0;
+  return dOctave(p, 12.0, 0.85, q, 30) + dOctave(p, 4.0, 0.3, q, 31);
 }
 vec4 groundDetail(vec2 xzKm, float q) {
   float m = detailMask(xzKm);

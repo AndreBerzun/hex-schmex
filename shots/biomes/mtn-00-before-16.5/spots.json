@@ -1,0 +1,22 @@
+[
+  {
+    "name": "mountains",
+    "zone": "rock",
+    "mat": "mineral rock"
+  },
+  {
+    "name": "mountains-foot",
+    "zone": "rock",
+    "mat": "mineral rock"
+  },
+  {
+    "name": "mountains-slope",
+    "zone": "downs",
+    "mat": "black earth"
+  },
+  {
+    "name": "mountains-high",
+    "zone": "downs",
+    "mat": "black earth"
+  }
+]

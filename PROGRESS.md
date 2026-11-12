@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Status
-Current focus (2026-11-11): **the eye-level scene** on the Forgotten Shore, one biome at a time against its Midjourney reference; coral and downs are in hex-schmex#11. Open ideas and visual gaps are in [IDEAS.md](IDEAS.md). M1–M6 are done.
+Current focus (2026-11-12): **the eye-level scene** on the Forgotten Shore, one biome at a time against its Midjourney reference; all seven biomes have painted ground since hex-schmex#11. Open ideas and visual gaps, next steps first, are in [IDEAS.md](IDEAS.md). M1–M6 are done.
 
 | # | State | Notes |
 |---|---|---|
@@ -543,3 +543,234 @@ grass along gullies can stripe far slopes; outcrop boulders carry the boulder ki
 lichen tops; the ash gained a small grassy mound at its edge; the lowest mountain slopes get turf
 patches; up close the ground is soft, not textured like the references.
 
+
+## 2026-11-11 — Coral ground scene: painted textures, sun shadows, painterly finish
+
+Change of approach after the GM's review of steps 1–4: seven iterations had moved one biome
+of seven. Instead of one ingredient per step, the coral now gets every eye-level ingredient at
+once and is judged against `reference/midjourney/coral_trees_3_and_views.png`.
+
+- Painted ground textures from Midjourney (`src/render/textures/`, 1024², sand, coral turf,
+  coral rock). Coral ground is pale sand with turf patches by noise and turf brightness, rock
+  patches here and there. Texture coordinates are anchored to a 1 km grid around the camera
+  (exact near the player), three scales with the larger ones taking over with distance, only
+  the textures a pixel shows are read. The overview material uses their mean colours.
+- Objects take the same textures (triplanar, turf on red parts, rock elsewhere) as a tone on
+  their own colour; coral tree crowns are smooth-shaded.
+- Sun shadow map for objects within 160 m of the player (2048², 4 taps), on the ground and on
+  other objects, below 400 m above ground.
+- Deeper blue sky with lit cumulus; the haze picks up the bluer tone.
+- Painterly pass below 1.5 km above ground: Kuwahara filter at half resolution, 30% of the full
+  image blended back, bluish shadows and warm highlights, ink lines on depth jumps up to 3 km.
+  The scene is drawn without multisampling for it.
+
+Comparison: `shots/biomes/compare-07-final-vs-08-coral-scene.jpg` (all seven spots) and
+`compare-coral-00-before-vs-coral-08-scene.jpg` (three coral views from
+`scripts/coral-spots.json`, `npm run shots:biomes -- --spots scripts/coral-spots.json <label>`).
+
+Measured once at the end, 1920×1080 headless on the real GPU, coral spots, interleaved per
+spot: master `2071e93` 25.3 ms GPU median; this branch 30.8 ms with everything on (paint pass
+about free, shadows about +2 ms). Before the fetch guards it was 45 ms without the paint pass:
+the coral texture lookups ran for every terrain pixel on the map.
+Checks: 81 unit tests, build, `build:single` (2.2 MB with textures), `check:scenery`,
+`check:player`, `check:shore`.
+
+Looks off: the ground is flat (no dunes, no foreground stones or shells); the coral turf is a
+flat carpet at your feet, with no clumps that stand up; trees are rounded umbrellas, not the
+gnarled trees of the reference; the purple fan coral carries a blotchy rock tone; the other six
+biomes only got the sky and the painterly finish.
+
+
+## 2026-11-11 — Ink shadows after Mignola, painted downs ground
+
+Where the gain came from (ablation on the three coral views, flat mean colours instead of the
+textures, paint pass and shadows off one at a time): about half from the new ground layout and
+sky, half from the painted textures; the painterly pass and the object shadows changed little.
+So the textures stay the main lever per biome.
+
+- Ink shadows, after the GM's Mike Mignola / Darkest Dungeon reference: in the eye-level view
+  the sun term is flattened (lit areas nearly flat colour) and terrain and objects write an ink
+  amount into the alpha channel: shadowed or turned away from the sun, with ragged edges from
+  world-anchored noise so they stay put when walking. The composite turns it into near-black
+  with a hint of the local colour, a short diagonal hatch where light turns to shadow and a
+  cross-hatch next to the black. Fades out between 1.2 and 5 km. Hatching is in screen space,
+  so it swims slightly while moving. A trial that turned the darkest pixels black was dropped:
+  it blacked out the mire water.
+- Ground textures moved into one texture array (one sampler for all layers; separate textures
+  would exceed WebGL2's guaranteed 16 per shader once a second biome came in).
+- Downs and tablelands: golden grass, packed earth and pale limestone from Midjourney 8.2 replace
+  the flat grass, earth, pebble and slab colours, scaled to the old brightness so the balance
+  holds; the earth is half desaturated to stay near the ashen palette.
+- `npm run shots:biomes` takes `TP_TIME=16.5` for an afternoon set; the ink look needs a lower
+  sun to show big shadow shapes.
+
+Comparison: `shots/biomes/compare-08-coral-scene-vs-10-downs-paint-vs-10-downs-paint-16.5.jpg`
+and `compare-coral-08-scene-vs-coral-10-ink-vs-coral-10-ink-16.5.jpg`.
+
+Measured once, 1920×1080, GPU median, against `230904a`: downs 23.0 → 26.6 ms, tablelands
+24.2 → 28.0 ms (the grass textures, about +3 ms), coral 36.5 → 37.1 ms; the ink style alone
+about +0.5 ms. Checks: 81 unit tests, build, `build:single` (3.5 MB), `check:scenery`,
+`check:player`, `check:shore`.
+
+Looks off: at noon there is little black on the ground, the look depends on the time of day;
+the painted grass reads as fine grain only, golden on golden at a grazing angle, without tufts
+standing up; backlit objects become full silhouettes with no rim of colour; hatching swims.
+
+
+## 2026-11-11 — Near-ground scene: relief and ground cover; hatching dropped
+
+The GM found the cross-hatching read as glitches; shadows are now solid ink shapes only.
+
+- Relief near the player in every biome: the terrain refines to 1 m quads near the camera
+  everywhere (before: 6 m in the downs only, about 60 m elsewhere, which is why the coral floor
+  was flat). A relief layer of 12 m swells (0.85 m) and 4 m hummocks (0.3 m) displaces the mesh,
+  off under water, with a CPU twin in the ground height so the player and objects stand on it. It
+  changes lighting only: land classification (marsh, tidal flats) ignores it; a first version
+  fed it into the slope and erased the mire water and the tidal flats.
+- Terrain vertices are computed from an exact integer grid, so tiles of different levels share
+  bit-identical corners; without it the new level boundaries showed pinholes that the ink outline
+  turned into dotted rings.
+- Ground cover: the terrain material renders a 64 m top-down cover map around the player (ground
+  height, coral turf, grass, stone, wet ground) from the same rules that paint the ground, so
+  cover matches the drawn patches exactly. Two instance rings follow the player (0.32 m cells to
+  11 m, 0.75 m cells to 28 m), placed by an integer hash of the world cell: coral sprigs on turf,
+  golden grass tufts on the downs grass, pebbles on stony ground. Their colour is the blurred
+  ground painting under them; blades are lit like the ground, so only cast shadows ink them. The
+  terrain morph now follows the player camera in every pass (`uMorphEye`).
+
+Comparison: `shots/biomes/compare-10-downs-paint-vs-12-cover-vs-12-cover-16.5.jpg`,
+`compare-coral-10-ink-vs-coral-12-cover-vs-coral-12-cover-16.5.jpg`.
+
+Measured once, 1920×1080 GPU median, noisy (±5 ms between runs): downs 37.3 ms, tablelands
+39.5, coral 48.5, mire 35.8; the cover is about 3 ms of that, the finer ground mesh about 8–10 ms
+over `e547db1` (249 terrain tiles instead of 191). A first cut cost 5–11 ms for the cover; the
+pebble mesh, its grid and the cover map drawing every tile were the cause. Checks: 81 unit tests,
+build, `build:single`, `check:scenery`, `check:player`, `check:shore`.
+
+Looks off: the finer mesh is the next performance target (the intermediate levels in biomes
+without the detail layer add tiles that carry nothing); grass in shadow patches stays lit;
+pebbles read as pale specks; sand carries no shells yet; the remaining biomes (mountains, tidal,
+ash, mire) have no textures of their own.
+
+### Handoff, 2026-11-11 (items 1 and 2 done on 2026-11-12, see below)
+
+State: hex-schmex#11 open on `feat/coral-ground-scene` (worktree
+`.claude/worktrees/coral-ground-scene`), not merged; the GM has not said "merge" yet.
+`npm run check:layers` has not run on the last commit (the GM stopped it mid-run).
+
+1. Textures for the four remaining biomes are in `~/Downloads` (23 files, Midjourney 8.2, file
+   names start `Lianto_hand-painted_tileable_texture_of_`): mountains (`grey_granite_rock_fac`,
+   `loose_grey_scree_and_`, `old_wind-packed_snow_`), tidal (`wet_grey-brown_tidal_`,
+   `dark_tidal_mud_with_s`, `strands_of_dark_seawe`), ash (`pale_grey_volcanic_as`,
+   `cracked_grey_cinder_c`, `charred_black_rock_wi`), mire (`dark_wet_peat_with_mo`,
+   `a_dense_reed_bed_seen`, `murky_shallow_bog_wat`). Pick one per prompt after a 2×2 tiling
+   check (`convert f -resize 256x256 \( +clone \) +append \( +clone \) -append`), save as
+   1024² JPEG q88 to `src/render/textures/<biome>-<what>.jpg`, add a layer in
+   `groundTextures.ts`, and replace that biome's flat colours in `terrainShader.ts` the way the
+   downs did: texture × (old colour luminance ÷ texture mean luminance), means from
+   `convert f -colorspace RGB -resize 1x1! -format '%[fx:r] %[fx:g] %[fx:b]' info:`.
+   One biome end to end, judged against the fixed spots, noon and `TP_TIME=16.5`.
+2. Ground cover per biome after its textures: shells on sand and tidal flats, reeds in the mire,
+   scree stones in the mountains (new kinds in `groundCover.ts`, weights from the cover map).
+3. Performance: the 1 m ground mesh near the player costs about 8–10 ms (249 tiles vs 191); in
+   biomes without the detail layer the intermediate levels carry nothing. Measure once per step
+   with an interleaved on/off GPU timer run (`app.timer.poll()`, 1920×1080, real GPU); single
+   runs drift ±5 ms.
+
+Tools: `npm run shots:biomes -- [--spots scripts/coral-spots.json] <label>`, `-- --compare a,b`;
+`TP_TIME=<hour>` sets the time of day, `TP_SETUP='<js on a>'` runs setup code (e.g. switch
+`a.inkOn`, `a.coverOn`, `a.paintOn`, `a.sunShadowOn` off for an ablation).
+
+
+## 2026-11-12 — Mountains: granite, scree and snow, rubble underfoot
+
+- Three Midjourney textures for the mountains: grey granite plates on all rock, loose scree, old
+  snow. The two 4:3 downloads were not true tiles (tonal step and cut shapes at the wrap): the
+  low-frequency drift is removed and the outer quarter cross-faded with a half-rolled copy, first
+  along x, then along y. The warm cobbled granite was tried first: at 3–8 km its round cobbles
+  read as fish scales; the plate granite with vertical stretch reads as jointed cliff.
+- Rock, scree and snow are projected onto the dominant face plane (top, or x/z against height),
+  with a 4/20/100/500 m tile ladder chosen by pixel footprint (all divide the 1 km texture anchor,
+  levels alternate by a quarter turn) and explicit texture gradients. Texture contrast drops to 55%
+  with distance. Brightness follows the old colours as with the downs.
+- The strata stripes are down to a faint swell; rock gets warm ochre and cool patches after the
+  texture (the texture path keeps only the old luminance).
+- Upland ground (650–1000 m and up, more on steeper ground) turns bare earth into warm grey scree
+  in patches and thins the grass; the cover map marks it and scree slopes as rubble (alpha 3 +
+  amount), where the pebble ring places larger granite stones. Scree used to get no cover at all.
+- `scripts/mountain-spots.json`: the fixed view plus a cliff foot, a slope and a high meadow;
+  `biome-shots` now logs each spot's height above sea (the "alpine" term never fires below the
+  2100 m treeline, which first turned the downs earth into scree).
+
+Comparison: `shots/biomes/compare-mtn-00-before-vs-mtn-13-vs-mtn-00-before-16.5-vs-mtn-13-16.5.jpg`
+and `compare-12-cover-vs-13-mountains-vs-12-cover-16.5-vs-13-mountains-16.5.jpg` (other biomes
+unchanged). Checks: 81 unit tests, typecheck.
+
+Looks off: the mountains are smooth cones; the reference's cliff walls need geometry, not texture.
+The 765 m slope view is still brown earth; distant faces have faint horizontal banding.
+
+
+## 2026-11-12 — Tidal flats: wet sand, mud, wrack, pools and shells
+
+- Three Midjourney textures (same tile fix as the mountains): wet ripple sand as the base, dark
+  mud in patches and hollows, seaweed strands of which only the dark strands are painted over the
+  sand as wrack. Projected and laddered like the mountain rock.
+- Wet mud carries a sky sheen by Fresnel; small pools inside the mud mirror the sky outright and
+  take no ink. This is what makes the flats read as tidal in the reference.
+- Shells as a third cover class (alpha 5 + amount): flattened pale stones, 5–14 cm, on the sand
+  only. The cover lookup now refuses to blend across classes (a ring between coral stones and
+  shells would otherwise have read as rubble). Grass and coral tufts fade out on the flats.
+- `scripts/tidal-spots.json`: the fixed view, the view back to the rib skeleton, the view south.
+
+Comparison: `shots/biomes/compare-tid-00-before-vs-tid-03-vs-tid-00-before-16.5-vs-tid-03-16.5.jpg`.
+
+Looks off: the wet sheen also covers dry-looking mud lumps; shells are small specks beyond a few
+metres; wrack shows only where its patches meet the camera.
+
+
+## 2026-11-12 — Ash: pale ash, cinder crust, charred badlands, clinkers
+
+- Three Midjourney textures: pale volcanic ash on the ash plains (the desert branch in the ashen
+  world), cracked cinder crust in large dark patches and on steeper ground, charred black rock on
+  the badland slopes with rust patches. Ash gets bluish-grey drifts in hollows. Crust at 20% and
+  charred rock at 22% of the old brightness; at the old 42–55% they read as dried mud and a
+  dry-stone wall instead of the reference's dark flats and buttes.
+- Clinkers as a fourth cover class (alpha 7 + amount): dark charred stones up to 30 cm, more on
+  the crust.
+- `scripts/ash-spots.json`: the fixed view, back towards the charred ridge, to the side.
+
+Comparison: `shots/biomes/compare-ash-00-before-vs-ash-04-vs-ash-00-before-16.5-vs-ash-04-16.5.jpg`.
+
+Looks off: at 16:30 the ink shadows vanish on the dark crust; the ash has no dune shapes, which is
+geometry; the charred ridge still shows the texture's cobble pattern.
+
+
+## 2026-11-12 — Mire: peat, reed beds, channels and pools, standing reeds
+
+- The mire was near-black marsh ground everywhere (no water). Three Midjourney textures: dark
+  wet peat with moss (warmed towards ochre), a reed bed seen from above (golden patches), murky
+  bog water for the wet margins.
+- Winding channels (a ridged noise band) and round pools mirror the sky like the tidal pools, with
+  a bog-water margin around them; pools avoid the reed patches.
+- Standing reeds as a fifth cover class (alpha 9 + density): tall thin blades, 0.9–1.7 m, on the
+  reed patches and thicker at the water's edge. Pebbles stay off the mire.
+- The reed-bed islands of the middle layer moved from bright gold to olive-gold so they sit with
+  the new ground (the wetland reference's moss islands).
+- `scripts/mire-spots.json`: the fixed view, back, to the side.
+
+Comparison: `shots/biomes/compare-mire-00-before-vs-mire-02-vs-mire-00-before-16.5-vs-mire-02-16.5.jpg`;
+all seven spots: `compare-12-cover-vs-14-biomes-vs-12-cover-16.5-vs-14-biomes-16.5.jpg` (downs,
+tablelands and coral unchanged).
+
+Checks: 81 unit tests, build, `build:single` (7.8 MB, was 3.5 MB: twelve more textures),
+`check:scenery`, `check:player`, `check:shore`, `check:layers`. Performance not measured yet.
+
+Looks off: the reed-bed islands are still faceted lumps with spike cones; water covers much of the
+foreground; reeds have no shadow ink of their own.
+
+### Next session (handoff, 2026-11-12)
+
+hex-schmex#11 merged. The next steps, in order, are at the top of [IDEAS.md](IDEAS.md).
+
+Tools as before, plus `scripts/{mountain,tidal,ash,mire}-spots.json`; the shot log now prints
+each spot's height above sea.
