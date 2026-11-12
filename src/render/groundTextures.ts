@@ -5,6 +5,9 @@ import coralRockUrl from './textures/coral-rock.jpg';
 import downsGrassUrl from './textures/downs-grass.jpg';
 import downsEarthUrl from './textures/downs-earth.jpg';
 import downsRockUrl from './textures/downs-rock.jpg';
+import mountainRockUrl from './textures/mountain-rock.jpg';
+import mountainScreeUrl from './textures/mountain-scree.jpg';
+import mountainSnowUrl from './textures/mountain-snow.jpg';
 
 export const TEXTURE_ANCHOR_KM = 1;
 const SIZE = 1024;
@@ -16,6 +19,9 @@ const LAYERS = [
   ['DOWNS_GRASS', downsGrassUrl],
   ['DOWNS_EARTH', downsEarthUrl],
   ['DOWNS_ROCK', downsRockUrl],
+  ['MOUNTAIN_ROCK', mountainRockUrl],
+  ['MOUNTAIN_SCREE', mountainScreeUrl],
+  ['MOUNTAIN_SNOW', mountainSnowUrl],
 ] as const;
 
 export const GROUND_GLSL = /* glsl */ `

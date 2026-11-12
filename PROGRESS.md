@@ -694,3 +694,31 @@ State: hex-schmex#11 open on `feat/coral-ground-scene` (worktree
 Tools: `npm run shots:biomes -- [--spots scripts/coral-spots.json] <label>`, `-- --compare a,b`;
 `TP_TIME=<hour>` sets the time of day, `TP_SETUP='<js on a>'` runs setup code (e.g. switch
 `a.inkOn`, `a.coverOn`, `a.paintOn`, `a.sunShadowOn` off for an ablation).
+
+
+## 2026-11-12 — Mountains: granite, scree and snow, rubble underfoot
+
+- Three Midjourney textures for the mountains: grey granite plates on all rock, loose scree, old
+  snow. The two 4:3 downloads were not true tiles (tonal step and cut shapes at the wrap): the
+  low-frequency drift is removed and the outer quarter cross-faded with a half-rolled copy, first
+  along x, then along y. The warm cobbled granite was tried first: at 3–8 km its round cobbles
+  read as fish scales; the plate granite with vertical stretch reads as jointed cliff.
+- Rock, scree and snow are projected onto the dominant face plane (top, or x/z against height),
+  with a 4/20/100/500 m tile ladder chosen by pixel footprint (all divide the 1 km texture anchor,
+  levels alternate by a quarter turn) and explicit texture gradients. Texture contrast drops to 55%
+  with distance. Brightness follows the old colours as with the downs.
+- The strata stripes are down to a faint swell; rock gets warm ochre and cool patches after the
+  texture (the texture path keeps only the old luminance).
+- Upland ground (650–1000 m and up, more on steeper ground) turns bare earth into warm grey scree
+  in patches and thins the grass; the cover map marks it and scree slopes as rubble (alpha 3 +
+  amount), where the pebble ring places larger granite stones. Scree used to get no cover at all.
+- `scripts/mountain-spots.json`: the fixed view plus a cliff foot, a slope and a high meadow;
+  `biome-shots` now logs each spot's height above sea (the "alpine" term never fires below the
+  2100 m treeline, which first turned the downs earth into scree).
+
+Comparison: `shots/biomes/compare-mtn-00-before-vs-mtn-13-vs-mtn-00-before-16.5-vs-mtn-13-16.5.jpg`
+and `compare-12-cover-vs-13-mountains-vs-12-cover-16.5-vs-13-mountains-16.5.jpg` (other biomes
+unchanged). Checks: 81 unit tests, typecheck.
+
+Looks off: the mountains are smooth cones; the reference's cliff walls need geometry, not texture.
+The 765 m slope view is still brown earth; distant faces have faint horizontal banding.

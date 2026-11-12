@@ -1,0 +1,26 @@
+[
+  {
+    "name": "mountains",
+    "zone": "rock",
+    "mat": "mineral rock",
+    "elevM": 1756
+  },
+  {
+    "name": "mountains-foot",
+    "zone": "rock",
+    "mat": "mineral rock",
+    "elevM": 736
+  },
+  {
+    "name": "mountains-slope",
+    "zone": "downs",
+    "mat": "black earth",
+    "elevM": 765
+  },
+  {
+    "name": "mountains-high",
+    "zone": "downs",
+    "mat": "black earth",
+    "elevM": 1006
+  }
+]

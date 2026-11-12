@@ -202,10 +202,48 @@ vec3 paintTex(float t, vec2 m, float tileM, float blend) {
   vec3 farMix = far > 0.0 ? mix(b, groundTex(t, m / (tileM * 6.25) + vec2(0.71, 0.13)), blend) : b;
   return mix(nearMix, farMix, far);
 }
+vec3 gFaceP, gFaceDx, gFaceDy;
+float gLadder = 0.0;
+vec3 ladderLevel(float t, vec2 p, vec2 dx, vec2 dy, float k) {
+  float s = 0.25 * exp2(-k * 2.3219);
+  mat2 r = mod(k, 2.0) > 0.5 ? mat2(0.0, -1.0, 1.0, 0.0) : mat2(1.0);
+  return textureGrad(uGround, vec3(r * p * s + k * 0.31, t), r * dx * s, r * dy * s).rgb;
+}
+vec3 ladderTex(float t, vec2 p, vec2 dx, vec2 dy) {
+  float fwM = sqrt(max(dot(dx, dx), dot(dy, dy)));
+  float lv = clamp(log2(max(fwM * 32.0, 1e-6)) * 0.4307, 0.0, 3.0);
+  gLadder = lv;
+  float k = floor(lv);
+  float f = smoothstep(0.3, 1.0, lv - k);
+  vec3 a = ladderLevel(t, p, dx, dy, k);
+  if (f < 0.01) return a;
+  return mix(a, ladderLevel(t, p, dx, dy, k + 1.0), f);
+}
+vec3 faceTex(float t, vec3 n, vec3 mean) {
+  vec3 w = pow(abs(n), vec3(8.0));
+  w = w / (w.x + w.y + w.z);
+  w = w * step(0.04, w);
+  vec3 c = vec3(0.0);
+  vec2 jo = vec2(1.0, 0.25);
+  if (w.y > 0.0) c += w.y * ladderTex(t, gFaceP.xz, gFaceDx.xz, gFaceDy.xz);
+  if (w.x > 0.0) c += w.x * ladderTex(t, gFaceP.zy * jo, gFaceDx.zy * jo, gFaceDy.zy * jo);
+  if (w.z > 0.0) c += w.z * ladderTex(t, gFaceP.xy * jo, gFaceDx.xy * jo, gFaceDy.xy * jo);
+  c /= w.x + w.y + w.z;
+  return mean + (c - mean) * mix(1.0, 0.55, smoothstep(0.8, 2.6, gLadder));
+}
 #endif
 
-float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0;
+float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0, gRubble = 0.0;
 const float PAINT_ALBEDO = 0.55;
+const vec3 LUMA = vec3(0.3, 0.55, 0.15);
+const float ROCK_MEAN_LUMA = 0.1259;
+const vec3 ROCK_HUE = vec3(0.122, 0.126, 0.133) / 0.1259;
+const vec3 ROCK_WARM = vec3(1.1, 1.0, 0.88);
+const float SCREE_MEAN_LUMA = 0.0778;
+const vec3 SCREE_HUE = vec3(0.064, 0.083, 0.085) / 0.0778;
+const float SNOW_MEAN_LUMA = 0.579;
+vec3 screeTone(vec3 c) { return mix(vec3(dot(c, LUMA)), c, 0.3) * vec3(1.12, 1.0, 0.86) * 0.78; }
+const vec3 SNOW_MEAN = vec3(0.443, 0.598, 0.783);
 const vec3 CORAL_TINT = vec3(0.8, 0.62, 0.78);
 const vec3 SAND_TINT = vec3(0.74, 0.7, 0.66);
 
@@ -245,6 +283,11 @@ void main() {
   vec2 xz = vWorld.xz;
   float fw = max(length(fwidth(xz)), 1e-5); // km per pixel here
   gFw = fw;
+#ifdef SURFACE_DETAIL
+  gFaceP = vec3(vTexM.x, vWorld.y * 1000.0, vTexM.y);
+  gFaceDx = dFdx(gFaceP);
+  gFaceDy = dFdy(gFaceP);
+#endif
 
   float h = H(uv) + vDetail.x;
   float outside = 1.0 - exp(-max(vOut, 0.0) / 30.0);
@@ -357,10 +400,17 @@ void main() {
   // rock on steep slopes, more on convex ridges, banded strata hint
   float rockAmt = smoothstep(0.55, 0.95, gR + nMid * 0.12 - lap * 0.6 + nFine * 0.05 + alpine * 0.25);
   float strataH = h + dot(xz, vec2(21.0, 28.0)) + nBig * 260.0;
-  float beds = 0.5 * sin(strataH / 40.0 + nMid * 3.0) + 0.35 * sin(strataH / 113.0 + nBig * 2.0) + 0.15 * sin(strataH / 17.0);
-  vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.4 * beds * clamp(0.55 + 0.45 * nBig, 0.15, 1.0));
+  float beds = 0.4 * sin(strataH / 40.0 + nMid * 3.0) + 0.6 * sin(strataH / 113.0 + nBig * 2.0);
+  vec3 rcol = mix(cRockDark, cRock, 0.5 + 0.08 * beds * clamp(0.55 + 0.45 * nBig, 0.15, 1.0));
   rockAmt = mix(rockAmt, pB.r, pCov);
   rcol *= 0.85 + 0.3 * (nFine * 0.5 + 0.5);
+#ifdef SURFACE_DETAIL
+  if (rockAmt > 0.001) rcol = faceTex(L_MOUNTAIN_ROCK, n, ROCK_HUE * ROCK_MEAN_LUMA) * ROCK_WARM * (dot(rcol, LUMA) / ROCK_MEAN_LUMA);
+#else
+  rcol *= ROCK_HUE * ROCK_WARM;
+#endif
+  float stain = noiseAt(xz + 3.7, 0.45) + nMid * 0.3;
+  rcol *= mix(mix(vec3(1.0), vec3(0.9, 0.97, 1.08), smoothstep(-0.1, -0.5, stain)), vec3(1.22, 1.0, 0.78), smoothstep(0.15, 0.55, stain));
   col = mix(col, rcol, rockAmt);
   float outcrop = 0.0;
   if (uAshen > 0.5) {
@@ -371,7 +421,9 @@ void main() {
     outcrop = smoothstep(0.85, 0.91, vCover.x + e * 0.07);
     float apron = smoothstep(0.35, 0.75, vCover.y + e * 0.35 + gt * 0.4) * (1.0 - outcrop) * coverOn;
     float hollow = vCover.z * (1.0 - outcrop) * coverOn;
-    float grass = smoothstep(-0.06, 0.09, vCover.w + e * 0.12 + gt * 0.06) * (1.0 - outcrop) * (1.0 - apron) * coverOn;
+    float upland = smoothstep(650.0, 1000.0, elev + nMid * 80.0);
+    float alpStone = smoothstep(0.35, 0.75, upland * (0.55 + noiseAt(xz + 2.9, 0.15) * 0.5 + smoothstep(0.15, 0.45, g) * 0.3) + e * 0.15) * coverOn;
+    float grass = smoothstep(-0.06, 0.09, vCover.w + e * 0.12 + gt * 0.06 - alpStone * 0.12) * (1.0 - outcrop) * (1.0 - apron) * coverOn;
 #ifdef SURFACE_DETAIL
     float dBlend = clamp(0.5 + 0.7 * noiseAt(xz + 1.9, 0.03), 0.0, 1.0);
     vec3 earthTex = coverOn > 0.001 && grass < 0.999 ? paintTex(L_DOWNS_EARTH, vTexM, 1.5, dBlend) : vec3(0.2);
@@ -380,6 +432,11 @@ void main() {
     vec3 rockTex = apron + outcrop > 0.001 ? paintTex(L_DOWNS_ROCK, vTexM, 2.0, dBlend) : vec3(0.0);
 #else
     vec3 cEarth = srgb(mix(vec3(0.3, 0.25, 0.18), vec3(0.215, 0.19, 0.165), uAshen)) * (0.86 + 0.28 * (gt * 0.5 + 0.5));
+#endif
+#ifdef SURFACE_DETAIL
+    if (alpStone > 0.001) cEarth = mix(cEarth, screeTone(faceTex(L_MOUNTAIN_SCREE, n, SCREE_HUE * SCREE_MEAN_LUMA) * (dot(cScree, LUMA) / SCREE_MEAN_LUMA)), alpStone);
+#else
+    cEarth = mix(cEarth, screeTone(cScree * SCREE_HUE), alpStone);
 #endif
     col = mix(col, cEarth * (1.0 - 0.22 * hollow) * (1.0 - 0.3 * smoothstep(0.0, 0.4, n1)) * (1.0 + 0.3 * smoothstep(0.15, 0.5, -n2)), coverOn * 0.85);
 #ifdef SURFACE_DETAIL
@@ -390,6 +447,7 @@ void main() {
     col = mix(col, cGold, grass * (0.6 + 0.4 * tuft));
     gCoverGrass = grass * (0.6 + 0.4 * tuft);
     gCoverStone = max(apron, outcrop * 0.3);
+    gRubble = alpStone * (1.0 - grass);
 #ifdef SURFACE_DETAIL
     vec3 cPebble = rockTex * 0.112 * (0.72 + 0.4 * (e * 0.5 + 0.5));
 #else
@@ -416,7 +474,12 @@ void main() {
   // scree / talus: deposition on moderate slopes at altitude, and at the foot of cliffs
   float scree = smoothstep(2.0, 12.0, dep) * smoothstep(0.12, 0.35, gR) * (1.0 - smoothstep(0.75, 1.0, gR)) * smoothstep(tl - 400.0, tl + 200.0, elev);
   scree *= 1.0 - pCov;
-  col = mix(col, cScree * (0.9 + 0.2 * nFine), scree * 0.8);
+#ifdef SURFACE_DETAIL
+  vec3 screeCol = scree > 0.001 ? screeTone(faceTex(L_MOUNTAIN_SCREE, n, SCREE_HUE * SCREE_MEAN_LUMA) * (dot(cScree, LUMA) / SCREE_MEAN_LUMA)) : vec3(0.0);
+#else
+  vec3 screeCol = screeTone(cScree * SCREE_HUE * (0.9 + 0.2 * nFine));
+#endif
+  col = mix(col, screeCol, scree * 0.8);
   if (scree > 0.5) id = 4.0;
 
   // snow: altitude + aspect (more on north/shaded faces) + slope (sheds off cliffs)
@@ -424,7 +487,13 @@ void main() {
   float sl = uSnowline - north * 260.0 + nBig * 160.0 + nMid * 90.0 - lap * 900.0;
   float snow = smoothstep(sl - 120.0, sl + 160.0, elev) * (1.0 - smoothstep(1.0, 1.6, g + nFine * 0.15));
   snow = mix(snow, pB.g, pCov);
-  col = mix(col, cSnow * (0.94 + 0.06 * nFine), snow);
+#ifdef SURFACE_DETAIL
+  vec3 snowTex = snow > 0.001 ? faceTex(L_MOUNTAIN_SNOW, n, SNOW_MEAN) : vec3(0.0);
+  vec3 snowCol = mix(vec3(dot(snowTex, LUMA)), snowTex, 0.25) * (dot(cSnow, LUMA) / SNOW_MEAN_LUMA);
+#else
+  vec3 snowCol = cSnow * (0.94 + 0.06 * nFine);
+#endif
+  col = mix(col, snowCol, snow);
   if (snow > 0.5) id = 3.0;
 
   // playa: salt-crusted dry lake bed
@@ -518,8 +587,10 @@ void main() {
   }
 
   if (uCoverPass > 0.5) {
-    float keep = (1.0 - snow) * (1.0 - scree) * (1.0 - tidal) * (1.0 - playa) * (1.0 - coverWet);
-    gl_FragColor = vec4(vWorld.y, gCoverTurf * keep, gCoverGrass * keep, keep > 0.5 ? 1.0 + gCoverStone * keep : 0.5);
+    float ground = (1.0 - snow) * (1.0 - tidal) * (1.0 - playa) * (1.0 - coverWet);
+    float keep = ground * (1.0 - scree);
+    float rubble = max(gRubble * (1.0 - coralW), scree) * ground;
+    gl_FragColor = vec4(vWorld.y, gCoverTurf * keep, gCoverGrass * keep, ground > 0.5 ? (rubble > 0.3 ? 3.0 + rubble : 1.0 + gCoverStone * keep) : 0.5);
     return;
   }
   // ---- debug views
