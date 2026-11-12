@@ -108,13 +108,4 @@ Castle towers: `castle-to-spire`, `castle-to-mountains`, `castle-to-west`,
 `crater-overlook`. Overview: `region-oblique`, `region-topdown`, `crater-aerial`,
 `range-mid`, `valley-low`, `hex-closeup`.
 
-## Limits
-
-- Towers, stacks and buttes come out as steep-sided mesas, not slender pinnacles: at
-  85 m samples a 300 m tower is three or four samples wide. Pinnacles need meshes, like
-  the landmarks.
-- Mountain faces are large smooth surfaces with banded rock colour; they lack the
-  erosion detail of the reference images.
-- The mirrored surround shows a faint twin of the crater in the haze beyond the east and
-  south edges.
-- The middle layer has simple, flat-coloured shapes; the look pass is still to come (`NEXT_STEPS.md`).
+Open gaps and ideas: `IDEAS.md`.
