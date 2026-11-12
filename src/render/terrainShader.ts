@@ -233,7 +233,7 @@ vec3 faceTex(float t, vec3 n, vec3 mean) {
 }
 #endif
 
-float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0, gRubble = 0.0;
+float gCoverTurf = 0.0, gCoverGrass = 0.0, gCoverStone = 0.0, gCoralStone = 0.0, gRubble = 0.0, gShells = 0.0, gTidalPool = 0.0, gTidalWet = 0.0;
 const float PAINT_ALBEDO = 0.55;
 const vec3 LUMA = vec3(0.3, 0.55, 0.15);
 const float ROCK_MEAN_LUMA = 0.1259;
@@ -242,6 +242,9 @@ const vec3 ROCK_WARM = vec3(1.1, 1.0, 0.88);
 const float SCREE_MEAN_LUMA = 0.0778;
 const vec3 SCREE_HUE = vec3(0.064, 0.083, 0.085) / 0.0778;
 const float SNOW_MEAN_LUMA = 0.579;
+const vec3 TIDAL_SAND_MEAN = vec3(0.277, 0.207, 0.138);
+const vec3 TIDAL_MUD_MEAN = vec3(0.039, 0.025, 0.017);
+const vec3 TIDAL_WEED_MEAN = vec3(0.177, 0.101, 0.035);
 vec3 screeTone(vec3 c) { return mix(vec3(dot(c, LUMA)), c, 0.3) * vec3(1.12, 1.0, 0.86) * 0.78; }
 const vec3 SNOW_MEAN = vec3(0.443, 0.598, 0.783);
 const vec3 CORAL_TINT = vec3(0.8, 0.62, 0.78);
@@ -504,7 +507,29 @@ void main() {
   col = mix(col, cSand, beach * (1.0 - snow) * (1.0 - uAshen) * (1.0 - pCov));
   float tidal = uAshen * (1.0 - smoothstep(uTidal * 0.55, uTidal, elev + nMid * 10.0)) * (1.0 - smoothstep(0.04, 0.14, g)) * step(-1.0, elev) * (1.0 - forest * 0.85) * (1.0 - marsh);
   tidal = mix(tidal, pB.b, pCov);
-  col = mix(col, cTidal * (0.9 + 0.2 * nFine) * (0.85 + 0.3 * smoothstep(-0.4, 0.6, nMid)), tidal);
+  float tSmall = noiseAt(xz + 9.1, 0.008);
+  float mud = smoothstep(0.05, 0.35, noiseAt(xz + 4.4, 0.035) + tSmall * 0.35 + smoothstep(0.0, 0.6, lap * 4.0) * 0.3);
+  float weed = smoothstep(0.2, 0.45, noiseAt(xz + 7.3, 0.018) + tSmall * 0.3) * (1.0 - mud * 0.7);
+  float pool = smoothstep(0.3, 0.4, noiseAt(xz + 2.2, 0.045) + tSmall * 0.25) * mud;
+  float tidalLight = 0.85 + 0.3 * smoothstep(-0.4, 0.6, nMid);
+#ifdef SURFACE_DETAIL
+  vec3 tidalCol = vec3(0.0);
+  if (tidal > 0.001) {
+    tidalCol = faceTex(L_TIDAL_SAND, n, TIDAL_SAND_MEAN) * (0.095 / dot(TIDAL_SAND_MEAN, LUMA));
+    if (mud > 0.001) tidalCol = mix(tidalCol, (TIDAL_MUD_MEAN + (faceTex(L_TIDAL_MUD, n, TIDAL_MUD_MEAN) - TIDAL_MUD_MEAN) * 0.55) * (0.035 / dot(TIDAL_MUD_MEAN, LUMA)), mud);
+    if (weed > 0.001) {
+      vec3 wt = faceTex(L_TIDAL_WEED, n, TIDAL_WEED_MEAN);
+      float strand = smoothstep(0.85, 0.5, dot(wt, LUMA) / dot(TIDAL_WEED_MEAN, LUMA));
+      tidalCol = mix(tidalCol, wt * vec3(0.55, 0.7, 0.8) * 0.45, weed * strand);
+    }
+  }
+#else
+  vec3 tidalCol = mix(TIDAL_SAND_MEAN * (0.095 / dot(TIDAL_SAND_MEAN, LUMA)), TIDAL_MUD_MEAN * (0.03 / dot(TIDAL_MUD_MEAN, LUMA)), mud);
+#endif
+  col = mix(col, tidalCol * tidalLight, tidal);
+  gTidalPool = pool * tidal * (1.0 - smoothstep(0.03, 0.1, g));
+  gTidalWet = tidal * mud * (1.0 - pool);
+  gShells = tidal * (1.0 - mud) * (0.35 + 0.5 * smoothstep(0.0, 0.5, noiseAt(xz + 5.9, 0.012)));
   if (tidal > 0.5) id = 9.0;
 
   // streams and rivers from flow accumulation (+ explicit river ops)
@@ -554,6 +579,14 @@ void main() {
   float ink = inked.y;
   vec3 light = uSunColor * inked.x * 3.1 + skyAmb * (0.2 + 0.8 * ao) * 0.62;
   vec3 c = col * light;
+  if (gTidalPool + gTidalWet > 0.001) {
+    vec2 pr = noiseGradAt(xz, 0.02) * 0.004;
+    vec3 pn = normalize(vec3(pr.x, 1.0, pr.y));
+    float pf = 0.04 + 0.96 * pow(1.0 - max(dot(pn, V), 0.0), 5.0);
+    vec3 pc = mix(c * 0.5, skyColor(reflect(-V, pn)) * 0.85, pf);
+    c = mix(mix(c, skyColor(reflect(-V, pn)) * 0.85, pf * gTidalWet * 0.4), pc, gTidalPool);
+    ink *= 1.0 - gTidalPool;
+  }
   // snow and wet surfaces: a bit of specular
   vec3 Hh = normalize(uSunDir + V);
   c += uSunColor * pow(max(dot(n, Hh), 0.0), 40.0) * 0.15 * snow * shadow;
@@ -587,10 +620,11 @@ void main() {
   }
 
   if (uCoverPass > 0.5) {
-    float ground = (1.0 - snow) * (1.0 - tidal) * (1.0 - playa) * (1.0 - coverWet);
-    float keep = ground * (1.0 - scree);
+    float ground = (1.0 - snow) * (1.0 - playa) * (1.0 - coverWet) * (1.0 - gTidalPool);
+    float keep = ground * (1.0 - scree) * (1.0 - smoothstep(0.15, 0.45, tidal));
     float rubble = max(gRubble * (1.0 - coralW), scree) * ground;
-    gl_FragColor = vec4(vWorld.y, gCoverTurf * keep, gCoverGrass * keep, ground > 0.5 ? (rubble > 0.3 ? 3.0 + rubble : 1.0 + gCoverStone * keep) : 0.5);
+    float kind = tidal > 0.5 ? 5.0 + gShells : rubble > 0.3 ? 3.0 + rubble : 1.0 + gCoverStone * keep;
+    gl_FragColor = vec4(vWorld.y, gCoverTurf * keep, gCoverGrass * keep, ground > 0.5 ? kind : 0.5);
     return;
   }
   // ---- debug views

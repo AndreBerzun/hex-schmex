@@ -8,6 +8,9 @@ import downsRockUrl from './textures/downs-rock.jpg';
 import mountainRockUrl from './textures/mountain-rock.jpg';
 import mountainScreeUrl from './textures/mountain-scree.jpg';
 import mountainSnowUrl from './textures/mountain-snow.jpg';
+import tidalSandUrl from './textures/tidal-sand.jpg';
+import tidalMudUrl from './textures/tidal-mud.jpg';
+import tidalWeedUrl from './textures/tidal-weed.jpg';
 
 export const TEXTURE_ANCHOR_KM = 1;
 const SIZE = 1024;
@@ -22,6 +25,9 @@ const LAYERS = [
   ['MOUNTAIN_ROCK', mountainRockUrl],
   ['MOUNTAIN_SCREE', mountainScreeUrl],
   ['MOUNTAIN_SNOW', mountainSnowUrl],
+  ['TIDAL_SAND', tidalSandUrl],
+  ['TIDAL_MUD', tidalMudUrl],
+  ['TIDAL_WEED', tidalWeedUrl],
 ] as const;
 
 export const GROUND_GLSL = /* glsl */ `

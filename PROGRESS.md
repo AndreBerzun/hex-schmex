@@ -722,3 +722,21 @@ unchanged). Checks: 81 unit tests, typecheck.
 
 Looks off: the mountains are smooth cones; the reference's cliff walls need geometry, not texture.
 The 765 m slope view is still brown earth; distant faces have faint horizontal banding.
+
+
+## 2026-11-12 — Tidal flats: wet sand, mud, wrack, pools and shells
+
+- Three Midjourney textures (same tile fix as the mountains): wet ripple sand as the base, dark
+  mud in patches and hollows, seaweed strands of which only the dark strands are painted over the
+  sand as wrack. Projected and laddered like the mountain rock.
+- Wet mud carries a sky sheen by Fresnel; small pools inside the mud mirror the sky outright and
+  take no ink. This is what makes the flats read as tidal in the reference.
+- Shells as a third cover class (alpha 5 + amount): flattened pale stones, 5–14 cm, on the sand
+  only. The cover lookup now refuses to blend across classes (a ring between coral stones and
+  shells would otherwise have read as rubble). Grass and coral tufts fade out on the flats.
+- `scripts/tidal-spots.json`: the fixed view, the view back to the rib skeleton, the view south.
+
+Comparison: `shots/biomes/compare-tid-00-before-vs-tid-03-vs-tid-00-before-16.5-vs-tid-03-16.5.jpg`.
+
+Looks off: the wet sheen also covers dry-looking mud lumps; shells are small specks beyond a few
+metres; wrack shows only where its patches meet the camera.
