@@ -3,6 +3,8 @@
 ## Status
 Current focus (2026-11-12): **the eye-level scene** on the Forgotten Shore, one biome at a time against its Midjourney reference; all seven biomes have painted ground since hex-schmex#11. Open ideas and visual gaps, next steps first, are in [IDEAS.md](IDEAS.md). M1–M6 are done.
 
+Direction (2026-11-13): after the terrain come placeholders for points of interest, modular structures and a GM who fills them lazily during the campaign; the steps are in `BRIEF.md` §12.
+
 Side tool (2026-11-13): **shape sketch** at `sketch.html` on the dev server. One clay-coloured heightfield, four brushes, marks and a stand-here view at eye height, for trying out landforms that hide and reveal things (the "triangle" idea from open-world design). It deviates from the brief on purpose: no ops, no erosion, no bake, plain three.js lighting. It starts from `maps/triangle-sandbox.json` and keeps its state in `sketches/` (ignored by git). Nothing flows back into a map file yet.
 
 | # | State | Notes |

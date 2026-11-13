@@ -2,7 +2,7 @@
 
 A browser-based, GPU-accelerated terrain generator for a **Shadowdark westmarches campaign**. The GM shapes a *region* (not a continent) by **typing prompts** ("a jagged ridge running NE through 0405–1109, with a glacial valley cutting through it") and by **painting with brushes**. The result is realistic, eroded terrain you can view from high above the region and fly down into a single 6-mile hex.
 
-This brief covers **v1: the terrain prompter**. Placing settlements, ruins and other structures comes later (see "Later phases"). v1 only has to keep the data model open for that.
+This brief covers **v1: the terrain prompter**. Placing settlements, ruins and other structures comes later (see "Vision" in §12). v1 only has to keep the data model open for that.
 
 ---
 
@@ -221,9 +221,19 @@ Ship something runnable at the end of every milestone. Don't spend M1–M3 on vi
 
 ---
 
-## 12. Later phases (don't build, but don't block)
+## 12. Vision: from terrain to a lazy hexcrawl (don't block it)
 
-- **Structure hints:** sparse markers per hex (settlement, ruin, tower, cave, shrine, lair) rendered as subtle, readable 3D hints or icons. Not detailed buildings. Keep a `features: Feature[]` array in the world JSON ready for this, and keep hex ids as stable keys.
+In a West Marches campaign the GM writes a hex when the players get there: a lazy hexcrawl. On a paper map that works because players only see the adjacent hexes. Here they see kilometres ahead, from ridges and towers, so anything they can see from afar has to exist before they see it. The map therefore gets its points of interest in advance, as placeholders, and the GM fills them with content as the campaign is played.
+
+1. **Terrain on the triangle principle** (from *Breath of the Wild*). Landforms that hide what lies behind them, so players always see something half obscured and walk toward it to find out. Shapes are tried out in the shape sketch (`sketch.html`). From the terrain follow the routes players are likely to take over and past those triangles (valleys, passes, toward what they glimpse) and the spots along them where something comes into view.
+2. **Points of interest along those routes, as placeholders.** Placed where a route reveals them: hidden on the approach, in view from the crest. A placeholder fixes only what players can see from afar: where it is, how big, its outside shape. It promises a kind of place (a tower, a ruin, smoke over a hollow), not a story. Three sizes, as in *Breath of the Wild*: landmarks seen across the region that players steer by, sites seen from about a hex away, small finds seen only at eye level. Spaced so that something is always in view from a route.
+3. **Modular structures.** A kit of modular pieces (walls, towers, arches, stairs, roofs, rubble) with their textures, in better quality than the current middle layer, one kit per biome or culture. A seeded generator builds each placeholder's outside from the kit, so every site is its own and fits its kind.
+4. **Generate a region.** The GM picks the biomes and regions and where they sit; the generator makes the terrain, the routes, the placeholders and their structures. The result is a map whose points of interest are markers in the right places for open-world play, empty inside.
+5. **The GM fills them during the campaign.** A placeholder gets its content when the players head for it. The tool shows which placeholders the party has seen but not visited yet: that is the GM's prep list for the next session (needs the line-of-sight reveal below).
+
+**Data:** points of interest live in a `features: Feature[]` array in the world JSON, keyed by stable ids with their hex id. Once the GM has written content into a feature, terrain edits and regeneration must not lose it.
+
+Still planned besides the vision:
 - **Player explorer:** players see an imprecise, hand-drawn-style 2D map; when they enter a hex, they see the real 3D terrain for that hex and its neighbours. Visibility is **line of sight from the party's position** (a GPU viewshed on the heightfield from eye height), not a flat RTS radius. Standing on a peak reveals a panorama; a valley floor or forest reveals little. Three states: *visible now* (full render), *seen before* (desaturated or sketched "memory" shroud), *never seen* (blank or parchment). Range is reduced by weather/haze, forest canopy and night (at night, light radius matters, tying into Shadowdark's torch rules). The player camera is tethered near the party, not a free eagle view. **v1 implication:** keep the heightfield and canopy/material masks readable at runtime (a GPU texture plus an optional CPU copy) so a viewshed pass can be added without restructuring.
 - **MCP server** wrapping the same op API (`add_op`, `query_region`, …), so terrain can be prompted from any Claude client.
 - **Trees as instanced impostors** in close-up views.
