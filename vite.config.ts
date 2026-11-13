@@ -2,10 +2,11 @@
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { mapLink } from './vite-plugins/mapLink';
+import { sketchStore } from './vite-plugins/sketchStore';
 
 export default defineConfig(({ mode }) => ({
   base: './',
-  plugins: mode === 'single' ? [viteSingleFile()] : [mapLink()],
+  plugins: mode === 'single' ? [viteSingleFile()] : [mapLink(), sketchStore()],
   // CLI undo snapshots are of no interest to the page
   server: { watch: { ignored: ['**/maps/.history/**'] } },
   build: {
