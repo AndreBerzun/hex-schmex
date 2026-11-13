@@ -285,11 +285,25 @@ window.addEventListener('keyup', (ev) => keys.delete(ev.key.toLowerCase()));
 window.addEventListener('blur', () => keys.clear());
 controls.addEventListener('change', invalidate);
 
+function glide(f: number, s: number, dt: number) {
+  const reach = camera.position.distanceTo(controls.target);
+  const yaw = Math.atan2(controls.target.x - camera.position.x, controls.target.z - camera.position.z);
+  const speed = reach * (keys.has('shift') ? 1.5 : 0.5) * dt;
+  const dx = (Math.sin(yaw) * f - Math.cos(yaw) * s) * speed;
+  const dz = (Math.cos(yaw) * f + Math.sin(yaw) * s) * speed;
+  camera.position.x += dx;
+  camera.position.z += dz;
+  controls.target.x += dx;
+  controls.target.z += dz;
+  controls.update();
+  invalidate();
+}
+
 function walk(dt: number) {
-  if (!eye) return;
   const f = (keys.has('w') ? 1 : 0) - (keys.has('s') ? 1 : 0);
   const s = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
   if (!f && !s) return;
+  if (!eye) { glide(f, s, dt); return; }
   const speed = (keys.has('shift') ? 6 : 1.5) * dt;
   eye.x += (Math.sin(eye.yaw) * f - Math.cos(eye.yaw) * s) * speed;
   eye.y += (Math.cos(eye.yaw) * f + Math.sin(eye.yaw) * s) * speed;
@@ -343,7 +357,7 @@ function renderPanel() {
     slider('Height exaggeration', 1, 5, exaggeration, (v) => { exaggeration = v; water.position.y = sceneY(meta.seaLevelM); refresh({ i0: 0, i1: field.nx - 1, j0: 0, j1: field.ny - 1 }); rebuildMarkers(); placeEye(); }),
     ...(eye ? [back] : []),
     undoB, reset, flat,
-    el('small', { textContent: eye ? 'Drag to look, WASD to walk, Shift to run.' : 'Left: tool. Right-drag: turn. Middle-drag: move. Wheel: zoom.' }),
+    el('small', { textContent: eye ? 'Drag to look, WASD to walk, Shift to run.' : 'Left: tool. Right-drag: turn. WASD or middle-drag: move, Shift faster. Wheel: zoom.' }),
     el('small', { textContent: 'Marks (red yours, amber Dramba\'s):' }),
     markerList,
   );
