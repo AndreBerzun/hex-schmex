@@ -6,7 +6,7 @@ This is **Terrain Prompter**, a browser terrain generator for a Shadowdark westm
 - Follow the milestones in `BRIEF.md` §10 in order. Keep the app runnable after every milestone.
 - Keep `PROGRESS.md` updated: current focus, what's done, and anything that deviates from the brief, with the reason.
 - `IDEAS.md` is the one list of open ideas and visual gaps. Add what looks off there, and delete an entry when it ships or is dropped. No other plan or handoff files.
-- `reference/midjourney/` holds the GM's current references (views from above in `aerial/`). They stay untracked: the repo is public. Each file is named after what the GM liked about it; read the name as the instruction. Compare a screenshot only with references of the same biome and distance (from above, from the castle towers, eye level).
+- `reference/midjourney/` holds the GM's current references (views from above in `aerial/`, the Midjourney sources of the painted ground textures in `textures/`); `reference/art/` holds outside art style references. Both stay untracked: the repo is public. Each file is named after what the GM liked about it; read the name as the instruction. Compare a screenshot only with references of the same biome and distance (from above, from the castle towers, eye level).
 - Commit in small, meaningful steps with clear messages. Push regularly.
 - After every visual change, run `npm run shots` and compare the output to `reference/` (BRIEF §11). Be honest about the gap. Don't call something "realistic" if the screenshot doesn't support it.
 - WebGL2 is the baseline. Don't make WebGPU required.
