@@ -342,6 +342,19 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string,
   return e;
 }
 const markerList = el('ol');
+const sketchPicker = el('select');
+sketchPicker.addEventListener('change', () => {
+  const q = new URLSearchParams(location.search);
+  q.set('name', sketchPicker.value);
+  location.search = q.toString();
+});
+async function loadSketchNames() {
+  const r = await fetch('/__sketch/');
+  const names: string[] = r.ok ? await r.json() : [];
+  if (!names.includes(NAME)) names.push(NAME);
+  sketchPicker.replaceChildren(...names.map((n) => el('option', { value: n, textContent: n })));
+  sketchPicker.value = NAME;
+}
 function renderMarkerList() {
   markerList.replaceChildren(...meta.markers.map((m) => el('li', { className: m.by ? 'mine' : '', textContent: m.note ?? `${m.x.toFixed(0)} east, ${m.y.toFixed(0)} south` })));
 }
@@ -376,6 +389,7 @@ function renderPanel() {
   const flat = el('button', { textContent: 'Start over flat' });
   flat.addEventListener('click', () => { pushUndo(); field.h.fill(120); refresh({ i0: 0, i1: field.nx - 1, j0: 0, j1: field.ny - 1 }); rebuildMarkers(); saveHeights(); });
   panel.replaceChildren(
+    el('label', {}, 'Sketch ', sketchPicker),
     tools,
     slider('Brush size, km', 0.5, 30, radiusKm, (v) => { radiusKm = v; }),
     slider('Strength, m per second', 50, 3000, strength, (v) => { strength = v; }),
@@ -429,6 +443,8 @@ async function start() {
   camera.position.set(widthKm() / 2, widthKm() * 0.7, depthKm() * 1.35);
   controls.update();
   renderPanel();
+  void loadSketchNames();
+  document.title = `${NAME} · Shape sketch`;
   resize();
   Object.assign(window, { __sketch: { ready: true, stand: standAt, leave: leaveEye } });
   requestAnimationFrame(frame);

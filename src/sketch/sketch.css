@@ -10,3 +10,4 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #cfd6dc; fon
 #panel li.mine { color: #8a5a00; }
 #panel small { color: #555; }
 #hud { position: fixed; left: 12px; bottom: 10px; padding: 3px 8px; background: #f4f2eecc; border-radius: 4px; font-variant-numeric: tabular-nums; }
+#panel select { font: 600 13px/1.4 system-ui, sans-serif; padding: 4px; width: 100%; }
