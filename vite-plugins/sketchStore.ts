@@ -5,7 +5,8 @@ import type { Plugin } from 'vite';
 export function sketchStore(dir = 'sketches'): Plugin {
   const root = resolve(dir);
   const lastBrowserWrite = new Map<string, Buffer>();
-  const fileOk = (n: string) => /^[a-z0-9][a-z0-9_-]*\.(json|bin)$/i.test(n);
+  const suffix = /\.(json|bin|paint\.bin)$/i;
+  const fileOk = (n: string) => /^[a-z0-9][a-z0-9_-]*$/i.test(n.replace(suffix, '')) && suffix.test(n);
   return {
     name: 'tp-sketch-store',
     apply: 'serve',
@@ -19,7 +20,7 @@ export function sketchStore(dir = 'sketches'): Plugin {
         try { buf = readFileSync(f); } catch { return; }
         if (lastBrowserWrite.get(basename(f))?.equals(buf)) return;
         const kind = extname(f).slice(1);
-        server.ws.send({ type: 'custom', event: 'tp:sketch-changed', data: { name: basename(f, extname(f)), kind } });
+        server.ws.send({ type: 'custom', event: 'tp:sketch-changed', data: { name: basename(f).replace(suffix, ''), kind } });
       };
       server.watcher.on('change', onFile);
       server.watcher.on('add', onFile);

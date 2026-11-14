@@ -7,6 +7,8 @@ Direction (2026-11-13): after the terrain come placeholders for points of intere
 
 Side tool (2026-11-13): **shape sketch** at `sketch.html` on the dev server. One clay-coloured heightfield, four brushes, marks and a stand-here view at eye height, for trying out landforms that hide and reveal things (the "triangle" idea from open-world design). It deviates from the brief on purpose: no ops, no erosion, no bake, plain three.js lighting. It starts from `maps/triangle-sandbox.json` and keeps its state in `sketches/` (ignored by git). Nothing flows back into a map file yet.
 
+Ground colours in the shape sketch (2026-11-14): a palette on the right lists the 18 painted ground textures under their six Shore biomes, each swatch showing the texture and its median colour (per-channel median over all pixels). Tool 7 brushes the picked colour onto the clay, tool 8 fills connected ground of the same colour and stops at the preview shoreline, the clay swatch removes colour. The colours are one byte per height sample in `sketches/<name>.paint.bin`; the texture names behind the bytes are `paintKeys` in the sketch json. Flat colour only: the textures themselves are not drawn in the sketch, and nothing flows into a map file. The Dark Sea has no ground texture, so it has no swatch.
+
 | # | State | Notes |
 |---|---|---|
 | M1 Skeleton | done | CDLOD terrain, orbit camera, hex overlay + labels, `npm run shots` |

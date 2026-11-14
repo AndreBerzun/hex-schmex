@@ -15,3 +15,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #cfd6dc; fon
 #panel li.landmark { color: #773bc1; }
 #panel label.pin-toggle { flex-direction: row; align-items: center; }
 #panel { max-height: calc(100vh - 48px); overflow-y: auto; }
+
+#palette { position: fixed; top: 12px; right: 12px; width: 230px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 10px; background: #f4f2eecc; border: 1px solid #0003; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; }
+#palette h4 { margin: 4px 0 0; font: 600 12px/1.3 system-ui, sans-serif; }
+#palette small { color: #555; }
+#palette .swatches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+#palette .swatch { font: inherit; padding: 3px; border: 1px solid #0004; border-radius: 4px; background: #fff; cursor: pointer; display: flex; flex-direction: column; gap: 2px; align-items: stretch; text-align: center; }
+#palette .swatch.on { outline: 3px solid #2b2d30; outline-offset: -1px; }
+#palette .chip { display: block; height: 34px; border-radius: 2px; }

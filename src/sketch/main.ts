@@ -3,10 +3,12 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { evaluate } from '../core/ops';
 import { loadWorld } from '../core/world';
 import { flatField, groundHit, heightAt, stamp, type BrushTool, type Field, type Rect } from './field';
+import { fillRegion, paintLine, paintedShare } from './paint';
+import { loadSwatches, type Swatch } from './palette';
 
-type Tool = BrushTool | 'mark' | 'stand';
+type Tool = BrushTool | 'mark' | 'stand' | 'paint' | 'fill';
 interface Marker { x: number; y: number; note?: string; by?: string; category?: 'landmark'; id?: string }
-interface Meta { nx: number; ny: number; kmPerPx: number; seaLevelM: number; markers: Marker[] }
+interface Meta { nx: number; ny: number; kmPerPx: number; seaLevelM: number; markers: Marker[]; paintKeys?: string[] }
 
 const NAME = new URLSearchParams(location.search).get('name') ?? 'sandbox';
 const SKELETON = new URLSearchParams(location.search).get('from') ?? 'triangle-sandbox';
@@ -18,6 +20,7 @@ const EYE_M = 2;
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const panel = document.getElementById('panel') as HTMLElement;
+const palette = document.getElementById('palette') as HTMLElement;
 const hud = document.getElementById('hud') as HTMLElement;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
@@ -50,7 +53,12 @@ let markCategory: 'terrain' | 'landmark' = 'terrain';
 const pinVisible = (m: Marker) => m.category === 'landmark' ? showLandmarkPins : showTerrainPins;
 let eye: { x: number; y: number; yaw: number; pitch: number } | null = null;
 let hover: [number, number] | null = null;
-const undoStack: Float32Array[] = [];
+let paint = new Uint8Array(0);
+let swatches: Swatch[] = [];
+let swatchKey: string | null = null;
+let painting: [number, number] | null = null;
+const swatchColours = new Map<string, THREE.Color>();
+const undoStack: { h: Float32Array; paint: Uint8Array }[] = [];
 const keys = new Set<string>();
 const markerGroup = new THREE.Group();
 scene.add(markerGroup);
@@ -70,7 +78,14 @@ async function fetchSketch(): Promise<boolean> {
   if (!m.ok || !b.ok) return false;
   meta = await m.json();
   field = { nx: meta.nx, ny: meta.ny, kmPerPx: meta.kmPerPx, h: new Float32Array(await b.arrayBuffer()) };
+  const p = await fetch(`/__sketch/${NAME}.paint.bin`);
+  paint = p.ok ? new Uint8Array(await p.arrayBuffer()) : new Uint8Array(0);
+  fitPaint();
   return field.h.length === meta.nx * meta.ny;
+}
+
+function fitPaint() {
+  if (paint.length !== field.nx * field.ny) paint = new Uint8Array(field.nx * field.ny);
 }
 
 async function fromSkeleton(): Promise<void> {
@@ -84,6 +99,7 @@ async function fromSkeleton(): Promise<void> {
     field = flatField(257, 257, 0.4, 120);
     meta = { nx: 257, ny: 257, kmPerPx: 0.4, seaLevelM: 0, markers: [] };
   }
+  fitPaint();
 }
 
 let heightTimer = 0;
@@ -94,6 +110,19 @@ function saveHeights() {
 function saveMeta() {
   void fetch(`/__sketch/${NAME}.json`, { method: 'PUT', body: JSON.stringify(meta, null, 1) });
 }
+let paintTimer = 0;
+function savePaint() {
+  clearTimeout(paintTimer);
+  paintTimer = window.setTimeout(() => { void fetch(`/__sketch/${NAME}.paint.bin`, { method: 'PUT', body: paint.slice().buffer }); }, 600);
+}
+function paintValue(key: string | null): number {
+  if (!key) return 0;
+  const keys = meta.paintKeys ?? (meta.paintKeys = []);
+  if (!keys.includes(key)) { keys.push(key); saveMeta(); }
+  return keys.indexOf(key) + 1;
+}
+const paintKeyAt = (x: number, y: number) => meta.paintKeys?.[paint[Math.round(y / field.kmPerPx) * field.nx + Math.round(x / field.kmPerPx)] - 1];
+const fullRect = (): Rect => ({ i0: 0, i1: field.nx - 1, j0: 0, j1: field.ny - 1 });
 
 function buildTerrain() {
   if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); }
@@ -132,6 +161,7 @@ function refresh(r: Rect) {
   const nor = mesh.geometry.getAttribute('normal') as THREE.BufferAttribute;
   const col = mesh.geometry.getAttribute('color') as THREE.BufferAttribute;
   const c = new THREE.Color();
+  const painted = (meta.paintKeys ?? []).map((key) => swatchColours.get(key));
   for (let j = Math.max(0, r.j0 - 1); j <= Math.min(ny - 1, r.j1 + 1); j++) for (let i = Math.max(0, r.i0 - 1); i <= Math.min(nx - 1, r.i1 + 1); i++) {
     const k = j * nx + i;
     pos.setY(k, sceneY(h[k]));
@@ -139,7 +169,10 @@ function refresh(r: Rect) {
     const gy = (h[Math.min(ny - 1, j + 1) * nx + i] - h[Math.max(0, j - 1) * nx + i]) / (2000 * kmPerPx);
     const len = Math.hypot(gx * exaggeration, 1, gy * exaggeration);
     nor.setXYZ(k, (-gx * exaggeration) / len, 1 / len, (-gy * exaggeration) / len);
-    c.copy(LAND).lerp(CLIFF, Math.min(1, Math.max(0, (Math.hypot(gx, gy) - 0.35) / 0.5)));
+    const steep = Math.min(1, Math.max(0, (Math.hypot(gx, gy) - 0.35) / 0.5));
+    const colour = painted[paint[k] - 1];
+    if (colour) c.copy(colour).multiplyScalar(1 - 0.35 * steep);
+    else c.copy(LAND).lerp(CLIFF, steep);
     col.setXYZ(k, c.r, c.g, c.b);
   }
   pos.needsUpdate = nor.needsUpdate = col.needsUpdate = true;
@@ -197,16 +230,19 @@ function rebuildMarkers() {
 }
 
 function pushUndo() {
-  undoStack.push(field.h.slice());
+  undoStack.push({ h: field.h.slice(), paint: paint.slice() });
   if (undoStack.length > UNDO_KEEP) undoStack.shift();
 }
 function undo() {
   const prev = undoStack.pop();
   if (!prev) return;
-  field.h = prev;
-  refresh({ i0: 0, i1: field.nx - 1, j0: 0, j1: field.ny - 1 });
+  field.h = prev.h;
+  paint = prev.paint;
+  fitPaint();
+  refresh(fullRect());
   rebuildMarkers();
   saveHeights();
+  savePaint();
 }
 
 function pick(ev: PointerEvent): [number, number] | null {
@@ -222,7 +258,7 @@ function drawRing() {
   ring.visible = !!hover && !eye && tool !== 'stand';
   if (!hover || !ring.visible) return;
   const p = ring.geometry.getAttribute('position') as THREE.BufferAttribute;
-  const r = tool === 'mark' ? widthKm() * 0.008 : radiusKm;
+  const r = tool === 'mark' || tool === 'fill' ? widthKm() * 0.008 : radiusKm;
   for (let n = 0; n < 64; n++) {
     const a = (n / 64) * Math.PI * 2;
     const x = hover[0] + Math.cos(a) * r, y = hover[1] + Math.sin(a) * r;
@@ -233,10 +269,25 @@ function drawRing() {
 
 let stroke: { targetM: number; last: number } | null = null;
 function strokeStep(now: number) {
-  if (!stroke || !hover || tool === 'mark' || tool === 'stand') return;
+  if (!stroke || !hover || tool === 'mark' || tool === 'stand' || tool === 'paint' || tool === 'fill') return;
   const dt = Math.min(0.1, (now - stroke.last) / 1000);
   stroke.last = now;
   refresh(stamp(field, { tool, x: hover[0], y: hover[1], radiusKm, amountM: strength * dt, targetM: stroke.targetM }));
+}
+
+function paintTo(at: [number, number]) {
+  if (!painting) return;
+  refresh(paintLine(paint, field.nx, field.ny, field.kmPerPx, painting, at, radiusKm, paintValue(swatchKey)));
+  painting = at;
+}
+function fillAt(at: [number, number]) {
+  const i = Math.round(at[0] / field.kmPerPx), j = Math.round(at[1] / field.kmPerPx);
+  const dry = field.h[j * field.nx + i] >= meta.seaLevelM;
+  pushUndo();
+  const rect = fillRegion(paint, field.nx, field.ny, i, j, paintValue(swatchKey), (k) => (field.h[k] >= meta.seaLevelM) === dry);
+  if (!rect) { undoStack.pop(); return; }
+  refresh(rect);
+  savePaint();
 }
 
 function toggleMarker(at: [number, number]) {
@@ -286,8 +337,10 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (!at) return;
   if (tool === 'stand') { standAt(at); return; }
   if (tool === 'mark') { toggleMarker(at); return; }
+  if (tool === 'fill') { fillAt(at); return; }
   hover = at;
   pushUndo();
+  if (tool === 'paint') { painting = at; paintTo(at); return; }
   stroke = { targetM: heightAt(field, at[0], at[1]), last: performance.now() };
 });
 canvas.addEventListener('pointermove', (ev) => {
@@ -300,10 +353,15 @@ canvas.addEventListener('pointermove', (ev) => {
     return;
   }
   hover = pick(ev);
-  if (hover) hud.textContent = `${hover[0].toFixed(1)} km east, ${hover[1].toFixed(1)} km south, ${Math.round(heightAt(field, hover[0], hover[1]))} m`;
+  if (hover) {
+    paintTo(hover);
+    const ground = paintKeyAt(hover[0], hover[1]);
+    hud.textContent = `${hover[0].toFixed(1)} km east, ${hover[1].toFixed(1)} km south, ${Math.round(heightAt(field, hover[0], hover[1]))} m${ground ? `, ${ground.replace('-', ' ')}` : ''}`;
+  }
   invalidate();
 });
 canvas.addEventListener('pointerup', () => {
+  if (painting) { painting = null; savePaint(); return; }
   if (!stroke) return;
   stroke = null;
   rebuildMarkers();
@@ -313,7 +371,7 @@ window.addEventListener('keydown', (ev) => {
   if (ev.target instanceof HTMLInputElement && ev.target.type === 'text') return;
   if (ev.key === 'z' && (ev.ctrlKey || ev.metaKey)) { undo(); ev.preventDefault(); return; }
   if (ev.key === 'Escape') { leaveEye(); return; }
-  const order: Tool[] = ['raise', 'lower', 'flatten', 'smooth', 'mark', 'stand'];
+  const order: Tool[] = ['raise', 'lower', 'flatten', 'smooth', 'mark', 'stand', 'paint', 'fill'];
   const n = Number(ev.key);
   if (n >= 1 && n <= order.length) { tool = order[n - 1]; renderPanel(); invalidate(); return; }
   if (ev.key === '[') { radiusKm = Math.max(0.5, radiusKm / 1.25); renderPanel(); invalidate(); return; }
@@ -390,8 +448,36 @@ function slider(text: string, min: number, max: number, value: number, set: (v: 
   input.addEventListener('input', () => { set(Number(input.value)); out.textContent = String(Math.round(Number(input.value) * 10) / 10); invalidate(); });
   return el('label', {}, `${text} `, out, input);
 }
+function swatchButton(key: string | null, label: string, css: string, url?: string) {
+  const b = el('button', { className: key === swatchKey ? 'swatch on' : 'swatch', title: key ?? 'Back to clay' });
+  b.dataset.swatch = key ?? 'clay';
+  const chip = el('span', { className: 'chip' });
+  chip.style.background = url ? `linear-gradient(90deg, transparent 50%, ${css} 50%), url(${url}) left / 50% 100% no-repeat` : css;
+  b.append(chip, label);
+  b.addEventListener('click', () => {
+    swatchKey = key;
+    if (tool !== 'paint' && tool !== 'fill') tool = 'paint';
+    renderPanel();
+    invalidate();
+  });
+  return b;
+}
+function renderPalette() {
+  const biomes = [...new Set(swatches.map((s) => s.biome))];
+  palette.replaceChildren(
+    el('strong', { textContent: 'Ground colours' }),
+    el('small', { textContent: 'Left half: the painted texture. Right half: its median colour, which is what gets painted.' }),
+    ...biomes.flatMap((biome) => [
+      el('h4', { textContent: biome }),
+      el('div', { className: 'swatches' }, ...swatches.filter((s) => s.biome === biome).map((s) => swatchButton(s.key, s.label, `rgb(${s.rgb.join(' ')})`, s.url))),
+    ]),
+    el('h4', { textContent: 'Remove colour' }),
+    el('div', { className: 'swatches' }, swatchButton(null, 'clay', `#${LAND.getHexString()}`)),
+  );
+}
 function renderPanel() {
-  const names: [Tool, string][] = [['raise', '1 Raise'], ['lower', '2 Lower'], ['flatten', '3 Flatten'], ['smooth', '4 Smooth'], ['mark', '5 Mark'], ['stand', '6 Stand here']];
+  renderPalette();
+  const names: [Tool, string][] = [['raise', '1 Raise'], ['lower', '2 Lower'], ['flatten', '3 Flatten'], ['smooth', '4 Smooth'], ['mark', '5 Mark'], ['stand', '6 Stand here'], ['paint', '7 Colour'], ['fill', '8 Fill']];
   const tools = el('div', { className: 'tools' }, ...names.map(([t, text]) => {
     const b = el('button', { textContent: text, className: t === tool ? 'on' : '' });
     b.addEventListener('click', () => { tool = t; renderPanel(); invalidate(); });
@@ -460,11 +546,14 @@ function frame(now: number) {
 }
 
 import.meta.hot?.on('tp:sketch-changed', async (d: { name: string }) => {
-  if (d.name !== NAME || stroke) return;
+  if (d.name !== NAME || stroke || painting) return;
   if (await fetchSketch()) { buildTerrain(); rebuildMarkers(); placeEye(); }
 });
 
 async function start() {
+  swatches = await loadSwatches();
+  for (const s of swatches) swatchColours.set(s.key, new THREE.Color().setRGB(s.rgb[0] / 255, s.rgb[1] / 255, s.rgb[2] / 255, THREE.SRGBColorSpace));
+  swatchKey = swatches[0]?.key ?? null;
   if (!(await fetchSketch())) {
     await fromSkeleton();
     saveHeights();
@@ -479,7 +568,7 @@ async function start() {
   void loadSketchNames();
   document.title = `${NAME} · Shape sketch`;
   resize();
-  Object.assign(window, { __sketch: { ready: true, stand: standAt, leave: leaveEye } });
+  Object.assign(window, { __sketch: { ready: true, stand: standAt, leave: leaveEye, painted: () => paintedShare(paint, meta.paintKeys ?? []) } });
   requestAnimationFrame(frame);
 }
 void start();
