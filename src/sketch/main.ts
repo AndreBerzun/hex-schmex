@@ -142,17 +142,42 @@ function refresh(r: Rect) {
   invalidate();
 }
 
+const numberTextures = new Map<string, THREE.CanvasTexture>();
+function numberTexture(n: number, colour: string): THREE.CanvasTexture {
+  const key = `${n}${colour}`;
+  const known = numberTextures.get(key);
+  if (known) return known;
+  const c = document.createElement('canvas');
+  c.width = c.height = 96;
+  const g = c.getContext('2d')!;
+  g.fillStyle = colour;
+  g.beginPath();
+  g.arc(48, 48, 44, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#fff';
+  g.font = '600 54px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(String(n), 48, 52);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  numberTextures.set(key, t);
+  return t;
+}
+
 function rebuildMarkers() {
   markerGroup.clear();
   const tall = Math.max(0.6, widthKm() * 0.012) * exaggeration;
   const thick = widthKm() * 0.0025;
-  meta.markers.forEach((m) => {
-    const mat = new THREE.MeshBasicMaterial({ color: m.by ? '#e8a200' : '#c8102e', fog: false });
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(thick, thick, tall, 8), mat);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(thick * 3.2, 12, 8), mat);
+  meta.markers.forEach((m, n) => {
+    const colour = m.by ? '#a86f00' : '#c8102e';
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(thick, thick, tall, 8), new THREE.MeshBasicMaterial({ color: colour, fog: false }));
+    const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: numberTexture(n + 1, colour), fog: false, depthTest: false }));
     const base = sceneY(Math.max(meta.seaLevelM, heightAt(field, m.x, m.y)));
     pole.position.set(m.x, base + tall / 2, m.y);
     head.position.set(m.x, base + tall, m.y);
+    head.scale.setScalar(thick * 11);
+    head.renderOrder = 3;
     markerGroup.add(pole, head);
   });
   renderMarkerList();
