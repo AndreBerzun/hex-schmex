@@ -23,10 +23,15 @@ export function flatField(nx: number, ny: number, kmPerPx: number, heightM: numb
 }
 
 export function heightAt(f: Field, x: number, y: number): number {
-  const fx = Math.min(f.nx - 1.001, Math.max(0, x / f.kmPerPx));
-  const fy = Math.min(f.ny - 1.001, Math.max(0, y / f.kmPerPx));
-  const i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j, k = j * f.nx + i;
-  return (f.h[k] * (1 - u) + f.h[k + 1] * u) * (1 - v) + (f.h[k + f.nx] * (1 - u) + f.h[k + f.nx + 1] * u) * v;
+  const fx = Math.min(f.nx - 1, Math.max(0, x / f.kmPerPx));
+  const fy = Math.min(f.ny - 1, Math.max(0, y / f.kmPerPx));
+  const i = Math.min(f.nx - 2, Math.floor(fx)), j = Math.min(f.ny - 2, Math.floor(fy));
+  const u = fx - i, v = fy - j, k = j * f.nx + i;
+  // Match buildTerrain's a-c-b / b-c-d triangles, including the shared diagonal.
+  // Bilinear interpolation can place the walker below a steep, non-planar quad.
+  return u + v <= 1
+    ? f.h[k] * (1 - u - v) + f.h[k + 1] * u + f.h[k + f.nx] * v
+    : f.h[k + 1] * (1 - v) + f.h[k + f.nx] * (1 - u) + f.h[k + f.nx + 1] * (u + v - 1);
 }
 
 export function stamp(f: Field, s: Stamp): Rect {

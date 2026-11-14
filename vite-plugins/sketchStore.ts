@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
 import type { Plugin } from 'vite';
 
@@ -26,6 +26,13 @@ export function sketchStore(dir = 'sketches'): Plugin {
       server.middlewares.use('/__sketch', (req, res) => {
         const name = decodeURIComponent((req.url ?? '/').replace(/^\//, '').replace(/\?.*$/, ''));
         const end = (code: number, body: string | Buffer = '') => { res.statusCode = code; res.end(body); };
+        if (name === '' && req.method === 'GET') {
+          const files = new Set(readdirSync(root).filter(fileOk));
+          const names = [...files].filter((f) => f.endsWith('.json') && files.has(f.replace(/json$/, 'bin'))).map((f) => f.replace(/\.json$/, '')).sort();
+          res.setHeader('content-type', 'application/json');
+          res.setHeader('cache-control', 'no-store');
+          return end(200, JSON.stringify(names));
+        }
         if (!fileOk(name)) return end(400);
         const file = join(root, name);
         if (req.method === 'GET') {

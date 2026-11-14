@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { flatField, groundHit, heightAt, stamp } from '../src/sketch/field';
 
 describe('sketch field', () => {
+  it('keeps the walker on the rendered triangles of a twisted quad, including edges', () => {
+    const f = flatField(2, 2, 1, 0);
+    f.h.set([0, 1000, 1000, 0]);
+    expect(heightAt(f, 0.5, 0.5)).toBe(1000);
+    expect(heightAt(f, 0.25, 0.25)).toBe(500);
+    expect(heightAt(f, 0.75, 0.75)).toBe(500);
+    expect(heightAt(f, 1, 0)).toBe(1000);
+    expect(heightAt(f, 1, 1)).toBe(0);
+  });
+
   it('raises most at the brush centre and nothing outside the radius', () => {
     const f = flatField(101, 101, 1, 100);
     stamp(f, { tool: 'raise', x: 50, y: 50, radiusKm: 10, amountM: 300, targetM: 0 });

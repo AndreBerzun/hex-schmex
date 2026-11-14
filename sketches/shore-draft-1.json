@@ -1,0 +1,241 @@
+{
+ "nx": 501,
+ "ny": 417,
+ "kmPerPx": 0.3,
+ "seaLevelM": -60,
+ "markers": [
+  {
+   "x": 53,
+   "y": 37,
+   "note": "Wetland slope: the one place you walk down into the crater",
+   "by": "Dramba"
+  },
+  {
+   "x": 46,
+   "y": 32.5,
+   "note": "West river mouth: a ravine by day, a fjord at night",
+   "by": "Dramba"
+  },
+  {
+   "x": 74,
+   "y": 28,
+   "note": "Hook peninsula with stacks beyond its tip",
+   "by": "Dramba"
+  },
+  {
+   "x": 80.3,
+   "y": 41,
+   "note": "Pass through the northern highland to a hidden cove",
+   "by": "Dramba"
+  },
+  {
+   "x": 120,
+   "y": 38,
+   "note": "East river gorge: the long way down to the crater",
+   "by": "Dramba"
+  },
+  {
+   "x": 116,
+   "y": 21,
+   "note": "North-east cape: shelters a bay you only see from its ridge",
+   "by": "Dramba"
+  },
+  {
+   "x": 41.5,
+   "y": 63,
+   "note": "Gap in the hill range: first view of the central plain from the west valley",
+   "by": "Dramba"
+  },
+  {
+   "x": 60,
+   "y": 83,
+   "note": "Lake basin under the south wall",
+   "by": "Dramba"
+  },
+  {
+   "x": 66,
+   "y": 110,
+   "note": "Southern approach: a broader, gentler valley into the Hollow Mountains",
+   "by": "Dramba"
+  },
+  {
+   "x": 11,
+   "y": 112,
+   "note": "Hidden high valley: approached through the widened southwest canyon",
+   "by": "Dramba"
+  },
+  {
+   "x": 8,
+   "y": 64,
+   "note": "Canyon into the western Hollow Mountains",
+   "by": "Dramba"
+  },
+  {
+   "x": 108,
+   "y": 80.5,
+   "note": "Edge of the south-east tableland: lookout over the east",
+   "by": "Dramba"
+  },
+  {
+   "x": 138,
+   "y": 70,
+   "note": "Dunes: the mountains fall back and the east stays open",
+   "by": "Dramba"
+  },
+  {
+   "x": 60,
+   "y": 51,
+   "note": "Split Crown ravine: sheer shelves hide the next bend; climb out for a coastal reveal",
+   "by": "Dramba"
+  },
+  {
+   "x": 54,
+   "y": 70,
+   "note": "Folded valley: the west divide hides the Spine until the eastern saddle",
+   "by": "Dramba"
+  },
+  {
+   "x": 108,
+   "y": 75.5,
+   "note": "Knife ridge: high traverse or the river loop around its northern foot",
+   "by": "Dramba"
+  },
+  {
+   "x": 129,
+   "y": 53,
+   "note": "Bent Gate: follow the dogleg ravine north into the enclosed upland",
+   "by": "Dramba"
+  },
+  {
+   "x": 130,
+   "y": 39,
+   "note": "Hidden northeast basin: sheltered floor above the tide, behind the northern separator",
+   "by": "Dramba"
+  },
+  {
+   "x": 127.02,
+   "y": 95.3
+  },
+  {
+   "x": 116.73,
+   "y": 48.06,
+   "id": "bone-ridge",
+   "category": "landmark",
+   "note": "Leviathan Ravine \u2014 scattered vertebrae on the valley floor; skull resting on the eastern mountain shoulder",
+   "by": "Astra"
+  },
+  {
+   "x": 84.83,
+   "y": 33.86
+  },
+  {
+   "x": 85.38,
+   "y": 76.25,
+   "category": "landmark",
+   "id": "crimson-spire",
+   "note": "Crimson Spire \u2014 existing placement"
+  },
+  {
+   "x": 42.69,
+   "y": 27.79,
+   "category": "landmark",
+   "id": "dark-city",
+   "note": "Dark City / Bright Castle \u2014 existing placement"
+  },
+  {
+   "x": 31.77,
+   "y": 103.79,
+   "category": "landmark",
+   "id": "quarries",
+   "note": "Hollow Mountain Quarries \u2014 approach through the western valley"
+  },
+  {
+   "id": "dark-sea-crater",
+   "x": 80,
+   "y": 15,
+   "note": "Dark Sea crater \u2014 the vast dry basin becomes sea at night",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "statue-6",
+   "x": 130,
+   "y": 39,
+   "note": "PROPOSED: Statue VI \u2014 concealed northeast basin beyond the Second City",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "leviathan-vertebrae",
+   "x": 116.3,
+   "y": 50.5,
+   "note": "Leviathan vertebrae \u2014 fallen and scattered along the ravine, revealed after the skull",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "statue-1",
+   "x": 39,
+   "y": 43,
+   "note": "PROPOSED: Statue I \u2014 west river approach below the City",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "statue-2",
+   "x": 52,
+   "y": 67,
+   "note": "PROPOSED: Statue II \u2014 folded valley, screened by the western divide",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "statue-3",
+   "x": 64,
+   "y": 87,
+   "note": "PROPOSED: Statue III \u2014 southern valley junction toward the quarries",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "statue-4",
+   "x": 76,
+   "y": 59,
+   "note": "PROPOSED: Statue IV \u2014 northern saddle on the approach to the Spire",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "statue-5",
+   "x": 101,
+   "y": 83,
+   "note": "PROPOSED: Statue V \u2014 southern route around the knife ridge",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "second-city",
+   "x": 126,
+   "y": 56,
+   "note": "Second City \u2014 southern mouth of the Bent Gate; expedition base nearer the Spire and Soul Tree",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "statue-7",
+   "x": 136,
+   "y": 77,
+   "note": "PROPOSED: Statue VII \u2014 last outcrop before the eastern dunes",
+   "category": "landmark",
+   "by": "Astra"
+  },
+  {
+   "id": "leviathan-skull",
+   "x": 122,
+   "y": 49,
+   "category": "landmark",
+   "by": "Astra",
+   "note": "Leviathan skull \u2014 resting on the eastern shoulder, crown intended to peek over the ridge; silhouette to verify"
+  }
+ ]
+}

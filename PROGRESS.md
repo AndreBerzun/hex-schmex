@@ -778,3 +778,61 @@ hex-schmex#11 merged. The next steps, in order, are at the top of [IDEAS.md](IDE
 
 Tools as before, plus `scripts/{mountain,tidal,ash,mire}-spots.json`; the shot log now prints
 each spot's height above sea.
+
+## 2026-11-14 — Astra Shore sketch alternatives
+
+Original remains `sketch.html?name=shore`; changes target `shore-astra` only.
+Its generator is `sketches/shore-astra-gen.ts` (sketch data and generators are git-ignored).
+First pass added connected divides, shelves and branching ravines. After GM review,
+second pass lowered the south/west mountain wall (peak 9.3 to 6.1 km), widened
+approaches around 11–13, and added a northeast enclosed upland (20), reached through
+a dogleg ravine (19). The first pass is preserved as `shore-astra-v1`.
+
+Sketch-specific browser captures are in `shots/shore-astra-v2/`; the regular world
+screenshot runner does not load sketches. Both generated fields contain finite
+heights. Typecheck and four sketch tests passed during the first pass. No renderer
+or production-map changes. The original sketch has changed since the earlier backup
+comparison, apparently through separate editing; it was not overwritten this pass.
+
+Review: inland divisions read better; the northeast rim is still too oval/artificial.
+Mountain approaches are broader but complete traversability has not been validated.
+Eye-level review exposed an existing viewer issue: bilinear ground sampling differs
+from mesh triangles and can put the camera underground on steep slopes. The sketch
+also has only 300 m samples. Ground-camera repair and route checks remain necessary.
+
+## 2026-11-14 — Selected Dramba v2; landmark-study preparation
+
+GM selected `shore-dramba-v2` as the terrain foundation. Landmark list and locations
+requested before placement. No terrain or marker changes in this preparation pass.
+Fixed sketch `heightAt` to interpolate the actual rendered triangles rather than a
+bilinear surface; this prevents the eye sinking into steep non-planar cells. Edge
+sampling now reaches the exact map boundary. Typecheck and five sketch tests pass,
+including a twisted-quad regression test. Captures: `shots/shore-layout-check/`.
+
+### Landmark pin layer
+
+Purple landmark pins and independent landmark/terrain visibility checkboxes added;
+filtered lists retain original pin numbers, and hidden pins cannot be removed by
+an accidental nearby click. New pins can be categorized with a selector. Confirmed
+replacement City/Spire and quarry pins categorized in `shore-dramba-v2`. Crater,
+second-city, leviathan and seven statue pins added; undecided placements explicitly
+labelled PROPOSED. These are annotations, not physical silhouettes or verified
+sightlines. Tree/ravine positions pending clarification because deleting old pins
+shifted their indices. No terrain changed. Typecheck and sketch tests passed.
+
+### Landmark placement revision
+
+Second City moved to pin 33 (126,56), at the Bent Gate entrance. Statue VI moved
+to its former basin site (pin 26); seven statue proposals remain. Leviathan Ravine
+is pin 20, vertebrae pin 27 (116.3,50.5), skull pin 35 (122,49) on the eastern
+shoulder. Valley elevations sampled around 300 m, skull shoulder around 930 m.
+These remain layout pins, not rendered bones or verified silhouette visibility.
+No terrain changes; marker IDs checked unique.
+
+### Draft saved
+
+The GM's chosen layout is saved as `sketches/shore-draft-1` (heights, 35 pins) and is the only
+sketch tracked in git; open it with `sketch.html?name=shore-draft-1` or from the Sketch picker.
+`sketches/shore-draft-1-gen.ts` is the generator it started from; the saved heights also carry
+one small brush stroke on the crater floor, and the landmark pins were placed by hand, so the
+saved files are the source, not the generator. Next: the GM colours in the biomes.
