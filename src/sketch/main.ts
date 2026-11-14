@@ -5,7 +5,7 @@ import { loadWorld } from '../core/world';
 import { flatField, groundHit, heightAt, stamp, type BrushTool, type Field, type Rect } from './field';
 
 type Tool = BrushTool | 'mark' | 'stand';
-interface Marker { x: number; y: number; note?: string; by?: string }
+interface Marker { x: number; y: number; note?: string; by?: string; category?: 'landmark'; id?: string }
 interface Meta { nx: number; ny: number; kmPerPx: number; seaLevelM: number; markers: Marker[] }
 
 const NAME = new URLSearchParams(location.search).get('name') ?? 'sandbox';
@@ -44,6 +44,10 @@ let tool: Tool = 'raise';
 let radiusKm = 4;
 let strength = 600;
 let dirty = true;
+let showTerrainPins = true;
+let showLandmarkPins = true;
+let markCategory: 'terrain' | 'landmark' = 'terrain';
+const pinVisible = (m: Marker) => m.category === 'landmark' ? showLandmarkPins : showTerrainPins;
 let eye: { x: number; y: number; yaw: number; pitch: number } | null = null;
 let hover: [number, number] | null = null;
 const undoStack: Float32Array[] = [];
@@ -166,11 +170,19 @@ function numberTexture(n: number, colour: string): THREE.CanvasTexture {
 }
 
 function rebuildMarkers() {
+  markerGroup.traverse((o) => {
+    if (o instanceof THREE.Mesh) o.geometry.dispose();
+    if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) {
+      const materials = Array.isArray(o.material) ? o.material : [o.material];
+      materials.forEach((m) => m.dispose());
+    }
+  });
   markerGroup.clear();
   const tall = Math.max(0.6, widthKm() * 0.012) * exaggeration;
   const thick = widthKm() * 0.0025;
   meta.markers.forEach((m, n) => {
-    const colour = m.by ? '#a86f00' : '#c8102e';
+    if (!pinVisible(m)) return;
+    const colour = m.category === 'landmark' ? '#773bc1' : m.by ? '#a86f00' : '#c8102e';
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(thick, thick, tall, 8), new THREE.MeshBasicMaterial({ color: colour, fog: false }));
     const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: numberTexture(n + 1, colour), fog: false, sizeAttenuation: false }));
     const base = sceneY(Math.max(meta.seaLevelM, heightAt(field, m.x, m.y)));
@@ -228,9 +240,9 @@ function strokeStep(now: number) {
 }
 
 function toggleMarker(at: [number, number]) {
-  const near = meta.markers.findIndex((m) => Math.hypot(m.x - at[0], m.y - at[1]) < widthKm() * 0.012);
+  const near = meta.markers.findIndex((m) => pinVisible(m) && Math.hypot(m.x - at[0], m.y - at[1]) < widthKm() * 0.012);
   if (near >= 0) meta.markers.splice(near, 1);
-  else meta.markers.push({ x: Math.round(at[0] * 100) / 100, y: Math.round(at[1] * 100) / 100 });
+  else meta.markers.push({ x: Math.round(at[0] * 100) / 100, y: Math.round(at[1] * 100) / 100, ...(markCategory === 'landmark' ? { category: 'landmark' as const } : {}) });
   rebuildMarkers();
   saveMeta();
 }
@@ -239,6 +251,7 @@ function standAt(at: [number, number]) {
   const back = eye ? eye.yaw : Math.atan2(controls.target.x - camera.position.x, controls.target.z - camera.position.z);
   eye = { x: at[0], y: at[1], yaw: back, pitch: 0 };
   controls.enabled = false;
+  markerGroup.visible = false;
   placeEye();
   renderPanel();
 }
@@ -246,6 +259,7 @@ function leaveEye() {
   if (!eye) return;
   const e = eye;
   eye = null;
+  markerGroup.visible = true;
   controls.enabled = true;
   controls.target.set(e.x, sceneY(heightAt(field, e.x, e.y)), e.y);
   camera.position.set(e.x - Math.sin(e.yaw) * widthKm() * 0.25, controls.target.y + widthKm() * 0.2, e.y - Math.cos(e.yaw) * widthKm() * 0.25);
@@ -356,8 +370,20 @@ async function loadSketchNames() {
   sketchPicker.value = NAME;
 }
 function renderMarkerList() {
-  markerList.replaceChildren(...meta.markers.map((m) => el('li', { className: m.by ? 'mine' : '', textContent: m.note ?? `${m.x.toFixed(0)} east, ${m.y.toFixed(0)} south` })));
+  markerList.replaceChildren(...meta.markers.flatMap((m, index) => {
+    if (!pinVisible(m)) return [];
+    const item = el('li', { className: m.category === 'landmark' ? 'landmark' : m.by ? 'mine' : '', textContent: m.note ?? `${m.x.toFixed(0)} east, ${m.y.toFixed(0)} south` });
+    item.value = index + 1; // filtering must never renumber the map pins
+    return [item];
+  }));
 }
+function pinToggle(label: string, checked: boolean, set: (v: boolean) => void) {
+  const input = el('input', { type: 'checkbox' });
+  input.checked = checked;
+  input.addEventListener('change', () => { set(input.checked); rebuildMarkers(); });
+  return el('label', { className: 'pin-toggle' }, input, label);
+}
+
 function slider(text: string, min: number, max: number, value: number, set: (v: number) => void) {
   const out = el('small', { textContent: String(Math.round(value * 10) / 10) });
   const input = el('input', { type: 'range', min: String(min), max: String(max), step: 'any', value: String(value) });
@@ -397,7 +423,14 @@ function renderPanel() {
     ...(eye ? [back] : []),
     undoB, reset, flat,
     el('small', { textContent: eye ? 'Drag to look, WASD to walk, Shift to run.' : 'Left: tool. Right-drag: turn. WASD or middle-drag: move, Shift faster. Wheel: zoom.' }),
-    el('small', { textContent: 'Marks (red yours, amber Dramba\'s):' }),
+    pinToggle('Terrain pins (red / amber)', showTerrainPins, (v) => { showTerrainPins = v; }),
+    pinToggle('Landmark pins (purple)', showLandmarkPins, (v) => { showLandmarkPins = v; }),
+    el('label', {}, 'New pin type', (() => {
+      const select = el('select', {}, el('option', { value: 'terrain', textContent: 'Terrain note' }), el('option', { value: 'landmark', textContent: 'Landmark' }));
+      select.value = markCategory;
+      select.addEventListener('change', () => { markCategory = select.value as typeof markCategory; });
+      return select;
+    })()),
     markerList,
   );
   renderMarkerList();
