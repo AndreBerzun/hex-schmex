@@ -172,11 +172,11 @@ function rebuildMarkers() {
   meta.markers.forEach((m, n) => {
     const colour = m.by ? '#a86f00' : '#c8102e';
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(thick, thick, tall, 8), new THREE.MeshBasicMaterial({ color: colour, fog: false }));
-    const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: numberTexture(n + 1, colour), fog: false, depthTest: false }));
+    const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: numberTexture(n + 1, colour), fog: false, sizeAttenuation: false }));
     const base = sceneY(Math.max(meta.seaLevelM, heightAt(field, m.x, m.y)));
     pole.position.set(m.x, base + tall / 2, m.y);
     head.position.set(m.x, base + tall, m.y);
-    head.scale.setScalar(thick * 11);
+    head.scale.setScalar(0.035);
     head.renderOrder = 3;
     markerGroup.add(pole, head);
   });
